@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screening Tool - CoughPH</title>
+<meta name="description" content="Start a cough-based respiratory screening with CoughPH.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html"><img class="brand-logo" src="assets/university-seal.png" alt="University of Rizal System seal" onerror="this.style.display='none'">CoughPH</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false"></button>
+      <ul class="nav-links">
+        <li><a href="index.html" data-nav="home">Home</a></li>
+        <li><a href="about.html" data-nav="about">About System</a></li>
+        <li><a href="team.html" data-nav="team">Team &amp; Acknowledgments</a></li>
+        <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+        <li><a href="screening.html" data-nav="screening" class="is-active">Screening Tool</a></li>
+        <li><a class="nav-cta" href="login.html">Portal Login</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Start a Screening</h1>
+        <p>Record a cough using your device's microphone or upload a WAV file. Consent is required before any audio is recorded or processed.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container" style="max-width:480px;">
+        <div class="step-indicator" data-step-indicator>
+          <div class="step is-active" data-step="consent">
+            <div class="step-num">1</div>
+            <div class="step-name">Consent</div>
+          </div>
+          <div class="step-line"></div>
+          <div class="step" data-step="capture">
+            <div class="step-num">2</div>
+            <div class="step-name">Capture</div>
+          </div>
+          <div class="step-line"></div>
+          <div class="step" data-step="result">
+            <div class="step-num">3</div>
+            <div class="step-name">Result</div>
+          </div>
+        </div>
+        <div class="form-box" data-screening-panel>
+          <p class="status-note" data-status>Status: consent required</p>
+          <h2>Capture Audio</h2>
+
+          <button class="btn btn-primary" style="width:100%; margin-bottom:16px;" data-open-consent>Give Consent to Enable Capture</button>
+
+          <div class="capture-tabs">
+            <div class="capture-tab is-active" data-tab="mic">Record Audio</div>
+            <div class="capture-tab" data-tab="upload">Upload WAV</div>
+          </div>
+
+          <div data-capture-panel="mic">
+            <div class="dropzone">
+              <button type="button" class="btn" data-record-btn disabled>Start Recording</button>
+              <p style="margin:10px 0 0; font-size:0.82rem;" data-mic-status>Give consent above to enable recording.</p>
+              <audio data-mic-playback controls style="display:none; width:100%; margin-top:10px;"></audio>
+            </div>
+          </div>
+          <div data-capture-panel="upload" style="display:none;">
+            <div class="dropzone" data-upload-zone>
+              <button type="button" class="btn is-disabled" data-upload-btn>Choose a .wav File</button>
+              <input type="file" accept=".wav,audio/wav" data-upload-input disabled style="display:none;">
+              <p style="margin:10px 0 0; font-size:0.82rem;" data-upload-status>Give consent above to enable upload.</p>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%; margin-top:16px;" data-run-screening disabled>Run Screening</button>
+          <div data-result-panel style="display:none; margin-top:16px;"></div>
+
+          <p class="form-note">By continuing you agree to CoughPH's <a href="legal.html">data handling terms</a>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-alt">
+      <div class="container" style="max-width:480px;">
+        <h2>Screening History</h2>
+        <p style="font-size:0.85rem;">Your result above is saved to the CoughPH database. To review the full history across all patients, sign in as a clinician and open the <a href="dashboard.html">Screening Dashboard</a> — that view is restricted to logged-in staff to protect patient privacy.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-overlay">
+    <div class="modal-box">
+      <h3>Consent to Record</h3>
+      <p>CoughPH will record a short audio clip of your cough and process it through an AI screening pipeline. The recording and its result will be stored so you or a clinician can review them later. You may request export or deletion at any time from the <a href="legal.html">Legal &amp; Privacy</a> page.</p>
+      <label class="modal-check">
+        <input type="checkbox">
+        <span>I am 18 or older, or a parent/guardian is providing consent on behalf of a minor, and I agree to this recording being captured and processed as described.</span>
+      </label>
+      <div class="modal-actions">
+        <button class="btn" data-consent-decline>Decline</button>
+        <button class="btn btn-primary" data-consent-proceed disabled>Agree &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-row">
+        <div>
+          <strong>CoughPH</strong><br>
+          Web-based AI system for early detection of respiratory diseases via cough sound analysis.<br>
+          BS Computer Engineering thesis, University of Rizal System - Morong Campus.
+        </div>
+        <ul class="footer-links">
+          <li><a href="about.html">About System</a></li>
+          <li><a href="team.html">Team &amp; Acknowledgments</a></li>
+          <li><a href="legal.html">Legal &amp; Privacy</a></li>
+          <li><a href="screening.html">Screening Tool</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">For research and clinical-support use only. Not a substitute for professional medical diagnosis.</div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

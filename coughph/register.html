@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Request Registration - CoughPH</title>
+<meta name="description" content="Request a clinician account for the CoughPH Doctor/Nurse Portal.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html"><img class="brand-logo" src="assets/university-seal.png" alt="University of Rizal System seal" onerror="this.style.display='none'">CoughPH</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false"></button>
+      <ul class="nav-links">
+        <li><a href="index.html" data-nav="home">Home</a></li>
+        <li><a href="about.html" data-nav="about">About System</a></li>
+        <li><a href="team.html" data-nav="team">Team &amp; Acknowledgments</a></li>
+        <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+        <li><a href="screening.html" data-nav="screening">Screening Tool</a></li>
+        <li><a class="nav-cta" href="login.html">Portal Login</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="container" style="max-width:440px;">
+        <div class="form-box">
+          <h2>Request a Clinician Account</h2>
+          <p style="font-size:0.88rem;">New accounts require Super Admin approval before you can sign in. You'll be notified once approved.</p>
+
+          <div class="field">
+            <label for="reg-username">Username</label>
+            <input id="reg-username" type="text" autocomplete="username">
+          </div>
+          <div class="field">
+            <label for="reg-role">Role</label>
+            <select id="reg-role">
+              <option value="nurse">Nurse</option>
+              <option value="doctor">Doctor</option>
+            </select>
+          </div>
+          <div class="field pw-field">
+            <label for="reg-password">Password</label>
+            <div class="pw-wrap">
+              <input id="reg-password" type="password" autocomplete="new-password">
+              <button type="button" class="pw-toggle" data-pw-toggle aria-label="Toggle password visibility">
+                <svg class="pw-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="field pw-field">
+            <label for="reg-password-confirm">Confirm Password</label>
+            <div class="pw-wrap">
+              <input id="reg-password-confirm" type="password" autocomplete="new-password">
+              <button type="button" class="pw-toggle" data-pw-toggle aria-label="Toggle password visibility">
+                <svg class="pw-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="pw-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%;" data-register-btn>Create Account</button>
+          <p class="form-note" data-register-status style="color:var(--muted);"></p>
+          <p class="form-note">Already have an account? <a href="login.html">Sign in &rarr;</a></p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-row">
+        <div>
+          <strong>CoughPH</strong><br>
+          Web-based AI system for early detection of respiratory diseases via cough sound analysis.<br>
+          BS Computer Engineering thesis, University of Rizal System - Morong Campus.
+        </div>
+        <ul class="footer-links">
+          <li><a href="about.html">About System</a></li>
+          <li><a href="team.html">Team &amp; Acknowledgments</a></li>
+          <li><a href="legal.html">Legal &amp; Privacy</a></li>
+          <li><a href="screening.html">Screening Tool</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">For research and clinical-support use only. Not a substitute for professional medical diagnosis.</div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

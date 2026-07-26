@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CoughPH - AI-Assisted Respiratory Screening</title>
+    <meta
+      name="description"
+      content="CoughPH analyzes the acoustic signature of a cough to screen for four respiratory conditions using a two-tier gated AI pipeline."
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="index.html"
+          ><img
+            class="brand-logo"
+            src="assets/university-seal.png"
+            alt="University of Rizal System seal"
+            onerror="this.style.display = 'none'"
+          />CoughPH</a
+        >
+        <button
+          class="nav-toggle"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+        ></button>
+        <ul class="nav-links">
+          <li>
+            <a href="index.html" data-nav="home" class="is-active">Home</a>
+          </li>
+          <li><a href="about.html" data-nav="about">About System</a></li>
+          <li>
+            <a href="team.html" data-nav="team">Team &amp; Acknowledgments</a>
+          </li>
+          <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+          <li>
+            <a href="screening.html" data-nav="screening">Screening Tool</a>
+          </li>
+          <li><a class="nav-cta" href="login.html">Portal Login</a></li>
+        </ul>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero hero-split">
+        <div class="container">
+          <div>
+            <h1>AI-assisted respiratory screening from a single cough.</h1>
+            <p>
+              CoughPH analyzes the sound of a cough through a two-tier gated AI
+              pipeline: a focused check for tuberculosis first, then a second
+              model screening for COPD, Pneumonia, or a healthy result.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="screening.html"
+                >Start a Screening</a
+              >
+              <a class="btn btn-outline" href="about.html">How It Works</a>
+            </div>
+          </div>
+          <div class="hero-image-wrap">
+            <img
+              class="hero-image"
+              src="assets/hero-image.jpg"
+              alt="CoughPH hero image"
+              onload="this.classList.add('is-loaded')"
+              onerror="this.style.display = 'none'"
+            />
+            <div class="hero-image-placeholder">
+              <strong>Your image goes here</strong>
+              Save a photo as <code>assets/hero-image.jpg</code><br />See
+              HOW-TO-ADD-YOUR-IMAGE.txt for steps.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-alt">
+        <div class="container">
+          <h2>How the System Works</h2>
+          <p>
+            One audio clip moves through two gated stages before it becomes a
+            screening result.
+          </p>
+          <div class="pipeline" style="grid-template-columns: repeat(2, 1fr)">
+            <div class="box">
+              <div class="icon-circle">
+                <svg
+                  viewBox="0 0 24 24"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M9 11l3 3L22 4" />
+                  <path
+                    d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+                  />
+                </svg>
+              </div>
+              <span class="step-label">TIER 1</span>
+              <h3>TB Gatekeeper</h3>
+              <p>
+                A focused check for tuberculosis. A positive result halts the
+                pipeline and returns an alert immediately.
+              </p>
+            </div>
+            <div class="box">
+              <div class="icon-circle">
+                <svg
+                  viewBox="0 0 24 24"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"
+                  />
+                  <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4" />
+                </svg>
+              </div>
+              <span class="step-label">TIER 2</span>
+              <h3>Respiratory Classifier</h3>
+              <p>
+                If TB is ruled out, screens for COPD or Pneumonia, or confirms a
+                healthy result.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container grid-2">
+          <div>
+            <h2>Built for the Clinic</h2>
+            <p>
+              The primary capture device is an ESP32-S3 with an INMP441
+              microphone over MQTT. If the device is unavailable, screening also
+              works from a browser microphone recording or an uploaded WAV file.
+            </p>
+          </div>
+          <div class="box">
+            <h3>Doctor / Nurse Portal</h3>
+            <p>
+              Clinicians can review the spectrogram, confidence score, and a
+              suggested next step for every screening session.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="container">
+          <h2>Frequently Asked Questions</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>Is a CoughPH result a medical diagnosis?</summary>
+              <p>
+                No. CoughPH is a screening-support tool, not a certified
+                diagnostic device. A result is a suggested next step, not a
+                diagnosis, and should not replace evaluation by a licensed
+                physician.
+              </p>
+            </details>
+            <details class="faq-item">
+              <summary>Do I need the an Expensive device to use it?</summary>
+              <p>
+                No. A High Quality microphone is recommended, but if it isn't
+                available, you can record from your browser using your device
+                microphone or upload a WAV file instead.
+              </p>
+            </details>
+            <details class="faq-item">
+              <summary>What happens to my recording and results?</summary>
+              <p>
+                Nothing is captured without your explicit consent. Once consent
+                is given, your recording and result are stored so you or a
+                clinician can review them later. You can request export or
+                deletion at any time from the Legal &amp; Privacy page.
+              </p>
+            </details>
+            <details class="faq-item">
+              <summary>Who can see my screening history?</summary>
+              <p>
+                Only you and logged-in clinicians can review screening results.
+                The full Screening Dashboard, which lists results across
+                patients, is restricted to approved doctor/nurse accounts.
+              </p>
+            </details>
+            <details class="faq-item">
+              <summary>What conditions does CoughPH screen for?</summary>
+              <p>
+                Four classes: Healthy, COPD, Pneumonia, and Tuberculosis, using
+                the two-tier gated pipeline described on the About System page.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="section-alt">
+        <div class="container">
+          <div class="notice">
+            <h3>Consent-First, and Compliant with Philippine Law</h3>
+            <p>
+              No audio is captured without explicit, informed consent. CoughPH
+              follows the Data Privacy Act of 2012 (R.A. 10173) and the
+              Cybercrime Prevention Act of 2012 (R.A. 10175).
+            </p>
+            <a href="legal.html"
+              >Read the full Legal &amp; Privacy page &rarr;</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-row">
+          <div>
+            <strong>CoughPH</strong><br />
+            Web-based AI system for early detection of respiratory diseases via
+            cough sound analysis.<br />
+            BS Computer Engineering thesis, University of Rizal System - Morong
+            Campus.
+          </div>
+          <ul class="footer-links">
+            <li><a href="about.html">About System</a></li>
+            <li><a href="team.html">Team &amp; Acknowledgments</a></li>
+            <li><a href="legal.html">Legal &amp; Privacy</a></li>
+            <li><a href="screening.html">Screening Tool</a></li>
+          </ul>
+        </div>
+        <div class="footer-bottom">
+          For research and clinical-support use only. Not a substitute for
+          professional medical diagnosis.
+        </div>
+      </div>
+    </footer>
+    <script src="js/main.js"></script>
+  </body>
+</html>

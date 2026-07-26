@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin - CoughPH</title>
+<meta name="description" content="Super Admin panel for approving CoughPH clinician accounts.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html"><img class="brand-logo" src="assets/university-seal.png" alt="University of Rizal System seal" onerror="this.style.display='none'">CoughPH</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false"></button>
+      <ul class="nav-links">
+        <li><a href="index.html" data-nav="home">Home</a></li>
+        <li><a href="about.html" data-nav="about">About System</a></li>
+        <li><a href="team.html" data-nav="team">Team &amp; Acknowledgments</a></li>
+        <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+        <li><a href="screening.html" data-nav="screening">Screening Tool</a></li>
+        <li><a class="nav-cta" href="login.html">Portal Login</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="container">
+        <div class="page-header">
+          <div>
+            <h1 style="margin-bottom:4px;">Super Admin</h1>
+            <p data-welcome-text style="margin-bottom:0;">Loading your session...</p>
+          </div>
+          <button class="btn" data-logout-btn>Log Out</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-alt">
+      <div class="container">
+        <h2>Clinician Accounts</h2>
+        <p style="font-size:0.85rem;">Approve or reject registration requests. Only approved accounts can sign in.</p>
+        <div data-users-table></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>System Performance</h2>
+        <p style="font-size:0.85rem;">Live response-time and reliability data, logged automatically on every request. This reflects real backend performance — not the AI model, which isn't connected in this build yet.</p>
+        <div class="stat-row" data-metrics-overview style="margin-top:6px;"></div>
+        <div data-metrics-table style="margin-top:22px;"></div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-row">
+        <div>
+          <strong>CoughPH</strong><br>
+          Web-based AI system for early detection of respiratory diseases via cough sound analysis.<br>
+          BS Computer Engineering thesis, University of Rizal System - Morong Campus.
+        </div>
+        <ul class="footer-links">
+          <li><a href="about.html">About System</a></li>
+          <li><a href="team.html">Team &amp; Acknowledgments</a></li>
+          <li><a href="legal.html">Legal &amp; Privacy</a></li>
+          <li><a href="screening.html">Screening Tool</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">For research and clinical-support use only. Not a substitute for professional medical diagnosis.</div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

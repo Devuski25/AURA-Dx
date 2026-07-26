@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About the System - CoughPH</title>
+<meta name="description" content="How CoughPH's two-tier gated AI pipeline, ESP32-S3 hardware, and signal processing turn a cough into a screening result.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html"><img class="brand-logo" src="assets/university-seal.png" alt="University of Rizal System seal" onerror="this.style.display='none'">CoughPH</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false"></button>
+      <ul class="nav-links">
+        <li><a href="index.html" data-nav="home">Home</a></li>
+        <li><a href="about.html" data-nav="about" class="is-active">About System</a></li>
+        <li><a href="team.html" data-nav="team">Team &amp; Acknowledgments</a></li>
+        <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+        <li><a href="screening.html" data-nav="screening">Screening Tool</a></li>
+        <li><a class="nav-cta" href="login.html">Portal Login</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>About the System</h1>
+        <p>Coughing is not random noise. Its acoustic shape carries information about the airway that produced it. CoughPH is built to read that signature.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container">
+        <h2>Two-Tier Gated Classification Pipeline</h2>
+        <p>Rather than one model guessing across every condition at once, screening runs through two purpose-built stages in sequence.</p>
+        <div class="pipeline" style="grid-template-columns:repeat(2,1fr);">
+          <div class="box">
+            <div class="icon-circle"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+            <span class="step-label">TIER 1</span>
+            <h3>TB Gatekeeper</h3>
+            <p>A focused binary check on a short 0.34s window of the cough, screening specifically for tuberculosis. A positive result halts the pipeline and returns a TB alert immediately.</p>
+          </div>
+          <div class="box">
+            <div class="icon-circle"><svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></div>
+            <span class="step-label">TIER 2</span>
+            <h3>Respiratory Classifier</h3>
+            <p>If TB is ruled out, a second model analyzes a wider 2.0s window to classify the cough as COPD, Healthy, or Pneumonia.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-alt">
+      <div class="container">
+        <h2>Four Screening Classes</h2>
+        <div class="tag-list">
+          <span>Healthy</span>
+          <span>COPD</span>
+          <span>Pneumonia</span>
+          <span>Tuberculosis</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container grid-2">
+        <div>
+          <h2>Signal Processing</h2>
+          <p>Raw audio is standardized to 16kHz mono, passed through a low-pass filter to reduce high-frequency noise, then converted into a Log-Mel Spectrogram — the same representation used for both tiers, sliced to a different time window for each.</p>
+        </div>
+        <table>
+          <tr><th>Step</th><th>Detail</th></tr>
+          <tr><td>Resampling</td><td>16,000 Hz, mono</td></tr>
+          <tr><td>Low-pass filter</td><td>5th-order Butterworth, 3,000 Hz cutoff</td></tr>
+          <tr><td>Log-Mel Spectrogram</td><td>64 Mel bins, resized for a ResNet18 backbone</td></tr>
+          <tr><td>Tier 1 window</td><td>0.34s, peak-centered</td></tr>
+          <tr><td>Tier 2 window</td><td>2.0s, peak-centered</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="section-alt">
+      <div class="container grid-2">
+        <table>
+          <tr><th>Component</th><th>Role</th></tr>
+          <tr><td>ESP32-S3</td><td>Microcontroller, primary capture device</td></tr>
+          <tr><td>INMP441 MEMS mic</td><td>I2S digital audio input</td></tr>
+          <tr><td>MQTT</td><td>Transport from device to web app</td></tr>
+          <tr><td>Browser mic / WAV upload</td><td>Fallback capture path</td></tr>
+        </table>
+        <div>
+          <h2>Hardware &amp; Fallback</h2>
+          <p>The primary path is a dedicated ESP32-S3 device with an INMP441 microphone over I2S, publishing over MQTT. If offline, the web app records from a browser microphone or accepts an uploaded WAV file, so a screening is never blocked on hardware availability.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-row">
+        <div>
+          <strong>CoughPH</strong><br>
+          Web-based AI system for early detection of respiratory diseases via cough sound analysis.<br>
+          BS Computer Engineering thesis, University of Rizal System - Morong Campus.
+        </div>
+        <ul class="footer-links">
+          <li><a href="about.html">About System</a></li>
+          <li><a href="team.html">Team &amp; Acknowledgments</a></li>
+          <li><a href="legal.html">Legal &amp; Privacy</a></li>
+          <li><a href="screening.html">Screening Tool</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">For research and clinical-support use only. Not a substitute for professional medical diagnosis.</div>
+    </div>
+  </footer>
+  <script src="js/main.js"></script>
+
+</body>
+</html>

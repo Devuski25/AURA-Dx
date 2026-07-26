@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ML Models & Data
+*.pth
+*.pt
+*.h5
+*.model
+*.pickle
+*.pkl
+*.joblib
+*.onnx
+*.bin
+CoughPH-Backend - Copy/models/*.pth
+CoughPH-Backend - Copy/uploads/
+CoughPH-Backend - Copy/instance/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Testing
+.pytest_cache/
+.tox/
+
+# Misc
+*.pyc
+local_settings.py
