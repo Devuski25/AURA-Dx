@@ -24,7 +24,7 @@ const clinicianNavigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "New Screening", href: "/dashboard/screening", icon: LayoutDashboard },
   { name: "Patients", href: "/dashboard/patients", icon: Users },
-  { name: "Screening History", href: "/dashboard/screenings", icon: LayoutDashboard },
+  { name: "Screening Records", href: "/dashboard/screenings", icon: LayoutDashboard },
 ]
 
 const adminNavigation = [

@@ -2,11 +2,19 @@
 
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
+import { Loader2, AlertCircle, Eye, EyeOff, ShieldCheck, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useAuth } from "@/hooks/useAuth"
 
 export function Register() {
@@ -26,6 +34,7 @@ export function Register() {
     specialization: "",
     license_number: "",
   })
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -42,8 +51,9 @@ export function Register() {
       return
     }
 
-    if (formData.password.length < 8) {
-      setError("Password must be at least 8 characters")
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?"':{}|<>]).{8,}$/
+    if (!passwordRegex.test(formData.password)) {
+      setError("Password must be at least 8 characters with uppercase, lowercase, number, and special character")
       return
     }
 
@@ -64,8 +74,8 @@ export function Register() {
       return
     }
 
-    setError(null)
-    navigate("/login")
+    setLoading(false)
+    setShowApprovalDialog(true)
   }
 
   return (
@@ -161,13 +171,14 @@ export function Register() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
+              <p className="text-xs text-muted-foreground">At least 8 characters with uppercase, lowercase, number, and a special character</p>
               <div className="relative">
                   <Input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
                     autoComplete="new-password"
-                    placeholder="•••••••• (min 8 characters)"
+                    placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange}
                     required
@@ -229,6 +240,25 @@ export function Register() {
           </p>
         </CardFooter>
       </Card>
+
+      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-green-500" />
+              Registration Submitted
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Your clinician account has been created. An admin must review and approve your registration before you can access the system.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => { setShowApprovalDialog(false); navigate("/login") }}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

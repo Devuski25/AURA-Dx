@@ -58,9 +58,8 @@ export function Screenings() {
   const [screenings, setScreenings] = useState<Screening[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [tbFilter, setTbFilter] = useState("all")
-  const [respFilter, setRespFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [classFilter, setClassFilter] = useState("all")
+  const [genderFilter, setGenderFilter] = useState("all")
   const [sortField, setSortField] = useState<SortableField>("created_at")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [detailScreening, setDetailScreening] = useState<Screening | null>(null)
@@ -115,22 +114,20 @@ export function Screenings() {
     if (search) {
       const searchLower = search.toLowerCase()
       result = result.filter(s =>
-        s.patient_name.toLowerCase().includes(searchLower) ||
-        s.clinic_name.toLowerCase().includes(searchLower) ||
-        s.clinician_name.toLowerCase().includes(searchLower)
+        s.patient_name.toLowerCase().includes(searchLower)
       )
     }
 
-    if (tbFilter !== "all") {
-      result = result.filter(s => s.tb_result === tbFilter)
+    if (classFilter !== "all") {
+      if (classFilter === "Tuberculosis") {
+        result = result.filter(s => s.tb_result === "TB")
+      } else {
+        result = result.filter(s => s.respiratory_result === classFilter)
+      }
     }
 
-    if (respFilter !== "all") {
-      result = result.filter(s => s.respiratory_result === respFilter)
-    }
-
-    if (statusFilter !== "all") {
-      result = result.filter(s => s.status === statusFilter)
+    if (genderFilter !== "all") {
+      result = result.filter(s => s.patient_gender === genderFilter)
     }
 
     if (sortDirection && sortField) {
@@ -145,7 +142,7 @@ export function Screenings() {
     }
 
     return result
-  }, [screenings, search, tbFilter, respFilter, statusFilter, sortField, sortDirection])
+  }, [screenings, search, classFilter, genderFilter, sortField, sortDirection])
 
   const getStatusBadge = (status: string, reviewedBy: string | null) => {
     if (status === "pending_review") return <Badge variant="warning">Pending Review</Badge>
@@ -185,8 +182,8 @@ export function Screenings() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Screening History</h1>
-          <p className="text-muted-foreground">View and manage all cough screening results</p>
+          <h1 className="text-2xl font-bold">Screening Records</h1>
+          <p className="text-muted-foreground">View and manage patient screening records</p>
         </div>
       </div>
 
@@ -203,35 +200,26 @@ export function Screenings() {
                 className="pl-9"
               />
             </div>
-            <Select value={tbFilter} onValueChange={setTbFilter}>
+            <Select value={classFilter} onValueChange={setClassFilter}>
               <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="TB Result" />
+                <SelectValue placeholder="Class" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                <SelectItem value="TB">TB</SelectItem>
-                <SelectItem value="Non-TB">Non-TB</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={respFilter} onValueChange={setRespFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Respiratory" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="Tuberculosis">Tuberculosis</SelectItem>
                 <SelectItem value="Healthy">Healthy</SelectItem>
-                <SelectItem value="Pneumonia">Pneumonia</SelectItem>
                 <SelectItem value="COPD">COPD</SelectItem>
+                <SelectItem value="Pneumonia">Pneumonia</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={genderFilter} onValueChange={setGenderFilter}>
               <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Gender" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                <SelectItem value="pending_review">Pending Review</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -1,4 +1,4 @@
-# COUGHPH v1 — Design Doc (Updated Post-CEO Review)
+# COUGHPH v1 — Design Doc (Updated 2026-07-29)
 
 ## Problem Statement
 A web app for analyzing cough sounds to screen for **COPD, Tuberculosis, Pneumonia, and Healthy** — validated against real clinician diagnoses. Target: single clinic/hospital deployment with high-volume screening.
@@ -13,16 +13,50 @@ A web app for analyzing cough sounds to screen for **COPD, Tuberculosis, Pneumon
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| **Backend** | FastAPI | Auto-docs, type safety, async, better than Flask for ML serving |
-| **Database** | PostgreSQL (Supabase) | Free tier, managed, auth built-in, scales to clinic volume |
-| **Auth** | Supabase Auth | Magic links / email+password, JWT, row-level security |
-| **Frontend** | React + Tailwind CSS + Vite | Professional clinical UI, component-based, great DX |
-| **ML Serving** | ONNX Runtime (separate process) | ResNet18 → ONNX, CPU-optimized, decoupled from API |
-| **Audio Processing** | librosa (server-side) | Peak detection, dual-slice (0.34s / 2.0s), Log-Mel 64-mel |
-| **Inference Flow** | TB Gatekeeper (0.34s) → if Non-TB → Respiratory (2.0s) | Cascade architecture (resource-constrained training) |
-| **Hosting** | Vercel (frontend) + Supabase (DB/Auth) + Mini-computer (inference) | Free tiers for web, dedicated GPU/CPU for ML |
-| **PDF Export** | ReportLab / WeasyPrint | Doctor page: export filtered/sorted patient table |
-| **Audit Logs** | `created_at` on screening record + doctor login/logout table | Compliance-ready, shown inline in patient table |
+| **Backend** | FastAPI (`backend/main.py`) | Auto-docs, type safety, async, replaces legacy Flask (`backend/app.py` — dead code) |
+| **Database** | PostgreSQL (Supabase local) | Local dev at `127.0.0.1:54321`, 7 migration files applied |
+| **Auth** | Supabase Auth + JWT + `profiles` table | Email/password, JWT decoded by backend, role & clinic_id fetched from DB per request |
+| **Frontend** | React 19 + Vite + Tailwind CSS v4 + shadcn/ui | Professional clinical UI, component-based, `frontend-new/` |
+| **ML Serving** | ONNX Runtime (separate process on `:8000`) | ResNet18 → ONNX, CPU-optimized, decoupled from API at `packages/inference/inference_service.py` |
+| **Audio Processing** | librosa (server-side in inference service) | Peak-centered slice, 224-mel Log-Mel (n_fft=512, hop=160), stack to 3-ch, ImageNet normalize |
+| **Inference Flow** | TB Gatekeeper (0.34s slice) → if Non-TB → Respiratory Classifier (2.0s slice) | Cascade architecture; models: `tb_gatekeeper_resnet18.{pth,onnx}`, `respiratory_classifier_resnet18.{pth,onnx}` |
+| **Inference Service** | `POST /api/inference` multipart audio → JSON result | Lives at `packages/inference/inference_service.py`, port 8000 |
+| **Hosting** | Vercel (frontend) + Supabase (DB/Auth) + Mini-computer (inference) | Free tiers for web, dedicated CPU for ML |
+| **PDF Export** | Backend endpoint `GET /api/screenings/{id}/pdf` | ReportLab |
+| **Audit Logs** | `audit_logs` table with action, entity_type, entity_id, details JSON | Compliance-ready |
+
+### Backend Layout
+
+```
+backend/
+  main.py          — FastAPI app (ACTIVE, port 8001)
+  app.py           — Legacy Flask + SQLite + PyTorch (DEAD CODE — orphaned)
+  config.py        — Settings: INFERENCE_SERVICE_URL, SUPABASE_URL, JWT_SECRET
+  routes/api.py    — All API endpoints (patients, screenings, audio, auth)
+  models.py        — Pydantic models (PatientCreate, ScreeningCreate, etc.)
+  auth.py          — JWT decode, get_current_user, require_role dependencies
+  audio_utils.py   — Old PyTorch DSP pipeline (torchaudio, scipy Butterworth, 64-mel)
+```
+
+---
+
+## Discrepancies (Reality vs Original Design)
+
+| Original Design | Reality | Impact |
+|----------------|---------|--------|
+| Inference on `:8000`, Backend on `:8001` | Same — correct | — |
+| Audio processing: 64-mel Log-Mel | ONNX pipeline uses **224-mel** (n_fft=512, hop=160), old PyTorch pipeline uses 64-mel (n_fft=1024, hop=256) | Preprocessing mismatch between training and serving — needs verification |
+| Low-pass filter @ 3000Hz (Butterworth) in audio pipeline | ONNX pipeline has NO low-pass filter | Outputs may differ from training — needs testing against known diagnoses |
+| `clinic_id` seeded in migration | Migration existed but local Supabase was reset — `clinics` table empty, all profiles had `clinic_id = null` | Patient creation failed with 500 until manually fixed |
+| Structured JSON error envelopes | Backend returns generic 500 errors with no detail | Needs middleware to catch and format errors |
+| Async inference with job polling (`POST → job_id`, `GET /status`) | Synchronous HTTP POST — frontend waits for response | Browser may time out on slow devices |
+| Worker pool = CPU cores - 1 | No worker pool — unlimited concurrent inference | CPU contention under load |
+| Audio validation (MIME, ≤30s, 16kHz mono) | No validation — any file accepted | Bad audio wastes inference time |
+| Supabase RLS on all tables | RLS policies applied, some may be permissive locally | OK for local dev, needs audit before prod |
+| shadcn/ui uses Radix Checkbox | Custom native `<input type="checkbox">` wrapper | No a11y issues, but deviates from Radix |
+| Admin nav has "New Screening" | Admin nav: Dashboard, Patients, Users (no New Screening) | Admin cannot create screenings — by design? |
+| `model_version` in all inference payloads | Present — `"1.0.0"` | — |
+| ONNX models in `models/` | Both `.pth` and `.onnx` exist | ONNX is the serving format |
 
 ---
 
@@ -30,67 +64,148 @@ A web app for analyzing cough sounds to screen for **COPD, Tuberculosis, Pneumon
 
 | Decision | Choice | Notes |
 |----------|--------|-------|
-| **Scope** | Multi-clinic ready from day one | Admin panel included; multiple clinicians expected |
+| **Scope** | Multi-clinic ready from day one | Admin panel included; `clinic_id` on all tables |
 | **Admin Panel** | In MVP | Clinician approval, audit logs, record management |
 | **Risk Level Display** | Removed | Only % per class + recommendations per condition |
-| **COPD risk** | Moderate | |
-| **Pneumonia/TB risk** | High | |
-| **Healthy** | Green | |
+| **COPD risk** | Moderate (yellow) | |
+| **Pneumonia/TB risk** | High (red) | |
+| **Healthy** | Low (green) | |
 
 ---
 
-## MVP Scope (Must-Have)
+## MVP Scope (Implemented)
 
 | Feature | Details |
 |---------|---------|
-| **Auth** | Clinician register → admin approve → login (Supabase Auth) |
-| **New Patient Form** | Name, DOB (auto-age), gender, **smoking**, **past respiratory diseases**, symptoms (checklist: headache, fever, dry cough, wet cough, etc.) |
-| **Screening Page** | Record/upload cough (≤5MB) → dual-model inference → result page |
-| **Result Page** | % per class (4 classes), recommendations per condition (no risk level) |
-| **Patient History (Doctor)** | Table: sortable by date, condition, gender, age bracket (0-12,13-21,22-35,35+), search by name, audit column (saved-at timestamp) |
-| **Admin Panel** | All doctor data + approve/reject/delete clinicians, delete any patient record, view doctor login/logout times |
-| **UI/UX** | Clinical/professional + modern, Tailwind, subtle animations, not "AI slop" |
+| **Auth** | Register → admin approve → login (Supabase Auth). Approved first-login clinicians see confirmation dialog. |
+| **New Patient Form** | Name, DOB (auto-age in read-only field), Gender, Smoking (Yes/No radio), Past Respiratory Diseases (pill checkboxes + "None of the above"), Symptoms (pill checkboxes + "None of the above"). No pack years. No Night sweats. |
+| **Screening Flow (3-step)** | Step 1: Select/Create patient → Step 2: Record mic or upload .wav → Step 3: View TB + Respiratory results with % and clinical recommendations |
+| **Screening Records** | Table with search (patient name), Class filter (All/TB/Healthy/COPD/Pneumonia), Gender filter (All/Male/Female), sortable columns. Detail dialog with full results. |
+| **Patients Page** | List with search, add/edit/delete. Clinician sees own patients; admin sees all. |
+| **Result Page** | % per class (TB/Non-TB + Healthy/COPD/Pneumonia), cascade info, confidence bars, clinical recommendations per condition. |
+| **Admin Panel** | User approval/rejection, role management, system metrics. |
+| **Audit Logs** | `audit_logs` table: patient_create, screening_create, user_approve, etc. |
+| **UI/UX** | Clinical/professional, Tailwind CSS v4, shadcn/ui components, mobile-responsive sidebar. |
+
+### Not Yet Implemented (from MVP)
+- PDF reports on Screening Records page (endpoint exists but not tested from UI)
+- Age bracket filter on Screening Records (removed in scope reduction)
+- Doctor login/logout audit table
+- Dashboard statistics page is basic
 
 ---
 
 ## Deferred to Phase 2
-- PDF reports (doctor export)
+- PDF reports (doctor export — endpoint exists, needs UI polish)
 - Email notifications
 - Multi-language
 - Patient portal
 - Model retraining pipeline
 - Advanced audit logs (beyond created_at + login/logout)
+- Async inference with job polling
+- Audio validation (MIME, duration, sample rate)
+- Worker pool limiting
+- Structured JSON error envelopes
 
 ---
 
 ## Technical Specifications
 
-### 1. ONNX Conversion
-- ResNet18 `.pth` → ONNX with **dynamic axes for batch size**
-- Both models: `tb_gatekeeper_resnet18.onnx`, `respiratory_classifier_resnet18.onnx`
+### 1. Models
 
-### 2. Inference Service (Separate FastAPI)
-- Runs locally on `http://localhost:8000`
-- REST API, accepts `multipart/form-data` audio files
-- Returns JSON inference results with **`model_version` metadata**
-- **Structured JSON error handling** (consistent error envelopes)
-- Code structured to re-point to local network IP for dedicated hardware migration
-- Endpoint: `POST /api/inference` → `{ job_id }` or direct result
-- Async: `GET /api/status/{job_id}` for polling
+Both model formats exist at `models/`:
 
-### 3. Supabase RLS
-- Policies: clinicians see own patients; admins see all
-- Row-level security enabled on all patient tables
-- **Multi-clinic ready**: `clinic_id` on all tables from day one
+| Model | PyTorch | ONNX | Purpose |
+|-------|---------|------|---------|
+| TB Gatekeeper | `tb_gatekeeper_resnet18.pth` | `tb_gatekeeper_resnet18.onnx` | Binary TB vs Non-TB (0.34s audio) |
+| Respiratory Classifier | `respiratory_classifier_resnet18.pth` | `respiratory_classifier_resnet18.onnx` | 3-class Healthy/COPD/Pneumonia (2.0s audio) |
 
-### 4. Audio Upload
-- Via backend (FastAPI) → Supabase Storage or local temp → inference service
-- Not direct from frontend
+ONNX conversion via `packages/inference/export_onnx.py` with dynamic batch axes.
 
-### 5. Real-time Inference
-- Standard HTTP POST from frontend
-- Loading state while awaiting JSON response
-- If async: lightweight polling `GET /api/status/{job_id}` (no WebSockets)
+### 2. Inference Pipeline (ONNX — Active)
+
+```
+audio file → soundfile.read() → librosa.resample(16000)
+  → peak-centered slice (0.34s or 2.0s)
+  → librosa.feature.melspectrogram(224-mel, n_fft=512, hop_length=160)
+  → log(1 + mel_spec) → stack (3, 224, time) → ImageNet normalize
+  → ONNX Runtime session.run()
+```
+
+**Differences from training pipeline** (see `backend/audio_utils.py`):
+- No Butterworth low-pass filter @ 3000Hz
+- N_MELS=224 vs 64
+- n_fft=512 vs 1024
+- hop_length=160 vs 256
+- Stack 3 channels vs repeat 1→3 then resize
+
+### 3. Inference Service (`packages/inference/inference_service.py`)
+
+- FastAPI on port 8000
+- `POST /api/inference` — multipart form with `audio` file → JSON result
+- `GET /health` — model loaded check
+- Loads both ONNX sessions at startup
+- Returns: `{ tb_result: {label, confidence, probabilities}, respiratory_result: {...}, cascade, model_version }`
+- Backend calls it at `routes/api.py:512-518` via `settings.inference_service_url`
+
+### 4. Supabase Schema
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `profiles` | User accounts | id, clinic_id, email, full_name, role, status |
+| `clinics` | Clinic registry | id, name, address, is_active |
+| `patients` | Patient records | id, clinic_id, clinician_id, full_name, gender, smoking_history |
+| `screenings` | Screening results | id, patient_id, tb_result, respiratory_result, cascade_path, audio_file_path |
+| `audit_logs` | Activity trail | user_id, action, entity_type, entity_id, details (JSONB) |
+
+Views: `patient_list_view`, `screening_history_view`
+
+### 5. Auth Flow
+
+1. User signs in via Supabase Auth (email + password)
+2. Frontend stores `access_token` from session
+3. Backend `auth.py:decode_token()` decodes JWT (ES256 or HS256)
+4. If JWT role is `"authenticated"` (not clinician/admin/super_admin), fetches real role + `clinic_id` from `profiles` table
+5. `require_role()` dependency gates endpoints by role
+6. `clinic_id` from profile is used to scope all queries
+
+### 6. Frontend Routes
+
+| Path | Component | Description |
+|------|-----------|-------------|
+| `/login` | `Login.tsx` | Supabase email/password sign-in |
+| `/register` | `Register.tsx` | New user registration |
+| `/dashboard` | `Dashboard.tsx` | Stats overview |
+| `/dashboard/screening` | `Screening.tsx` | 3-step: patient → record → result |
+| `/dashboard/screenings` | `Screenings.tsx` | Screening history table |
+| `/dashboard/patients` | `Patients.tsx` | Patient CRUD |
+| `/dashboard/patients/:id` | `PatientDetail.tsx` | Single patient view |
+| `/dashboard/screenings/:id` | `ScreeningDetail.tsx` | Single screening view |
+| `/dashboard/admin` | `Admin.tsx` | User management (admin/super_admin only) |
+
+### 7. Frontend Components (shadcn/ui)
+
+- `NewPatientModal.tsx` — Patient creation form in Dialog (the only form using shadcn `Form` + `FormField`)
+- `Layout.tsx` — Sidebar + header layout, conditional nav (clinician vs admin)
+- Checkbox is a custom native `<input type="checkbox">` wrapper (not Radix)
+- Select is shadcn `Select` (Radix-based)
+- Badges for TB (destructive/success) and Respiratory (success/warning/destructive)
+
+---
+
+## Known Issues & Open Items
+
+### Critical
+- **ONNX vs PyTorch preprocessing mismatch** — different mel params and no low-pass filter. Need to test both pipelines against known diagnoses to verify outputs converge.
+- **`clinic_id` seed data missing** — local Supabase resets lose the default clinic. Must manually insert before creating patients (see SETUP.md).
+
+### Minor
+- `FormMessage` in `NewPatientModal` didn't display errors (fixed — was missing `fieldState.error`)
+- Nested `<form>` in `NewPatientModal` prevented form submission (fixed)
+- Audio upload `.wav` MIME type check too strict — Windows may send `audio/x-wav`
+- `accessToken` null guard silently returns (fixed — now shows toast)
+- No loading skeleton for inference wait (spinner only)
+- Backend returns generic 500 with no error detail
 
 ---
 
@@ -99,13 +214,14 @@ A web app for analyzing cough sounds to screen for **COPD, Tuberculosis, Pneumon
 | Decision | Choice |
 |----------|--------|
 | **Inference Topology** | Network REST API on FastAPI (http://localhost:8000) |
-| **Error Handling** | Structured JSON error envelopes |
-| **Model Versioning** | `model_version` in API payloads |
-| **Testing** | pytest for backend inference testing |
+| **Error Handling** | Generic 500 — structured JSON envelopes deferred |
+| **Model Versioning** | `model_version` in API payloads (`"1.0.0"`) |
+| **Testing** | No automated tests yet |
 | **Model Loading** | Load ONNX sessions at startup (memory-resident) |
-| **Concurrency** | Fixed worker pool = CPU cores - 1 |
-| **Audio Validation** | Strict at API gateway: MIME, duration ≤30s, 16kHz mono |
-| **Observability** | Structured JSON logs + Sentry free tier |
+| **Concurrency** | No worker pool — deferred |
+| **Audio Validation** | None — deferred |
+| **Observability** | Console logs only |
+| **Active Backend** | FastAPI `backend/main.py` (Flask `backend/app.py` is dead) |
 
 ---
 
@@ -113,13 +229,13 @@ A web app for analyzing cough sounds to screen for **COPD, Tuberculosis, Pneumon
 
 | Decision | Choice |
 |----------|--------|
-| **Component Library** | shadcn/ui (Radix UI) — WCAG AA accessible |
+| **Component Library** | shadcn/ui (custom Checkbox, Radix Select/Select content/Dialog) |
 | **Color Palette** | Slate/Blue clinical neutrals |
 | **Diagnostic Indicators** | Green (Healthy), Amber (COPD/Moderate), Red (Pneumonia/TB/High) |
 | **Risk Mapping** | COPD=Moderate/Amber, Pneumonia=High/Red, TB=High/Red, Healthy=Green |
-| **Dark/Light Mode** | Toggleable (user preference persisted in localStorage) |
-| **Print Stylesheet** | Minimal `@media print` — hides nav, white background, clean result card |
-| **Loading States** | Skeleton screens (shadcn/ui `Skeleton` component) |
+| **Dark/Light Mode** | Not implemented (light only) |
+| **Print Stylesheet** | Not implemented |
+| **Loading States** | Spinners only (no skeletons) |
 
 ---
 
@@ -127,39 +243,11 @@ A web app for analyzing cough sounds to screen for **COPD, Tuberculosis, Pneumon
 
 | Decision | Choice |
 |----------|--------|
-| **API Contract** | FastAPI auto-generated OpenAPI spec |
-| **Type Sharing** | openapi-typescript → React TypeScript types |
-| **Backend Testing** | pytest for inference testing |
-| **Shared Types Package** | `@coughph/types` (local npm/GitHub Packages) |
-| **Test Pyramid** | pytest (backend/inference), Vitest (frontend), Playwright (integration/E2E) |
-| **Local Dev** | Docker Compose (PostgreSQL, backend, inference, frontend) |
-
----
-
-## Local-First Development
-**Build entirely on local machine first.** No deployment until you're satisfied.
-- Frontend: `npm run dev` (Vite + React + Tailwind + shadcn/ui)
-- Backend: `uvicorn main:app --reload` (FastAPI on :8000)
-- Inference: separate FastAPI on :8001 (or same with route prefix)
-- Database: local PostgreSQL (Docker) or Supabase local dev
-- ML models: local `.onnx` files
-
----
-
-## Remaining Open Questions
-
-### Engineering Review
-1. **Model loading**: Load ONNX models at startup (memory) or lazy-load per request?
-2. **Concurrency**: How many simultaneous inferences? Worker pool size?
-3. **Audio validation**: MIME type, duration limits, sample rate enforcement?
-4. **Error telemetry**: Sentry? Structured logs to file?
-
-### Design Review
-1. **Dark mode**: Support from day one or defer?
-2. **Print stylesheet**: For result page (clinician may print)?
-3. **Loading states**: Skeleton screens vs spinners for inference wait?
-
-### DevEx Review
-1. **Monorepo vs separate repos**: Frontend/backend/inference in one repo?
-2. **CI pipeline**: GitHub Actions — lint, typecheck, test, build?
-3. **Local dev script**: Single command to spin up all services (docker-compose)?
+| **API Contract** | FastAPI auto-generated OpenAPI spec at `/docs` |
+| **Type Sharing** | None (manual TypeScript types) |
+| **Backend Testing** | None |
+| **Shared Types Package** | None |
+| **Test Pyramid** | None implemented |
+| **Local Dev** | Manual — 4 terminals (supabase, inference, backend, frontend) |
+| **Monorepo** | Yes — all in one repo |
+| **CI Pipeline** | None |

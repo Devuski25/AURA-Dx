@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { X, Calendar } from "lucide-react"
+import { Calendar } from "lucide-react"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -49,6 +49,7 @@ const PAST_DISEASES = [
   "Sleep Apnea",
   "Cystic Fibrosis",
   "Other",
+  "None of the above",
 ]
 
 const SYMPTOMS = [
@@ -59,10 +60,10 @@ const SYMPTOMS = [
   "Wheezing",
   "Fatigue",
   "Weight loss",
-  "Night sweats",
   "Hemoptysis (coughing blood)",
   "Sore throat",
   "Runny nose",
+  "None of the above",
 ]
 
 const patientSchema = z.object({
@@ -70,7 +71,6 @@ const patientSchema = z.object({
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female", "other"]),
   smoking_history: z.boolean(),
-  pack_years: z.number().optional(),
   past_respiratory_diseases: z.array(z.string()),
   symptoms: z.array(z.string()),
 })
@@ -95,7 +95,6 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
       date_of_birth: "",
       gender: "male",
       smoking_history: false,
-      pack_years: undefined,
       past_respiratory_diseases: [] as string[],
       symptoms: [] as string[],
     },
@@ -123,7 +122,10 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
   }, [dobValue])
 
   const onSubmit = async (data: PatientFormData) => {
-    if (!user || !accessToken) return
+    if (!user || !accessToken) {
+      toast.error("Session not ready. Please wait or log out and back in.")
+      return
+    }
 
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8001"}/api/patients`, {
@@ -134,7 +136,6 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
         },
         body: JSON.stringify({
           ...data,
-          pack_years: data.smoking_history ? data.pack_years : null,
           clinician_id: user.id,
           clinic_id: user.clinic_id,
         }),
@@ -157,43 +158,34 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            New Patient Screening
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </DialogTitle>
-          <DialogDescription>
-            Enter patient details for a new cough screening. All fields are required unless marked optional.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              New Patient Screening
+            </DialogTitle>
+            <DialogDescription>
+              Enter patient details for a new cough screening.
+            </DialogDescription>
+          </DialogHeader>
+        <Form {...form} onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="full_name"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
                       <Input placeholder="Dr. John Smith" {...field} />
                     </FormControl>
-                    <FormMessage />
+                    {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
                 name="date_of_birth"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>Date of Birth</FormLabel>
                     <FormControl>
@@ -203,27 +195,22 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                           type="date"
                           className="pl-10"
                           max={new Date().toISOString().split("T")[0]}
+                          onWheel={(e) => e.currentTarget.blur()}
                           {...field}
                         />
                       </div>
                     </FormControl>
-                    {age !== null && (
-                      <FormDescription className="flex items-center gap-2 text-primary">
-                        <Calendar className="h-3.5 w-3.5" />
-                        Auto-calculated age: <strong>{age} years</strong> ({ageBracket})
-                      </FormDescription>
-                    )}
-                    <FormMessage />
+                    {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
                 name="gender"
-                render={({ field }) => (
+                render={({ field, fieldState }) => (
                   <FormItem>
                     <FormLabel>Gender</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select gender" />
@@ -235,56 +222,51 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormMessage />
+                    {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="pack_years"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pack Years {form.watch("smoking_history") ? "" : "(if smoker)"}</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        placeholder="e.g., 20"
-                        disabled={!form.watch("smoking_history")}
-                        value={field.value ?? ""}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          field.onChange(val === "" ? undefined : parseFloat(val))
-                        }}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                        name={field.name}
-                      />
-                    </FormControl>
-                    <FormDescription>Number of packs per day × years smoked</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div>
+                <p className="text-sm font-medium mb-2">Age</p>
+                <Input
+                  type="text"
+                  readOnly
+                  value={age !== null ? `${age} years (${ageBracket})` : ""}
+                  placeholder="—"
+                  className="bg-muted h-9"
+                />
+              </div>
             </div>
 
             <FormField
               control={form.control}
               name="smoking_history"
-              render={({ field }) => (
-                <FormItem className="flex items-center space-x-2">
+              render={({ field, fieldState }) => (
+                <FormItem>
+                  <FormLabel>Smoking</FormLabel>
                   <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onChange={(e) => field.onChange(e.target.checked)}
-                    />
+                    <div className="flex gap-6 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={field.value === true}
+                          onChange={() => field.onChange(true)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">Yes</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={field.value === false}
+                          onChange={() => field.onChange(false)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">No</span>
+                      </label>
+                    </div>
                   </FormControl>
-                  <FormLabel className="cursor-pointer">
-                    Smoking History
-                    {field.value && (
-                      <span className="ml-2 text-sm text-primary">Pack years required</span>
-                    )}
-                  </FormLabel>
+                  {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
                 </FormItem>
               )}
             />
@@ -292,16 +274,16 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
             <FormField
               control={form.control}
               name="past_respiratory_diseases"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Past Respiratory Diseases</FormLabel>
                   <FormControl>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {PAST_DISEASES.map((disease) => (
                         <label
                           key={disease}
                           className={cn(
-                            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors cursor-pointer",
+                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors cursor-pointer",
                             field.value.includes(disease)
                               ? "border-primary bg-primary text-primary-foreground"
                               : "border-muted-foreground/25 hover:border-primary/50"
@@ -311,12 +293,16 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                             type="checkbox"
                             checked={field.value.includes(disease)}
                             onChange={(e) => {
-                              const newValue = e.target.checked
-                                ? [...field.value, disease]
-                                : field.value.filter((d: string) => d !== disease)
-                              field.onChange(newValue)
+                              if (disease === "None of the above") {
+                                field.onChange(e.target.checked ? ["None of the above"] : [])
+                              } else {
+                                let newValue = e.target.checked
+                                  ? [...field.value, disease]
+                                  : field.value.filter((d: string) => d !== disease)
+                                field.onChange(newValue.filter((d: string) => d !== "None of the above"))
+                              }
                             }}
-                            className="h-3.5 w-3.5"
+                            className="h-3 w-3"
                           />
                           {disease}
                         </label>
@@ -324,7 +310,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                     </div>
                   </FormControl>
                   <FormDescription>Select all that apply</FormDescription>
-                  <FormMessage />
+                  {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
                 </FormItem>
               )}
             />
@@ -332,16 +318,16 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
             <FormField
               control={form.control}
               name="symptoms"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem>
                   <FormLabel>Current Symptoms</FormLabel>
                   <FormControl>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       {SYMPTOMS.map((symptom) => (
                         <label
                           key={symptom}
                           className={cn(
-                            "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors cursor-pointer",
+                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors cursor-pointer",
                             field.value.includes(symptom)
                               ? "border-primary bg-primary text-primary-foreground"
                               : "border-muted-foreground/25 hover:border-primary/50"
@@ -351,12 +337,16 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                             type="checkbox"
                             checked={field.value.includes(symptom)}
                             onChange={(e) => {
-                              const newValue = e.target.checked
-                                ? [...field.value, symptom]
-                                : field.value.filter((s: string) => s !== symptom)
-                              field.onChange(newValue)
+                              if (symptom === "None of the above") {
+                                field.onChange(e.target.checked ? ["None of the above"] : [])
+                              } else {
+                                let newValue = e.target.checked
+                                  ? [...field.value, symptom]
+                                  : field.value.filter((s: string) => s !== symptom)
+                                field.onChange(newValue.filter((s: string) => s !== "None of the above"))
+                              }
                             }}
-                            className="h-3.5 w-3.5"
+                            className="h-3 w-3"
                           />
                           {symptom}
                         </label>
@@ -364,12 +354,12 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                     </div>
                   </FormControl>
                   <FormDescription>Select all current symptoms</FormDescription>
-                  <FormMessage />
+                  {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
                 </FormItem>
               )}
             />
 
-            <DialogFooter className="gap-2">
+            <DialogFooter className="gap-2 pt-1">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -377,7 +367,6 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
                 {form.formState.isSubmitting ? "Creating..." : "Create Patient & Continue"}
               </Button>
             </DialogFooter>
-          </form>
         </Form>
       </DialogContent>
     </Dialog>

@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
 
@@ -24,7 +24,7 @@ interface AuthContextType {
   user: Profile | null
   loading: boolean
   accessToken: string | null
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; accountStatus?: "approved" | "pending" | "rejected" }>
   signUp: (data: {
     email: string
     password: string
@@ -36,6 +36,7 @@ interface AuthContextType {
   }) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
+  confirmLogin: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -46,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const skipAuthEventRef = useRef(false)
+  const pendingLoginUserIdRef = useRef<string | null>(null)
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -84,7 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "INITIAL_SESSION") return
       if (session?.user) {
         setAccessToken(session.access_token)
-        await fetchProfile(session.user.id)
+        if (!skipAuthEventRef.current) {
+          await fetchProfile(session.user.id)
+        }
       } else {
         setUser(null)
         setAccessToken(null)
@@ -99,8 +104,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
+    skipAuthEventRef.current = true
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error ? new Error(error.message) : null }
+    if (error) {
+      skipAuthEventRef.current = false
+      return { error: new Error(error.message) }
+    }
+
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (authUser) {
+      let profile: { status: string; last_login_at: string | null; role: string } | null = null
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("status, last_login_at, role")
+          .eq("id", authUser.id)
+          .single()
+        profile = data
+      } catch (e) {
+        console.error("Error fetching profile status:", e)
+      }
+
+      if (profile) {
+        const accountStatus = profile.status as "pending" | "approved" | "rejected"
+        if (profile.status !== "approved") {
+          await supabase.auth.signOut()
+          skipAuthEventRef.current = false
+          return { error: null, accountStatus }
+        }
+
+        if (!profile.last_login_at && profile.role !== "super_admin") {
+          pendingLoginUserIdRef.current = authUser.id
+          skipAuthEventRef.current = false
+          return { error: null, accountStatus: "approved" as const }
+        }
+      }
+
+      await fetchProfile(authUser.id)
+    }
+
+    skipAuthEventRef.current = false
+    return { error: null }
+  }
+
+  const confirmLogin = async () => {
+    const userId = pendingLoginUserIdRef.current
+    if (userId) {
+      pendingLoginUserIdRef.current = null
+      await fetchProfile(userId)
+    }
   }
 
   const signUp = async (data: {
@@ -112,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     specialization?: string
     license_number?: string
   }) => {
+    skipAuthEventRef.current = true
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
@@ -119,6 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: { full_name: data.full_name, role: data.role },
       },
     })
+    if (!error) {
+      await supabase.auth.signOut()
+    }
+    skipAuthEventRef.current = false
     return { error: error ? new Error(error.message) : null }
   }
 
@@ -135,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, accessToken, signIn, signUp, signOut, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, accessToken, signIn, signUp, signOut, refreshUser, confirmLogin }}>
       {children}
     </AuthContext.Provider>
   )

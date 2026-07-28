@@ -1,6 +1,6 @@
 # COUGHPH — Step-by-Step Setup Guide
 
-**Last updated:** July 2026  
+**Last updated:** July 29, 2026  
 **OS:** Windows (PowerShell)
 
 ---
@@ -54,12 +54,31 @@ service_role key: eyJhbGciOiJIUzI1NiIs...
 
 > **NOTE:** The migration files in `supabase/migrations/` apply automatically on first start. They create all tables (profiles, patients, screenings, clinics, audit_logs), indexes, RLS policies, and views.
 
-### Troubleshooting Supabase
+### 1a. CRITICAL: Seed default clinic and assign clinic_id to users
 
-- **"Docker is not running"** → Open Docker Desktop and wait for it to fully start
-- **Port conflict** → If port 54321, 54322, or 54323 is already in use, stop the conflicting service or change ports in `supabase/config.toml`
-- **Migration failed** → Run `supabase migration up` manually to apply any pending migrations
-- **Reset everything** → `supabase db reset` (wipes all data and re-applies migrations)
+The migration creates the `clinics` table but **does not always seed the default clinic** on local Supabase resets. Without it, patient creation fails with `500 Internal Server Error` because `clinic_id` is NOT NULL on the `patients` table.
+
+Run these SQL commands in Supabase Studio SQL Editor (`http://127.0.0.1:54323/project/default/sql/new`):
+
+```sql
+-- Insert default clinic (skip if already exists)
+INSERT INTO clinics (id, name, address, phone, email, is_active)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  'Default Clinic',
+  '123 Main St, City',
+  '+1234567890',
+  'clinic@coughph.local',
+  true
+) ON CONFLICT (id) DO NOTHING;
+
+-- Assign all users without a clinic to the default clinic
+UPDATE profiles
+SET clinic_id = '00000000-0000-0000-0000-000000000001'
+WHERE clinic_id IS NULL;
+```
+
+**Do this every time you run `supabase db reset` or `supabase stop --no-backup`.**
 
 ---
 
@@ -67,19 +86,18 @@ service_role key: eyJhbGciOiJIUzI1NiIs...
 
 This runs the AI models that analyze cough sounds.
 
-### 2a. Create virtual environment and install dependencies
+### 2a. Activate virtual environment and install dependencies
 
 ```powershell
-# From project root
 cd C:\Users\David\OneDrive\Documents\COUGHPH\packages\inference
 
-# Create a virtual environment (one-time)
+# Create a virtual environment (one-time only)
 python -m venv venv
 
-# Activate it
+# Activate it (do this every time)
 .\venv\Scripts\Activate.ps1
 
-# Install Python packages
+# Install Python packages (one-time, or when requirements change)
 pip install -r requirements.txt
 ```
 
@@ -91,15 +109,16 @@ pip install -r requirements.txt
 ### 2b. Check that model files exist
 
 ```powershell
-# List the models directory
 Get-ChildItem ..\..\models
 ```
 
-You should see:
-- `tb_gatekeeper_resnet18.onnx`
-- `respiratory_classifier_resnet18.onnx`
+You should see both `.pth` and `.onnx` files:
+- `tb_gatekeeper_resnet18.onnx` ✅
+- `respiratory_classifier_resnet18.onnx` ✅
+- `tb_gatekeeper_resnet18.pth`
+- `respiratory_classifier_resnet18.pth`
 
-If you only have `.pth` files instead of `.onnx` files, run the converter:
+If `.onnx` files are missing, convert from PyTorch:
 ```powershell
 python export_onnx.py
 ```
@@ -116,10 +135,10 @@ uvicorn inference_service:app --reload --host 0.0.0.0 --port 8000
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 INFO:     Started reloader process [12345]
 INFO:     Loading TB Gatekeeper from ...\models\tb_gatekeeper_resnet18.onnx
-INFO:     TB model loaded, input: input.1
+INFO:     TB model loaded, input: input
 INFO:     Loading Respiratory Classifier from ...\models\respiratory_classifier_resnet18.onnx
-INFO:     Respiratory model loaded, input: input.1
-INFO:     Started server process [12346]
+INFO:     Respiratory model loaded, input: input
+INFO:     Application startup complete.
 ```
 
 **Verify it's working:**
@@ -130,34 +149,33 @@ INFO:     Started server process [12346]
 
 - **"No module named 'onnxruntime'"** → Make sure you activated the venv and ran `pip install -r requirements.txt`
 - **Model file not found** → Check that `.onnx` files exist in `C:\Users\David\OneDrive\Documents\COUGHPH\models\`
-- **Port 8000 in use** → Change the port (e.g., `--port 8005`) and update `backend\.env` and `frontend-new\.env` to match
+- **Port 8000 in use** → Change the port (e.g., `--port 8005`) and update `backend\.env` + `frontend-new\.env`
 
 ---
 
 ## Step 3: Start the Backend API (Port 8001)
 
-This is the main backend that handles auth, patient data, and connects to Supabase and the inference service.
+This is the main backend — handles auth, patient data, and connects to Supabase + inference service.
 
-### 3a. Create virtual environment and install dependencies
+### 3a. Activate virtual environment and install dependencies
 
 ```powershell
 # Open a NEW PowerShell terminal (keep the inference one running)
 cd C:\Users\David\OneDrive\Documents\COUGHPH\backend
 
-# Create a virtual environment (one-time)
+# Create a virtual environment (one-time only)
 python -m venv venv
 
 # Activate it
 .\venv\Scripts\Activate.ps1
 
-# Install Python packages
+# Install Python packages (one-time, or when requirements change)
 pip install -r requirements.txt
 ```
 
 ### 3b. Start the backend server
 
 ```powershell
-# Make sure venv is activated
 uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
@@ -170,26 +188,25 @@ Starting COUGHPH FastAPI Backend...
 ```
 
 **Verify it's working:**
-- Open `http://localhost:8001/docs` in your browser — you should see the Swagger UI with all API endpoints
-- Check health: `http://localhost:8001/api/health`
+- Open `http://localhost:8001/docs` — Swagger UI with all API endpoints
+- Check health: `http://localhost:8001/api/health` — should show all 3 services healthy
 
 ### Troubleshooting Backend
 
 - **"Connection refused" to Supabase** → Make sure `supabase start` is still running in the first terminal
-- **Module not found** → Ensure you activated the venv (`.\venv\Scripts\Activate.ps1`) and installed dependencies
-- **Port 8001 in use** → Change the port in `backend\.env` (`API_PORT=8005`) and `frontend-new\.env` (`VITE_API_URL=http://localhost:8005`)
+- **Module not found** → Ensure you activated the venv and installed dependencies
+- **Patient creation returns 500** → Run the SQL fix from Step 1a (clinic_id is null)
+- **Port 8001 in use** → Change in `backend\.env` (`API_PORT=8005`) and `frontend-new\.env`
 
 ---
 
 ## Step 4: Start the Frontend (Port 5173)
 
-This is the React web app that you interact with in the browser.
-
 ```powershell
 # Open a NEW PowerShell terminal
 cd C:\Users\David\OneDrive\Documents\COUGHPH\frontend-new
 
-# Install npm dependencies (only needed once, or when packages change)
+# Install npm dependencies (one-time, or when packages change)
 npm install
 
 # Start the dev server
@@ -210,51 +227,32 @@ npm run dev
 
 ---
 
-## Summary: All Services Running
+## Step 5: Log In
 
-| Service | URL | Port | Terminal Command |
-|---------|-----|------|------------------|
-| Supabase (DB + Auth) | `http://127.0.0.1:54323` | 54321 (API) | `supabase start` (in `supabase/`) |
-| Inference | `http://localhost:8000` | 8000 | `uvicorn inference_service:app --reload --host 0.0.0.0 --port 8000` (in `packages\inference\`) |
-| Backend API | `http://localhost:8001` | 8001 | `uvicorn main:app --reload --host 0.0.0.0 --port 8001` (in `backend\`) |
-| Frontend | `http://localhost:5173` | 5173 | `npm run dev` (in `frontend-new\`) |
+### Existing Users (pre-seeded in profiles)
 
----
+| Email | Role | Status |
+|-------|------|--------|
+| `rheincama@gmail.com` | super_admin | approved |
+| `kohakutouya25@gmail.com` | clinician | approved |
+| `elmar@gmail.com` | clinician | approved |
+| `harvy@gmail.com` | clinician | approved |
 
-## Step 5: Register and Create Your First Admin
+**Passwords:** Ask the project owner — they were set during account creation in Supabase.
 
-### 5a. Register a user
+### Register a New User
 
 1. Go to `http://localhost:5173/register`
 2. Fill in: Full Name, Email, Password
-3. Click "Create Account"
-4. This creates a user with status = **pending** (no access yet)
+3. Click "Create Account" — user is created with `status = pending`
+4. An admin must approve you:
+   - Log in as `rheincama@gmail.com` (super_admin)
+   - Go to **Users** in sidebar
+   - Click the green checkmark to approve
 
-### 5b. Make the first user an admin (via database)
+### First-Time Login Flow
 
-Since no admin exists yet to approve users, you need to manually promote the first user:
-
-1. Open Supabase Studio at `http://127.0.0.1:54323`
-2. Go to **SQL Editor** (left sidebar)
-3. Run this query to find the user ID:
-
-```sql
-SELECT id, email, full_name, role, status FROM profiles;
-```
-
-4. Then promote the user to admin and approve them:
-
-```sql
-UPDATE profiles
-SET role = 'admin', status = 'approved'
-WHERE email = 'the-email-you-registered-with@example.com';
-```
-
-5. Log out and log back in — you now have admin access
-
-### 5c. Approve other users
-
-As an admin, go to **Users** in the sidebar to see pending users. Click the green checkmark to approve them.
+When an approved clinician logs in for the first time (no prior `last_login_at`), they see a confirmation dialog. Click "Confirm" to proceed.
 
 ---
 
@@ -262,22 +260,50 @@ As an admin, go to **Users** in the sidebar to see pending users. Click the gree
 
 ### As a Clinician
 
-1. **Dashboard** — View screening statistics (total screenings, cases by disease)
-2. **New Screening** — Select a patient, record/upload a cough audio, get AI analysis results
-3. **Patients** — View, add, edit, and search patient records
-4. **Screening History** — View past screening results with filtering and sorting
+| Page | How to Get There | What You Can Do |
+|------|------------------|-----------------|
+| **Dashboard** | Sidebar → Dashboard | View screening statistics |
+| **New Screening** | Sidebar → New Screening | 3-step flow: select/create patient → record/upload cough → view AI results |
+| **Patients** | Sidebar → Patients | View, add, edit, search patients |
+| **Screening Records** | Sidebar → Screening Records | View past results, filter by class/gender, search by patient name |
 
-### As an Admin
+### As an Admin / Super Admin
 
-1. **Dashboard** — View aggregate screening statistics
-2. **Patients** — View all patient records (search, filter by disease). **No add/edit/delete**
-3. **Users** — Manage user accounts (approve, reject, edit, delete users; view system metrics)
+| Page | How to Get There | What You Can Do |
+|------|------------------|-----------------|
+| **Dashboard** | Sidebar → Dashboard | View aggregate screening stats |
+| **Patients** | Sidebar → Patients | View all patient records (search, filter by disease). No add/edit/delete |
+| **Users** | Sidebar → Users | Approve/reject/delete users, view system metrics |
+
+### Running a Screening (Full Flow)
+
+1. Click **New Screening** in sidebar
+2. **Step 1**: Select an existing patient OR click "New Patient Screening" to create one
+   - Fill in name, DOB (age auto-calculates), gender, smoking, diseases, symptoms
+   - Click **Create Patient & Continue**
+3. **Step 2**: Record cough audio (mic button) or upload a `.wav` file
+   - Click **Run Analysis** (takes 10-30 seconds)
+4. **Step 3**: View results — TB classification, respiratory classification, confidence bars, clinical recommendations
+   - Click **New Screening** to start over or **View Dashboard** to go back
+
+---
+
+## Summary: All Services Running
+
+| Service | URL | Port | Terminal Command (working directory) |
+|---------|-----|------|--------------------------------------|
+| Supabase (DB + Auth) | `http://127.0.0.1:54323` | 54321 (API) | `npx supabase start` (`supabase/`) |
+| Inference | `http://localhost:8000` | 8000 | `uvicorn inference_service:app --reload --host 0.0.0.0 --port 8000` (`packages\inference\`, venv active) |
+| Backend API | `http://localhost:8001` | 8001 | `uvicorn main:app --reload --host 0.0.0.0 --port 8001` (`backend\`, venv active) |
+| Frontend | `http://localhost:5173` | 5173 | `npm run dev` (`frontend-new\`) |
+
+**You need 4 terminals total.** Leave them all running.
 
 ---
 
 ## Shutting Down
 
-When you're done, shut down services in reverse order:
+Shut down in reverse order:
 
 ```powershell
 # Terminal 4 (Frontend): Press Ctrl+C
@@ -288,42 +314,69 @@ cd C:\Users\David\OneDrive\Documents\COUGHPH\supabase
 supabase stop
 ```
 
-> `supabase stop` keeps your database data for next time. Use `supabase stop --no-backup` to discard all data.
+> `supabase stop` keeps data. Use `supabase stop --no-backup` to discard all data (you'll need to re-seed the clinic from Step 1a next time).
 
 ---
 
-## Common Issues
+## Common Issues & Fixes
 
-### "supabase: command not found"
-Install Supabase CLI:
+### `supabase: command not found`
 ```powershell
 npm install -g supabase
-# Verify:
 supabase --version
 ```
 
-### Python venv won't activate
-If you see a security error about execution policies:
+### Python venv won't activate (security error)
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
-Then try activating again.
 
 ### "Address already in use" on port 8000/8001
-Find what's using the port:
 ```powershell
 netstat -ano | findstr :8000
+taskkill /PID 12345 /F   # replace 12345 with the PID
 ```
-Then kill the process (replace 12345 with the PID from above):
-```powershell
-taskkill /PID 12345 /F
-```
+
+### Patient creation returns 500 error
+**Root cause:** `clinic_id` is NULL in user profiles.
+**Fix:** Run the SQL from Step 1a to seed the default clinic and assign profiles.
 
 ### Frontend shows blank page or CORS errors
-Make sure:
-- Backend is running on port 8001 (`http://localhost:8001/api/health`)
-- Supabase is running (`http://127.0.0.1:54323`)
-- The `.env` file in `frontend-new/` has the correct URLs
+- Backend running on port 8001? Check `http://localhost:8001/api/health`
+- Supabase running? Check `http://127.0.0.1:54323`
+- `.env` file in `frontend-new/` has the correct URLs? (`VITE_API_URL=http://localhost:8001`)
 
 ### "No model versions found" or inference fails
-Ensure the ONNX model files exist in `C:\Users\David\OneDrive\Documents\COUGHPH\models\`. If missing, run `python export_onnx.py` from `packages\inference\`.
+Ensure `.onnx` files exist in `C:\Users\David\OneDrive\Documents\COUGHPH\models\`. If missing, run `python export_onnx.py` from `packages\inference\`.
+
+### Inference service won't start
+Check that the venv is activated: `.\venv\Scripts\Activate.ps1` then try again. Verify deps: `pip list | findstr onnxruntime`
+
+### "Create Patient & Continue" button does nothing
+If you see no toast or error, the auth session may be stale. Log out and log back in. If the button was already working, check the browser console for errors.
+
+---
+
+## Environment Files Reference
+
+### `backend\.env`
+```
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_KEY=eyJ...
+INFERENCE_SERVICE_URL=http://localhost:8000
+API_HOST=0.0.0.0
+API_PORT=8001
+JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
+JWT_ALGORITHM=HS256
+```
+
+### `frontend-new\.env`
+```
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=eyJ...
+VITE_API_URL=http://localhost:8001
+VITE_INFERENCE_URL=http://localhost:8000
+```
+
+> The Supabase keys in these files must match what `npx supabase start` prints. They change every time you reset.

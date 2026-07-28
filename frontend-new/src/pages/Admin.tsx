@@ -34,7 +34,10 @@ import { Separator } from "@/components/ui/separator"
 
 const userSchema = z.object({
   email: z.string().email("Invalid email"),
-  password: z.string().min(6, "Password must be at least 6 characters").optional(),
+  password: z.string().optional().refine(
+    val => !val || /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?"':{}|<>]).{8,}$/.test(val),
+    "Password must be at least 8 characters with uppercase, lowercase, number, and special character"
+  ),
   full_name: z.string().min(2, "Name must be at least 2 characters"),
   role: z.enum(["clinician", "admin"]),
   phone: z.string().optional(),

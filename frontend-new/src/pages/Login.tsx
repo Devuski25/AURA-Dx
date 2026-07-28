@@ -2,30 +2,45 @@
 
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react"
+import { Loader2, AlertCircle, Eye, EyeOff, ShieldCheck, ShieldAlert, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useAuth } from "@/hooks/useAuth"
 
 export function Login() {
-  const { signIn } = useAuth()
+  const { signIn, confirmLogin } = useAuth()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [statusDialog, setStatusDialog] = useState<{ type: "pending" | "approved" | "rejected" } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
-    const { error: signInError } = await signIn(email, password)
+    const { error: signInError, accountStatus } = await signIn(email, password)
     if (signInError) {
       setError(signInError.message)
+      setLoading(false)
+      return
+    }
+
+    if (accountStatus) {
+      setStatusDialog({ type: accountStatus })
       setLoading(false)
       return
     }
@@ -102,11 +117,68 @@ export function Login() {
               onClick={() => navigate("/register")}
               className="text-primary hover:underline font-medium"
             >
-              Request access
+              Register an Account
             </button>
           </p>
         </CardFooter>
       </Card>
+
+      <Dialog open={statusDialog?.type === "pending"} onOpenChange={() => setStatusDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-yellow-500" />
+              Account Pending Approval
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Your account is still pending approval. Please wait for an admin to review and approve your registration before you can access the system.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setStatusDialog(null)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusDialog?.type === "rejected"} onOpenChange={() => setStatusDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-destructive" />
+              Registration Rejected
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Your registration has been rejected. Please contact support for assistance.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setStatusDialog(null)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusDialog?.type === "approved"} onOpenChange={() => setStatusDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-green-500" />
+              Account Approved
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Your account has been approved! You can now access the system.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={async () => { await confirmLogin(); navigate("/dashboard") }}>
+              Proceed to Dashboard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
