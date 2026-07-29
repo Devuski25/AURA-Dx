@@ -14,6 +14,7 @@ pip-delete-this-directory.txt
 
 # ML Models & Data
 *.pth
+!models/*.pth
 *.pt
 *.h5
 *.model
@@ -21,6 +22,7 @@ pip-delete-this-directory.txt
 *.pkl
 *.joblib
 *.onnx
+!models/*.onnx
 *.bin
 CoughPH-Backend - Copy/models/*.pth
 CoughPH-Backend - Copy/uploads/
