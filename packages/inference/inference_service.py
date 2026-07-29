@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
 Inference Service — FastAPI service for cough sound analysis.
-Cascade: TB Gatekeeper (0.34s slice) -> if Non-TB -> Respiratory (2.0s slice)
-Input: Audio file (wav/mp3) -> Log-Mel spectrogram (224 mel, 224x224) -> ONNX models
+Cascade: TB Gatekeeper (0.45s slice) -> if Non-TB -> Respiratory (2.0s slice)
+Input: Audio file -> Log-Mel spectrogram (n_mels=64, resized to 224x224) -> ONNX models
+
+Preprocessing matches training pipeline exactly:
+  - torchaudio.transforms.MelSpectrogram(sr=16000, n_fft=1024, hop_length=256, n_mels=64)
+  - AmplitudeToDB, min-max normalization, repeat 3x, resize to (3, 224, 224)
 """
 import os
 import io
 import json
 import numpy as np
 import librosa
-import soundfile as sf
 import onnxruntime as ort
+from scipy.ndimage import zoom
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -27,19 +31,15 @@ TB_ONNX = MODEL_DIR / "tb_gatekeeper_resnet18.onnx"
 RESPIRATORY_ONNX = MODEL_DIR / "respiratory_classifier_resnet18.onnx"
 
 SAMPLE_RATE = 16000
-N_MELS = 224
-N_FFT = 512
-HOP_LENGTH = 160
-TARGET_TIME_STEPS = 224
+N_MELS = 64
+N_FFT = 1024
+HOP_LENGTH = 256
 IMG_SIZE = 224
 
 TB_CLASSES = ["Non-TB", "TB"]
 RESPIRATORY_CLASSES = ["Healthy", "Pneumonia", "COPD"]
 
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
-IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
-
-TB_SLICE_DURATION = 0.34
+TB_SLICE_DURATION = 0.45
 RESPIRATORY_SLICE_DURATION = 2.0
 
 tb_session: ort.InferenceSession = None
@@ -76,23 +76,22 @@ def audio_to_logmel(audio: np.ndarray, sr: int, duration: float) -> np.ndarray:
         audio = audio[start:end]
     elif len(audio) < target_samples:
         audio = np.pad(audio, (0, target_samples - len(audio)), mode="constant")
-    
+
     mel_spec = librosa.feature.melspectrogram(
         y=audio, sr=sr, n_mels=N_MELS, n_fft=N_FFT, hop_length=HOP_LENGTH, power=2.0
     )
     log_mel = librosa.power_to_db(mel_spec, ref=np.max)
-    
-    if log_mel.shape[1] > TARGET_TIME_STEPS:
-        log_mel = log_mel[:, :TARGET_TIME_STEPS]
-    elif log_mel.shape[1] < TARGET_TIME_STEPS:
-        pad_width = TARGET_TIME_STEPS - log_mel.shape[1]
-        log_mel = np.pad(log_mel, ((0, 0), (0, pad_width)), mode="constant")
-    
-    log_mel = np.stack([log_mel, log_mel, log_mel], axis=0)
-    
-    log_mel = (log_mel - IMAGENET_MEAN) / IMAGENET_STD
-    log_mel = log_mel.astype(np.float32)
-    
+
+    log_mel_min = log_mel.min()
+    log_mel_max = log_mel.max()
+    log_mel = (log_mel - log_mel_min) / (log_mel_max - log_mel_min + 1e-6)
+
+    h, w = log_mel.shape
+    zoom_y = IMG_SIZE / h
+    zoom_x = IMG_SIZE / w
+    log_mel = zoom(log_mel, (zoom_y, zoom_x), order=1)
+
+    log_mel = np.stack([log_mel, log_mel, log_mel], axis=0).astype(np.float32)
     return log_mel
 
 
@@ -146,13 +145,7 @@ async def inference(audio: UploadFile = File(...)):
     
     try:
         audio_bytes = await audio.read()
-        audio_data, sr = sf.read(io.BytesIO(audio_bytes))
-        
-        if audio_data.ndim > 1:
-            audio_data = np.mean(audio_data, axis=1)
-        
-        if sr != SAMPLE_RATE:
-            audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=SAMPLE_RATE)
+        audio_data, sr = librosa.load(io.BytesIO(audio_bytes), sr=SAMPLE_RATE, mono=True)
         
         logger.info(f"Processing audio: {audio.filename}, duration: {len(audio_data)/SAMPLE_RATE:.2f}s")
         

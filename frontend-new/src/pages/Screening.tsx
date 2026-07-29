@@ -72,9 +72,11 @@ export function Screening() {
   }
 
   const [newPatientModalOpen, setNewPatientModalOpen] = useState(false)
+  const [savedFormData, setSavedFormData] = useState<any>(null)
 
-  const handleNewPatientCreated = (patient: { id: string; full_name: string }) => {
+  const handleNewPatientCreated = (patient: { id: string; full_name: string }, formData?: any) => {
     setSelectedPatient({ id: patient.id, name: patient.full_name })
+    if (formData) setSavedFormData(formData)
     setStep("record")
     setNewPatientModalOpen(false)
     fetchPatients()
@@ -85,18 +87,34 @@ export function Screening() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioChunksRef.current = []
-      mediaRecorderRef.current = new MediaRecorder(stream)
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm"
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType })
 
       mediaRecorderRef.current.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
 
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/wav" })
+      mediaRecorderRef.current.onstop = async () => {
+        const rawBlob = new Blob(audioChunksRef.current, { type: mimeType })
         audioDurationRef.current = (Date.now() - recordingStartTimeRef.current) / 1000
-        setAudioBlob(blob)
-        setAudioUrl(URL.createObjectURL(blob))
         stream.getTracks().forEach(t => t.stop())
+
+        try {
+          const arrayBuffer = await rawBlob.arrayBuffer()
+          const audioCtx = new AudioContext()
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+          await audioCtx.close()
+
+          const wavBlob = await encodeWav(audioBuffer)
+          setAudioBlob(wavBlob)
+          setAudioUrl(URL.createObjectURL(wavBlob))
+        } catch (convError) {
+          console.error("WAV conversion error, falling back to raw blob:", convError)
+          setAudioBlob(rawBlob)
+          setAudioUrl(URL.createObjectURL(rawBlob))
+        }
       }
 
       recordingStartTimeRef.current = Date.now()
@@ -106,6 +124,46 @@ export function Screening() {
       console.error("Recording error:", error)
       toast.error("Could not access microphone. Please check permissions.")
     }
+  }
+
+  async function encodeWav(audioBuffer: AudioBuffer): Promise<Blob> {
+    const numChannels = audioBuffer.numberOfChannels
+    const sampleRate = audioBuffer.sampleRate
+    const bitsPerSample = 16
+    const bytesPerSample = bitsPerSample / 8
+    const blockAlign = numChannels * bytesPerSample
+    const data = audioBuffer.getChannelData(0)
+    const dataLength = data.length * bytesPerSample
+    const bufferLength = 44 + dataLength
+    const arrayBuffer = new ArrayBuffer(bufferLength)
+    const view = new DataView(arrayBuffer)
+
+    const writeStr = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+    }
+
+    writeStr(0, 'RIFF')
+    view.setUint32(4, bufferLength - 8, true)
+    writeStr(8, 'WAVE')
+    writeStr(12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, 1, true)
+    view.setUint16(22, numChannels, true)
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, sampleRate * blockAlign, true)
+    view.setUint16(32, blockAlign, true)
+    view.setUint16(34, bitsPerSample, true)
+    writeStr(36, 'data')
+    view.setUint32(40, dataLength, true)
+
+    let offset = 44
+    for (let i = 0; i < data.length; i++) {
+      const s = Math.max(-1, Math.min(1, data[i]))
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
+      offset += 2
+    }
+
+    return new Blob([arrayBuffer], { type: "audio/wav" })
   }
 
   const stopRecording = () => {
@@ -118,6 +176,7 @@ export function Screening() {
   const clearRecording = () => {
     setAudioBlob(null)
     setAudioUrl(null)
+    setUploadedFile(null)
     audioChunksRef.current = []
   }
 
@@ -309,8 +368,12 @@ const fileInputRef = useRef<HTMLInputElement>(null)
 
       <NewPatientModal
         open={newPatientModalOpen}
-        onOpenChange={setNewPatientModalOpen}
+        onOpenChange={(open) => {
+          setNewPatientModalOpen(open)
+          if (!open && savedFormData) setSavedFormData(null)
+        }}
         onPatientCreated={handleNewPatientCreated}
+        initialData={savedFormData}
       />
 
       {/* Step 2: Audio Recording */}
@@ -324,40 +387,37 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             {/* Recording Section */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Microphone Recording</h3>
-              {!audioBlob ? (
+              {!audioBlob && !recording && (
                 <Button
                   onClick={startRecording}
-                  disabled={recording}
                   size="lg"
                   className="w-full gap-3"
                 >
-                  {recording ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Recording... Click to stop
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="h-5 w-5" />
-                      Start Recording
-                    </>
-                  )}
+                  <Mic className="h-5 w-5" />
+                  Start Recording
                 </Button>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
-                    <div className="flex-1">
-                      <audio controls src={audioUrl!} className="w-full" />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={clearRecording}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Retry
-                      </Button>
-                      <Button variant="outline" onClick={stopRecording} disabled={!recording}>
-                        {recording ? "Stop" : "Record Again"}
-                      </Button>
-                    </div>
+              )}
+              {recording && (
+                <Button
+                  onClick={stopRecording}
+                  size="lg"
+                  variant="destructive"
+                  className="w-full gap-3"
+                >
+                  <MicOff className="h-5 w-5" />
+                  Stop Recording
+                </Button>
+              )}
+              {audioBlob && (
+                <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                  <div className="flex-1">
+                    <audio controls src={audioUrl!} className="w-full" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={clearRecording} size="sm">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Retry
+                    </Button>
                   </div>
                 </div>
               )}
@@ -437,7 +497,12 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             )}
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button variant="ghost" onClick={() => setStep("patient")}>
+            <Button variant="ghost" onClick={() => {
+              if (savedFormData) {
+                setNewPatientModalOpen(true)
+              }
+              setStep("patient")
+            }}>
               Back to patient selection
             </Button>
           </CardFooter>

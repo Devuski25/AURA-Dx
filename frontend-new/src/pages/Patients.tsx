@@ -1,17 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Loader2, Search, Users, Edit, Trash2, MoreVertical, ChevronRight } from "lucide-react"
+import { Loader2, Search, Edit, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableFooter } from "@/components/ui/table"
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
-import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -20,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   Form,
@@ -28,9 +25,9 @@ import {
   FormItem,
   FormLabel,
   FormControl,
-  FormDescription,
   FormMessage,
 } from "@/components/ui/form"
+import { getResultBadge } from "@/lib/badge-helpers"
 import { Checkbox } from "@/components/ui/checkbox"
 import { z } from "zod"
 import { useForm } from "react-hook-form"
@@ -53,8 +50,7 @@ export function Patients() {
   const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [diseaseFilter, setDiseaseFilter] = useState("all")
-  const isAdmin = user?.role === "admin"
+  const [genderFilter, setGenderFilter] = useState("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPatient, setEditingPatient] = useState<any | null>(null)
   const [deletingPatient, setDeletingPatient] = useState<any | null>(null)
@@ -85,15 +81,31 @@ export function Patients() {
         .from("patient_list_view")
         .select("*")
 
-      if (user.role === "clinician") {
-        query = query.eq("clinician_id", user.id)
-      } else if (user.role === "admin" && user.clinic_id) {
+      if (user.role === "admin" && user.clinic_id) {
         query = query.eq("clinic_id", user.clinic_id)
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false })
-      if (error) throw error
-      setPatients(data || [])
+      const { data: patientsData, error: patientsError } = await query.order("created_at", { ascending: false })
+      if (patientsError) throw patientsError
+
+      const { data: allScreenings } = await supabase
+        .from("screening_history_view")
+        .select("patient_id, tb_result, respiratory_result, created_at")
+        .order("created_at", { ascending: false })
+
+      const latestScreenings: Record<string, any> = {}
+      if (allScreenings) {
+        for (const s of allScreenings) {
+          if (!latestScreenings[s.patient_id]) {
+            latestScreenings[s.patient_id] = s
+          }
+        }
+      }
+
+      setPatients((patientsData || []).map(p => ({
+        ...p,
+        latest_screening: latestScreenings[p.id] || null
+      })))
     } catch (error) {
       console.error("Error fetching patients:", error)
     } finally {
@@ -158,16 +170,13 @@ export function Patients() {
     .filter(p => {
       if (search) {
         const searchLower = search.toLowerCase()
-        return p.full_name.toLowerCase().includes(searchLower) ||
-               p.clinic_name?.toLowerCase().includes(searchLower)
+        return p.full_name.toLowerCase().includes(searchLower)
       }
       return true
     })
     .filter(p => {
-      if (diseaseFilter === "all") return true
-      return (p.past_respiratory_diseases || []).some((d: string) =>
-        d.toLowerCase().includes(diseaseFilter.toLowerCase())
-      )
+      if (genderFilter === "all") return true
+      return p.gender === genderFilter
     })
 
   const openEditDialog = (patient: any) => {
@@ -226,16 +235,14 @@ export function Patients() {
                 className="pl-9"
               />
             </div>
-            <Select value={diseaseFilter} onValueChange={setDiseaseFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All" />
+            <Select value={genderFilter} onValueChange={setGenderFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Gender" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
-                <SelectItem value="Tuberculosis">Tuberculosis</SelectItem>
-                <SelectItem value="Healthy">Healthy</SelectItem>
-                <SelectItem value="Pneumonia">Pneumonia</SelectItem>
-                <SelectItem value="COPD">COPD</SelectItem>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -262,10 +269,10 @@ export function Patients() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Age / Gender</TableHead>
+                    <TableHead>Age & Gender</TableHead>
                     <TableHead>Smoking</TableHead>
                     <TableHead>Conditions</TableHead>
-                    <TableHead>Clinic</TableHead>
+                    <TableHead>Latest Result</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -302,7 +309,12 @@ export function Patients() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{patient.clinic_name}</TableCell>
+                      <TableCell>
+                        {getResultBadge(
+                          patient.latest_screening?.tb_result || null,
+                          patient.latest_screening?.respiratory_result || null
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(patient.created_at).toLocaleDateString()}
                       </TableCell>

@@ -40,9 +40,7 @@ export function Dashboard() {
         .from("screening_history_view")
         .select("*")
 
-      if (user.role === "clinician") {
-        query = query.eq("clinician_id", user.id)
-      } else if (user.role === "admin" && user.clinic_id) {
+      if (user.role === "admin" && user.clinic_id) {
         query = query.eq("clinic_id", user.clinic_id)
       }
 

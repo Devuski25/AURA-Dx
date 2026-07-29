@@ -71,8 +71,8 @@ const patientSchema = z.object({
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female", "other"]),
   smoking_history: z.boolean(),
-  past_respiratory_diseases: z.array(z.string()),
-  symptoms: z.array(z.string()),
+  past_respiratory_diseases: z.array(z.string()).min(1, "Select at least one condition"),
+  symptoms: z.array(z.string()).min(1, "Select at least one symptom"),
 })
 
 type PatientFormData = z.infer<typeof patientSchema>
@@ -80,17 +80,18 @@ type PatientFormData = z.infer<typeof patientSchema>
 interface NewPatientModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onPatientCreated: (patient: { id: string; full_name: string }) => void
+  onPatientCreated: (patient: { id: string; full_name: string }, formData?: PatientFormData) => void
+  initialData?: PatientFormData
 }
 
-export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPatientModalProps) {
+export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialData }: NewPatientModalProps) {
   const { user, accessToken } = useAuth()
   const [age, setAge] = useState<number | null>(null)
   const [ageBracket, setAgeBracket] = useState<string>("")
 
   const form = useForm<PatientFormData>({
     resolver: zodResolver(patientSchema),
-    defaultValues: {
+    defaultValues: initialData || {
       full_name: "",
       date_of_birth: "",
       gender: "male",
@@ -99,6 +100,12 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
       symptoms: [] as string[],
     },
   })
+
+  React.useEffect(() => {
+    if (initialData) {
+      form.reset(initialData)
+    }
+  }, [initialData])
 
   const dobValue = form.watch("date_of_birth")
 
@@ -147,7 +154,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated }: NewPat
       }
 
       const patient = await res.json()
-      onPatientCreated({ id: patient.id, full_name: patient.full_name })
+      onPatientCreated({ id: patient.id, full_name: patient.full_name }, data)
       form.reset()
       onOpenChange(false)
     } catch (error: any) {

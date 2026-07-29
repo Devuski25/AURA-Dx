@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
-import { getTbBadge, getRespBadge, getConfidenceColor } from "@/lib/badge-helpers"
+import { getTbBadge, getRespBadge, getResultBadge, getConfidenceColor } from "@/lib/badge-helpers"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -30,8 +30,8 @@ interface Screening {
   id: string
   patient_id: string
   patient_name: string
-  patient_dob: string
-  patient_gender: string
+  date_of_birth: string
+  gender: string
   age_bracket: string
   clinic_name: string
   clinician_name: string
@@ -51,7 +51,7 @@ interface Screening {
   created_at: string
 }
 
-type SortableField = keyof Pick<Screening, "patient_name" | "created_at" | "tb_result" | "respiratory_result" | "status">
+type SortableField = keyof Pick<Screening, "patient_name" | "created_at" | "respiratory_result" | "status">
 
 export function Screenings() {
   const { user } = useAuth()
@@ -76,9 +76,7 @@ export function Screenings() {
         .from("screening_history_view")
         .select("*")
 
-      if (user.role === "clinician") {
-        query = query.eq("clinician_id", user.id)
-      } else if (user.role === "admin" && user.clinic_id) {
+      if (user.role === "admin" && user.clinic_id) {
         query = query.eq("clinic_id", user.clinic_id)
       }
 
@@ -127,7 +125,7 @@ export function Screenings() {
     }
 
     if (genderFilter !== "all") {
-      result = result.filter(s => s.patient_gender === genderFilter)
+      result = result.filter(s => s.gender === genderFilter)
     }
 
     if (sortDirection && sortField) {
@@ -250,15 +248,10 @@ export function Screenings() {
                         Patient <SortIcon field="patient_name" />
                       </div>
                     </TableHead>
-                    <TableHead>Age / Gender</TableHead>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("tb_result")}>
-                      <div className="flex items-center gap-1">
-                        TB Result <SortIcon field="tb_result" />
-                      </div>
-                    </TableHead>
+                    <TableHead>Age & Gender</TableHead>
                     <TableHead className="cursor-pointer select-none" onClick={() => handleSort("respiratory_result")}>
                       <div className="flex items-center gap-1">
-                        Respiratory <SortIcon field="respiratory_result" />
+                        Result <SortIcon field="respiratory_result" />
                       </div>
                     </TableHead>
                     <TableHead className="cursor-pointer select-none" onClick={() => handleSort("status")}>
@@ -279,18 +272,15 @@ export function Screenings() {
                     <TableRow key={screening.id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="font-medium">{screening.patient_name}</div>
-                        <div className="text-xs text-muted-foreground">{screening.clinic_name} • {screening.clinician_name}</div>
+                        <div className="text-xs text-muted-foreground">{screening.clinician_name}</div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">
-                            {Math.floor((new Date().getTime() - new Date(screening.patient_dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))}y
-                          </div>
-                          <div className="text-xs text-muted-foreground capitalize">{screening.patient_gender}</div>
+                          <div className="font-medium">{screening.age_bracket || (screening.date_of_birth ? `${Math.floor((new Date().getTime() - new Date(screening.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))}y` : "—")}</div>
+                          <div className="text-xs text-muted-foreground capitalize">{screening.gender}</div>
                         </div>
                       </TableCell>
-                      <TableCell>{getTbBadge(screening.tb_result)}</TableCell>
-                      <TableCell>{getRespBadge(screening.respiratory_result)}</TableCell>
+                      <TableCell>{getResultBadge(screening.tb_result, screening.respiratory_result)}</TableCell>
                       <TableCell>{getStatusBadge(screening.status, screening.reviewed_by_name)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(screening.created_at).toLocaleDateString()}
@@ -341,7 +331,7 @@ export function Screenings() {
                   <div>
                     <p className="text-sm text-muted-foreground">Age / Gender</p>
                     <p className="font-medium">
-                      {Math.floor((new Date().getTime() - new Date(detailScreening.patient_dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} years • {detailScreening.patient_gender}
+                      {detailScreening.age_bracket} • {detailScreening.gender}
                     </p>
                   </div>
                   <div>

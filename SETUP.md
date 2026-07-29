@@ -54,11 +54,9 @@ service_role key: eyJhbGciOiJIUzI1NiIs...
 
 > **NOTE:** The migration files in `supabase/migrations/` apply automatically on first start. They create all tables (profiles, patients, screenings, clinics, audit_logs), indexes, RLS policies, and views.
 
-### 1a. CRITICAL: Seed default clinic and assign clinic_id to users
+### 1a. Seed default clinic and assign clinic_id to users
 
-The migration creates the `clinics` table but **does not always seed the default clinic** on local Supabase resets. Without it, patient creation fails with `500 Internal Server Error` because `clinic_id` is NOT NULL on the `patients` table.
-
-Run these SQL commands in Supabase Studio SQL Editor (`http://127.0.0.1:54323/project/default/sql/new`):
+COUGHPH runs as a **single-clinic deployment** — all clinicians, patients, and screenings belong to one clinic. Run these SQL commands in Supabase Studio SQL Editor (`http://127.0.0.1:54323/project/default/sql/new`) after every `supabase db reset` or `supabase stop --no-backup`:
 
 ```sql
 -- Insert default clinic (skip if already exists)
@@ -78,7 +76,7 @@ SET clinic_id = '00000000-0000-0000-0000-000000000001'
 WHERE clinic_id IS NULL;
 ```
 
-**Do this every time you run `supabase db reset` or `supabase stop --no-backup`.**
+> **Note:** In this single-clinic setup, all doctors can see **all patients** and **all screening records** — there is no per-doctor scoping. Patient creation still records `clinician_id` for audit purposes, but it does not restrict access.
 
 ---
 
@@ -262,17 +260,19 @@ When an approved clinician logs in for the first time (no prior `last_login_at`)
 
 | Page | How to Get There | What You Can Do |
 |------|------------------|-----------------|
-| **Dashboard** | Sidebar → Dashboard | View screening statistics |
+| **Dashboard** | Sidebar → Dashboard | View screening statistics (all doctors' screenings) |
 | **New Screening** | Sidebar → New Screening | 3-step flow: select/create patient → record/upload cough → view AI results |
-| **Patients** | Sidebar → Patients | View, add, edit, search patients |
-| **Screening Records** | Sidebar → Screening Records | View past results, filter by class/gender, search by patient name |
+| **Patients** | Sidebar → Patients | View **all** patients (not just your own), add, edit, search |
+| **Screening Records** | Sidebar → Screening Records | View **all** screening records, filter by class/gender, search |
+
+> **Single-clinic behavior:** All clinicians see all patients and all screening records. The `clinician_id` is recorded for audit purposes only.
 
 ### As an Admin / Super Admin
 
 | Page | How to Get There | What You Can Do |
 |------|------------------|-----------------|
 | **Dashboard** | Sidebar → Dashboard | View aggregate screening stats |
-| **Patients** | Sidebar → Patients | View all patient records (search, filter by disease). No add/edit/delete |
+| **Patients** | Sidebar → Patients | View all patient records (search, filter by disease) |
 | **Users** | Sidebar → Users | Approve/reject/delete users, view system metrics |
 
 ### Running a Screening (Full Flow)

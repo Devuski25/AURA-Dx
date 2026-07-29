@@ -348,9 +348,7 @@ async def list_patients(
     role = user.get("role")
     user_clinic_id = user.get("clinic_id")
 
-    if role == "clinician":
-        query = query.eq("clinician_id", user.get("sub"))
-    elif role == "admin":
+    if role == "admin":
         query = query.eq("clinic_id", clinic_id or user_clinic_id)
     elif role != "super_admin" and clinic_id:
         query = query.eq("clinic_id", clinic_id)
@@ -389,13 +387,10 @@ async def create_patient(patient: PatientCreate, user: dict = Depends(require_ro
 @router.get("/patients/{patient_id}", response_model=PatientResponse)
 async def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
     role = user.get("role")
-    user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
 
     query = supabase.table("patient_list_view").select("*").eq("id", patient_id)
-    if role == "clinician":
-        query = query.eq("clinician_id", user_id)
-    elif role == "admin":
+    if role == "admin":
         query = query.eq("clinic_id", clinic_id)
 
     res = query.single().execute()
@@ -414,8 +409,6 @@ async def update_patient(patient_id: str, update: PatientUpdate, user: dict = De
     if not target.data:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    if role == "clinician" and target.data["clinician_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Not your patient")
     if role == "admin" and target.data["clinic_id"] != clinic_id:
         raise HTTPException(status_code=403, detail="Not your clinic patient")
 
@@ -464,9 +457,9 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
     clinician_id = user.get("sub")
     clinic_id = user.get("clinic_id")
 
-    patient = supabase.table("patients").select("*").eq("id", screening.patient_id).eq("clinician_id", clinician_id).single().execute()
+    patient = supabase.table("patients").select("*").eq("id", screening.patient_id).single().execute()
     if not patient.data:
-        raise HTTPException(status_code=404, detail="Patient not found or not yours")
+        raise HTTPException(status_code=404, detail="Patient not found")
 
     if not screening.audio_file_path:
         raise HTTPException(status_code=400, detail="Audio file required. Upload via /api/audio/upload first.")
@@ -526,14 +519,11 @@ async def list_screenings(
     user: dict = Depends(get_current_user)
 ):
     role = user.get("role")
-    user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
 
     query = supabase.table("screening_history_view").select("*")
 
-    if role == "clinician":
-        query = query.eq("clinician_id", user_id)
-    elif role == "admin":
+    if role == "admin":
         query = query.eq("clinic_id", clinic_id)
 
     if patient_id:
@@ -550,13 +540,10 @@ async def list_screenings(
 @router.get("/screenings/{screening_id}", response_model=ScreeningResponse)
 async def get_screening(screening_id: str, user: dict = Depends(get_current_user)):
     role = user.get("role")
-    user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
 
     query = supabase.table("screening_history_view").select("*").eq("id", screening_id)
-    if role == "clinician":
-        query = query.eq("clinician_id", user_id)
-    elif role == "admin":
+    if role == "admin":
         query = query.eq("clinic_id", clinic_id)
 
     res = query.single().execute()
@@ -575,8 +562,6 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
     if not target.data:
         raise HTTPException(status_code=404, detail="Screening not found")
 
-    if role == "clinician" and target.data["clinician_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Not your screening")
     if role == "admin" and target.data["clinic_id"] != clinic_id:
         raise HTTPException(status_code=403, detail="Not your clinic screening")
 
@@ -655,9 +640,7 @@ async def download_screening_pdf(
     
     role = user.get("role")
     user_clinic_id = user.get("clinic_id")
-    if role == "clinician" and data.get("clinician_id") != user.get("sub"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    elif role == "admin" and data.get("clinic_id") != user_clinic_id:
+    if role == "admin" and data.get("clinic_id") != user_clinic_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     buffer = io.BytesIO()

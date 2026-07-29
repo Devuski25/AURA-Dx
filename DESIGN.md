@@ -81,7 +81,7 @@ backend/
 | **New Patient Form** | Name, DOB (auto-age in read-only field), Gender, Smoking (Yes/No radio), Past Respiratory Diseases (pill checkboxes + "None of the above"), Symptoms (pill checkboxes + "None of the above"). No pack years. No Night sweats. |
 | **Screening Flow (3-step)** | Step 1: Select/Create patient → Step 2: Record mic or upload .wav → Step 3: View TB + Respiratory results with % and clinical recommendations |
 | **Screening Records** | Table with search (patient name), Class filter (All/TB/Healthy/COPD/Pneumonia), Gender filter (All/Male/Female), sortable columns. Detail dialog with full results. |
-| **Patients Page** | List with search, add/edit/delete. Clinician sees own patients; admin sees all. |
+| **Patients Page** | List with search, add/edit/delete. All clinicians see all patients (single-clinic deployment). |
 | **Result Page** | % per class (TB/Non-TB + Healthy/COPD/Pneumonia), cascade info, confidence bars, clinical recommendations per condition. |
 | **Admin Panel** | User approval/rejection, role management, system metrics. |
 | **Audit Logs** | `audit_logs` table: patient_create, screening_create, user_approve, etc. |
@@ -169,6 +169,8 @@ Views: `patient_list_view`, `screening_history_view`
 5. `require_role()` dependency gates endpoints by role
 6. `clinic_id` from profile is used to scope all queries
 
+> **Single-clinic deployment:** All clinicians see all patients and screening records — no per-doctor scoping. Patient `clinician_id` is stored for audit only and does not restrict access.
+
 ### 6. Frontend Routes
 
 | Path | Component | Description |
@@ -206,6 +208,10 @@ Views: `patient_list_view`, `screening_history_view`
 - `accessToken` null guard silently returns (fixed — now shows toast)
 - No loading skeleton for inference wait (spinner only)
 - Backend returns generic 500 with no error detail
+
+### Removed (by design — single-clinic deployment)
+- **Per-clinician patient/screening scoping** — removed. All clinicians see all patients and screening records.
+- **"Not your patient" / "Not your screening" checks** — removed. `clinician_id` is recorded for audit only.
 
 ---
 
