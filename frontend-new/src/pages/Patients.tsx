@@ -217,7 +217,7 @@ export function Patients() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Patients</h1>
-          <p className="text-muted-foreground">Manage patient records and screenings</p>
+          <p className="text-cough-muted">Manage patient records and screenings</p>
         </div>
         
       </div>
@@ -227,7 +227,7 @@ export function Patients() {
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cough-muted" />
               <Input
                 placeholder="Search patients..."
                 value={search}
@@ -260,7 +260,7 @@ export function Patients() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : filteredPatients.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-cough-muted">
               No patients found.
             </div>
           ) : (
@@ -282,12 +282,12 @@ export function Patients() {
                     <TableRow key={patient.id}>
                       <TableCell>
                         <div className="font-medium">{patient.full_name}</div>
-                        <div className="text-xs text-muted-foreground">{patient.clinician_name}</div>
+                        <div className="text-xs text-cough-muted">{patient.clinician_name}</div>
                       </TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{patient.age_bracket}</div>
-                          <div className="text-xs text-muted-foreground capitalize">{patient.gender}</div>
+                          <div className="text-xs text-cough-muted capitalize">{patient.gender}</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -315,7 +315,7 @@ export function Patients() {
                           patient.latest_screening?.respiratory_result || null
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-cough-muted">
                         {new Date(patient.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">

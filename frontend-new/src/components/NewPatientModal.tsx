@@ -240,7 +240,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
                   readOnly
                   value={age !== null ? `${age} years (${ageBracket})` : ""}
                   placeholder="—"
-                  className="bg-muted h-9"
+                  className="bg-cough-surface-alt h-9"
                 />
               </div>
             </div>

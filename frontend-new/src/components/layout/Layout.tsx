@@ -1,6 +1,6 @@
 "use client"
 
-import { Outlet, useNavigate } from "react-router-dom"
+import { Outlet, useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -18,6 +18,8 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { useState, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { pageVariants } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 
 const clinicianNavigation = [
@@ -36,6 +38,7 @@ const adminNavigation = [
 export function Layout() {
   const { user, loading, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
@@ -58,7 +61,7 @@ export function Layout() {
   const isAdmin = user?.role === "admin" || user?.role === "super_admin"
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-cough-surface">
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
       )}
@@ -67,43 +70,47 @@ export function Layout() {
         <aside
           id="sidebar"
           className={cn(
-            "fixed inset-y-0 left-0 z-50 w-64 transform bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-200 ease-in-out lg:translate-x-0",
+            "fixed inset-y-0 left-0 z-50 w-64 transform bg-cough-elevated border-r border-cough-border-soft transition-transform duration-200 ease-in-out lg:translate-x-0",
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           )}
         >
-          <div className="flex h-16 items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">COUGHPH</h2>
-            <button
-              className="lg:hidden p-2 rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+          <div className="flex h-16 items-center justify-between px-4 border-b border-cough-border-soft">
+            <h2 className="text-xl font-semibold text-cough-text">COUGHPH</h2>
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              transition={{ type: "spring", stiffness: 500, damping: 20 }}
+              className="lg:hidden p-2 rounded-md text-cough-muted hover:bg-cough-surface-alt"
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
               aria-expanded={sidebarOpen}
               aria-controls="sidebar"
             >
               <Menu className="h-6 w-6" />
-            </button>
+            </motion.button>
           </div>
 
           <nav className="p-4 space-y-1">
             {(isAdmin ? adminNavigation : clinicianNavigation).map((item) => (
-              <button
+              <motion.button
                 key={item.name}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 onClick={() => {
                   navigate(item.href)
                   setSidebarOpen(false)
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                  "text-cough-muted hover:bg-cough-surface-alt"
                 )}
               >
                 <item.icon className="h-5 w-5" aria-hidden="true" />
                 {item.name}
-              </button>
+              </motion.button>
             ))}
           </nav>
 
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-cough-border-soft">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-full justify-start gap-3">
@@ -113,18 +120,18 @@ export function Layout() {
                   </Avatar>
                   <div className="text-left">
                     <p className="text-sm font-medium truncate">{user?.full_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    <p className="text-xs text-cough-muted capitalize">
                       {user?.role?.replace("_", " ")}
                     </p>
                   </div>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuItem className="cursor-default text-sm text-gray-500 dark:text-gray-400 px-2 py-1">
+                <DropdownMenuItem className="cursor-default text-sm text-cough-muted px-2 py-1">
                   {user?.email}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-red-600 dark:text-red-400">
+                <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign out
                 </DropdownMenuItem>
@@ -134,20 +141,32 @@ export function Layout() {
         </aside>
 
         <div className="flex-1 lg:pl-64">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-4 px-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 lg:px-8">
-            <button
-              className="lg:hidden p-2 rounded-md text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+          <header className="sticky top-0 z-30 flex h-16 items-center gap-4 px-4 bg-cough-elevated/90 backdrop-blur-md border-b border-cough-border-soft lg:px-8">
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              transition={{ type: "spring", stiffness: 500, damping: 20 }}
+              className="lg:hidden p-2 rounded-md text-cough-muted hover:bg-cough-surface-alt"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-6 w-6" />
-            </button>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">COUGHPH</h2>
+            </motion.button>
+            <h2 className="text-lg font-semibold text-cough-text">COUGHPH</h2>
             <div className="flex-1" />
           </header>
 
-          <main id="main-content" className="p-4 lg:p-8">
-            <Outlet />
-          </main>
+          <AnimatePresence mode="wait">
+            <motion.main
+              id="main-content"
+              key={location.pathname}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="p-4 lg:p-8"
+            >
+              <Outlet />
+            </motion.main>
+          </AnimatePresence>
         </div>
       </div>
     </div>

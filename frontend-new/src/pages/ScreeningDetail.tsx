@@ -106,7 +106,7 @@ export function ScreeningDetail() {
   if (!screening) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">Screening not found</p>
+        <p className="text-cough-muted">Screening not found</p>
         <Button variant="outline" onClick={() => navigate("/dashboard")} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dashboard
@@ -130,7 +130,7 @@ export function ScreeningDetail() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold">Screening Result</h1>
-            <p className="text-muted-foreground">
+            <p className="text-cough-muted">
               Patient: {screening.patient_name} • {screening.clinic_name}
             </p>
           </div>
@@ -154,19 +154,19 @@ export function ScreeningDetail() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
           <div>
-            <p className="text-sm text-muted-foreground">Name</p>
+            <p className="text-sm text-cough-muted">Name</p>
             <p className="font-medium">{screening.patient_name}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Age / Gender</p>
+            <p className="text-sm text-cough-muted">Age / Gender</p>
             <p className="font-medium">{patientAge} years • {screening.patient_gender}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Age Bracket</p>
+            <p className="text-sm text-cough-muted">Age Bracket</p>
             <p className="font-medium">{screening.age_bracket}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Clinic / Clinician</p>
+            <p className="text-sm text-cough-muted">Clinic / Clinician</p>
             <p className="font-medium">{screening.clinic_name} / {screening.clinician_name}</p>
           </div>
         </CardContent>
@@ -179,19 +179,19 @@ export function ScreeningDetail() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
           <div>
-            <p className="text-sm text-muted-foreground">Screening Date</p>
+            <p className="text-sm text-cough-muted">Screening Date</p>
             <p className="font-medium">{new Date(screening.created_at).toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Model Version</p>
+            <p className="text-sm text-cough-muted">Model Version</p>
             <p className="font-medium font-mono">{screening.model_version}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Cascade Path</p>
+            <p className="text-sm text-cough-muted">Cascade Path</p>
             <p className="font-medium">{screening.cascade_path}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Audio Duration</p>
+            <p className="text-sm text-cough-muted">Audio Duration</p>
             <p className="font-medium">{screening.audio_duration_sec ? `${screening.audio_duration_sec}s` : "N/A"}</p>
           </div>
         </CardContent>
@@ -210,30 +210,30 @@ export function ScreeningDetail() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">Confidence</p>
+            <div className="p-4 bg-cough-surface-alt rounded-lg">
+              <p className="text-sm text-cough-muted">Confidence</p>
               <p className={cn("text-3xl font-bold font-mono", getConfidenceColor(screening.tb_confidence))}>
                 {(screening.tb_confidence ? screening.tb_confidence * 100 : 0).toFixed(1)}%
               </p>
             </div>
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">Model Version</p>
+            <div className="p-4 bg-cough-surface-alt rounded-lg">
+              <p className="text-sm text-cough-muted">Model Version</p>
               <p className="font-mono">{screening.model_version}</p>
             </div>
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">Cascade</p>
+            <div className="p-4 bg-cough-surface-alt rounded-lg">
+              <p className="text-sm text-cough-muted">Cascade</p>
               <p className="font-medium">{screening.cascade_path.includes("Tier 2") ? "Continued to Tier 2" : "Stopped at Tier 1"}</p>
             </div>
           </div>
 
           {screening.tb_probabilities && (
             <div>
-              <p className="text-sm text-muted-foreground mb-2">Probability Distribution</p>
+              <p className="text-sm text-cough-muted mb-2">Probability Distribution</p>
               <div className="space-y-3">
                 {Object.entries(screening.tb_probabilities).map(([cls, prob]) => (
                   <div key={cls} className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span className={cn("font-medium", cls === "TB" ? "text-destructive" : "text-green-600 dark:text-green-400")}>{cls}</span>
+                      <span className={cn("font-medium", cls === "TB" ? "text-destructive" : "text-green-600")}>{cls}</span>
                       <span className="font-mono">{(prob * 100).toFixed(1)}%</span>
                     </div>
                     <Progress value={prob * 100} className="h-2" />
@@ -269,8 +269,8 @@ export function ScreeningDetail() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">Confidence</p>
+              <div className="p-4 bg-cough-surface-alt rounded-lg">
+                <p className="text-sm text-cough-muted">Confidence</p>
                 <p className={cn("text-3xl font-bold font-mono", getConfidenceColor(screening.respiratory_confidence))}>
                   {(screening.respiratory_confidence ? screening.respiratory_confidence * 100 : 0).toFixed(1)}%
                 </p>
@@ -279,12 +279,12 @@ export function ScreeningDetail() {
 
             {screening.respiratory_probabilities && (
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Probability Distribution</p>
+                <p className="text-sm text-cough-muted mb-2">Probability Distribution</p>
                 <div className="space-y-3">
                   {Object.entries(screening.respiratory_probabilities).map(([cls, prob]) => (
                     <div key={cls} className="space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400")}>{cls}</span>
+                        <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-yellow-600" : "text-green-600")}>{cls}</span>
                         <span className="font-mono">{(prob * 100).toFixed(1)}%</span>
                       </div>
                       <Progress value={prob * 100} className="h-2" />
@@ -305,8 +305,8 @@ export function ScreeningDetail() {
             )}
 
             {screening.respiratory_result === "COPD" && (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
-                <h4 className="font-semibold text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <h4 className="font-semibold text-yellow-700 flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" />
                   Moderate Priority: COPD Suspected
                 </h4>
@@ -315,8 +315,8 @@ export function ScreeningDetail() {
             )}
 
             {screening.respiratory_result === "Healthy" && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
-                <h4 className="font-semibold text-green-700 dark:text-green-300 flex items-center gap-2">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <h4 className="font-semibold text-green-700 flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
                   Low Priority: No Acute Findings
                 </h4>
@@ -334,22 +334,22 @@ export function ScreeningDetail() {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div>
-            <p className="text-sm text-muted-foreground">Status</p>
+            <p className="text-sm text-cough-muted">Status</p>
             <Badge variant={screening.status === "pending_review" ? "warning" : screening.reviewed_by ? "success" : "secondary"}>
               {screening.status === "pending_review" ? "Pending Review" : screening.reviewed_by ? "Reviewed" : screening.status}
             </Badge>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Reviewed By</p>
+            <p className="text-sm text-cough-muted">Reviewed By</p>
             <p className="font-medium">{screening.reviewed_by_name || "Not yet reviewed"}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Review Date</p>
+            <p className="text-sm text-cough-muted">Review Date</p>
             <p className="font-medium">{screening.reviewed_at ? new Date(screening.reviewed_at).toLocaleString() : "—"}</p>
           </div>
           {screening.review_notes && (
             <div className="md:col-span-3">
-              <p className="text-sm text-muted-foreground">Review Notes</p>
+              <p className="text-sm text-cough-muted">Review Notes</p>
               <p className="font-medium">{screening.review_notes}</p>
             </div>
           )}

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react"
+import { motion } from "framer-motion"
+import { staggerContainer, staggerItem } from "@/lib/motion"
 import DesireeImg from "@/assets/public/team/desiree-mejes.jpg"
 import AhldousImg from "@/assets/public/team/ahldous-argayoso.jpg"
 import RheinImg from "@/assets/public/team/rhein-cama.jpg"
@@ -14,33 +15,13 @@ const TEAM = [
 ]
 
 function TeamCard({ member, index }: { member: typeof TEAM[number]; index: number }) {
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible")
-            io.unobserve(entry.target)
-          }
-        })
-      },
-      { threshold: 0.15 }
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
-
   return (
-    <div
-      ref={ref}
-      className="translate-y-3.5 rounded-[18px] border border-[rgba(15,23,42,0.08)] bg-[rgba(255,255,255,0.72)] px-4 py-5.5 text-center opacity-0 shadow-[0_10px_25px_rgba(2,6,23,0.06)] transition-all duration-[650ms] ease-in-out is-visible:translate-y-0 is-visible:opacity-100 hover:shadow-[0_12px_32px_rgba(42,154,99,0.14)] hover:-translate-y-1"
-      style={{ transitionDelay: `${index * 60}ms` }}
+    <motion.div
+      variants={staggerItem}
+      whileHover={{ y: -4, transition: { type: "spring", stiffness: 300, damping: 24 } }}
+      className="rounded-[18px] border border-cough-border-soft bg-cough-elevated/70 px-4 py-5.5 text-center shadow-cough-md hover:shadow-cough-lg"
     >
-      <div className="relative mx-auto mb-3.5 h-28 w-28 overflow-hidden rounded-full border-[3px] border-[rgba(56,189,248,0.25)] bg-[rgba(2,6,23,0.04)]">
+      <div className="relative mx-auto mb-3.5 h-28 w-28 overflow-hidden rounded-full border-[3px] border-cough-accent/25 bg-cough-bg-alt">
         <img
           src={member.img}
           alt={member.name}
@@ -57,13 +38,13 @@ function TeamCard({ member, index }: { member: typeof TEAM[number]; index: numbe
             if (fb) fb.style.display = "none"
           }}
         />
-        <div className="initials-fallback absolute inset-0 hidden items-center justify-center rounded-full bg-[rgba(56,189,248,0.15)] text-[#0284c7] text-lg font-extrabold">
+        <div className="initials-fallback absolute inset-0 hidden items-center justify-center rounded-full bg-cough-accent-soft text-cough-accent-dark text-lg font-extrabold">
           {member.initials}
         </div>
       </div>
-      <h3 className="m-0 text-base font-[750] text-[#0f172a]">{member.name}</h3>
-      <div className="mt-1 text-[0.70rem] font-semibold text-[rgba(15,23,42,0.7)]">{member.role}</div>
-    </div>
+      <h3 className="m-0 text-base font-bold text-cough-text">{member.name}</h3>
+      <div className="mt-1 text-[0.70rem] font-semibold text-cough-muted">{member.role}</div>
+    </motion.div>
   )
 }
 
@@ -71,7 +52,7 @@ export function Team() {
   return (
     <div>
       {/* Hero */}
-      <section className="flex items-center justify-center bg-gradient-to-b from-[#f0faf5] to-cough-bg px-6 py-18 text-center">
+      <section className="flex items-center justify-center bg-gradient-to-b from-cough-bg-alt to-cough-bg px-6 py-18 text-center">
         <div className="mx-auto max-w-[720px]">
           <h1 className="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-tight tracking-tight text-cough-text">
             Our Team
@@ -86,15 +67,15 @@ export function Team() {
       <section className="px-6 py-14">
         <div className="mx-auto max-w-[1040px]">
           <div className="mb-6 text-center">
-            <h2 className="text-[clamp(1.6rem,2.5vw,2.2rem)] font-extrabold leading-tight tracking-[0.2px] text-[#0f172a]">
+            <h2 className="text-[clamp(1.6rem,2.5vw,2.2rem)] font-extrabold leading-tight tracking-[-0.01em] text-cough-text">
               Project Team
             </h2>
           </div>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             {TEAM.map((member, i) => (
               <TeamCard key={member.name} member={member} index={i} />
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
     </div>

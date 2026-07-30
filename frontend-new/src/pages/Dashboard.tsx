@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { motion } from "framer-motion"
+import { staggerContainer, staggerItem, cardHover } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 import { Loader2, FileText, AlertTriangle, CheckCircle, XCircle, Stethoscope } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -76,96 +78,77 @@ export function Dashboard() {
       title: "Total Screenings",
       value: stats.total,
       icon: FileText,
-      bg: "bg-gradient-to-br from-blue-500 to-blue-700",
+      accentBorder: "border-l-cough-accent",
+      accentText: "text-cough-accent",
     },
     {
       title: "TB Positive",
       value: stats.tb_positive,
       icon: AlertTriangle,
-      bg: "bg-gradient-to-br from-red-500 to-red-700",
+      accentBorder: "border-l-red-500",
+      accentText: "text-red-600",
     },
     {
       title: "COPD Positive",
       value: stats.copd,
       icon: Stethoscope,
-      bg: "bg-gradient-to-br from-orange-500 to-orange-700",
+      accentBorder: "border-l-orange-500",
+      accentText: "text-orange-600",
     },
     {
       title: "Pneumonia Positive",
       value: stats.pneumonia,
       icon: XCircle,
-      bg: "bg-gradient-to-br from-purple-500 to-purple-700",
+      accentBorder: "border-l-purple-500",
+      accentText: "text-purple-600",
     },
     {
       title: "Healthy",
       value: stats.healthy,
       icon: CheckCircle,
-      bg: "bg-gradient-to-br from-green-500 to-green-700",
+      accentBorder: "border-l-green-500",
+      accentText: "text-green-600",
     },
   ]
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4">
-        <Card className={cn("border-0 text-white", cards[0].bg)}>
+      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid gap-4">
+        <motion.div variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
+          <Card className="border border-cough-border-soft bg-cough-bg-card shadow-cough-sm border-l-4 border-l-cough-accent">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold">{cards[0].title}</CardTitle>
-              <FileText className="h-8 w-8 opacity-80" />
+              <CardTitle className="text-lg font-semibold text-cough-text">{cards[0].title}</CardTitle>
+              <FileText className="h-8 w-8 text-cough-accent" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold">{cards[0].value}</div>
+            <div className="text-4xl font-bold text-cough-text">{cards[0].value}</div>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
+    </motion.div>
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className={cn("border-0 text-white", cards[1].bg)}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">{cards[1].title}</CardTitle>
-              <AlertTriangle className="h-5 w-5 opacity-80" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{cards[1].value}</div>
-          </CardContent>
-        </Card>
-        <Card className={cn("border-0 text-white", cards[2].bg)}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">{cards[2].title}</CardTitle>
-              <Stethoscope className="h-5 w-5 opacity-80" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{cards[2].value}</div>
-          </CardContent>
-        </Card>
-        <Card className={cn("border-0 text-white", cards[3].bg)}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">{cards[3].title}</CardTitle>
-              <XCircle className="h-5 w-5 opacity-80" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{cards[3].value}</div>
-          </CardContent>
-        </Card>
-        <Card className={cn("border-0 text-white", cards[4].bg)}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">{cards[4].title}</CardTitle>
-              <CheckCircle className="h-5 w-5 opacity-80" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{cards[4].value}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {cards.slice(1).map((card) => {
+          const Icon = card.icon
+          return (
+            <motion.div key={card.title} variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
+              <Card className={cn("border border-cough-border-soft bg-cough-bg-card shadow-cough-sm border-l-4", card.accentBorder)}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className={cn("text-sm font-medium", card.accentText)}>{card.title}</CardTitle>
+                  <Icon className={cn("h-5 w-5", card.accentText)} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-cough-text">{card.value}</div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )
+        })}
+      </motion.div>
     </div>
   )
 }

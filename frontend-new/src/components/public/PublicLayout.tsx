@@ -1,5 +1,7 @@
 import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
+import { motion, AnimatePresence } from "framer-motion"
+import { pageVariants } from "@/lib/motion"
 import CoughLogo from "@/assets/public/Coughweb.png"
 
 const NAV_ITEMS = [
@@ -16,20 +18,22 @@ export function PublicLayout() {
   return (
     <div className="min-h-screen bg-cough-bg font-[Poppins,sans-serif] text-cough-text">
       <header className="pt-5 pb-2 px-6">
-        <div className="mx-auto flex max-w-[1040px] items-center justify-between gap-4 rounded-full border border-cough-border-soft bg-white/85 px-5 py-2 shadow-[0_4px_20px_rgba(42,154,99,0.08)] backdrop-blur-md">
+        <div className="mx-auto flex max-w-[1040px] items-center justify-between gap-4 rounded-full border border-cough-border-soft bg-white/85 px-5 py-2 shadow-cough-md backdrop-blur-md">
           <Link to="/" className="flex shrink-0 items-center gap-2.5 text-cough-text no-underline font-bold text-lg">
             <img src={CoughLogo} alt="" className="h-8 w-8 object-contain" />
             CoughPH
           </Link>
 
-          <button
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            transition={{ type: "spring", stiffness: 500, damping: 20 }}
             className="relative z-50 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-cough-border bg-white lg:hidden"
             onClick={() => setNavOpen(!navOpen)}
             aria-label="Toggle navigation"
             aria-expanded={navOpen}
           >
             <span className="block h-0.5 w-4 rounded bg-cough-text transition-all" />
-          </button>
+          </motion.button>
 
           <nav
             className={`${
@@ -55,18 +59,28 @@ export function PublicLayout() {
             </ul>
           </nav>
 
-          <Link
-            to="/login"
-            className="shrink-0 rounded-full bg-gradient-to-r from-cough-accent to-cough-accent-dark px-5 py-2 text-sm font-bold text-white no-underline shadow-[0_3px_12px_rgba(42,154,99,0.28)] transition-all duration-200 hover:from-cough-accent-dark hover:to-[#1f7a4f] hover:-translate-y-px hover:shadow-[0_5px_16px_rgba(42,154,99,0.35)]"
-          >
-            Login
-          </Link>
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
+            <Link
+              to="/login"
+              className="block shrink-0 rounded-full bg-gradient-to-r from-cough-accent to-cough-accent-dark px-5 py-2 text-sm font-bold text-white no-underline shadow-[0_3px_12px_rgba(42,154,99,0.28)] transition-all duration-200 hover:from-cough-accent-dark hover:to-[#1f7a4f] hover:-translate-y-px hover:shadow-[0_5px_16px_rgba(42,154,99,0.35)]"
+            >
+              Login
+            </Link>
+          </motion.div>
         </div>
       </header>
 
-      <main className="animate-[page-fade-in_0.4s_ease]">
-        <Outlet />
-      </main>
+      <AnimatePresence mode="wait">
+        <motion.main
+          key={pathname}
+          variants={pageVariants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+        >
+          <Outlet />
+        </motion.main>
+      </AnimatePresence>
 
       <footer className="mt-3 border-t border-cough-border bg-white px-6 py-10 pb-7">
         <div className="mx-auto max-w-[1040px]">

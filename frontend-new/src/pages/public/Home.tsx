@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom"
+import { motion } from "framer-motion"
+import { cardHover, fadeUp, staggerContainer, staggerItem } from "@/lib/motion"
 import WebdesHero from "@/assets/public/webdes.png"
 
 export function Home() {
@@ -31,9 +33,9 @@ export function Home() {
         <div className="mx-auto max-w-[1040px] px-6">
           <h2 className="m-0 text-[1.55rem] font-bold tracking-tighter text-cough-text">How the System Works</h2>
           <p className="mt-1 text-cough-muted">One audio clip moves through two gated stages before it becomes a screening result.</p>
-          <div className="mt-7 grid gap-5 md:grid-cols-2">
-            <div className="rounded-2xl border border-cough-border-soft bg-cough-bg-card p-7 shadow-[0_4px_20px_rgba(42,154,99,0.08)] transition-all duration-250 hover:shadow-[0_12px_32px_rgba(42,154,99,0.14)] hover:-translate-y-1">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6ed4a4] to-cough-accent-dark shadow-[0_4px_12px_rgba(42,154,99,0.2)]">
+          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="mt-7 grid gap-5 md:grid-cols-2">
+            <motion.div variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap} className="rounded-2xl border border-cough-border-soft bg-cough-bg-card p-7 shadow-cough-md">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6ed4a4] to-cough-accent-dark shadow-cough-sm">
                 <svg className="h-6 w-6 stroke-white" viewBox="0 0 24 24" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 11l3 3L22 4" />
                   <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
@@ -42,9 +44,9 @@ export function Home() {
               <span className="inline-block rounded-full bg-cough-accent-dark px-2.5 py-0.5 text-[0.72rem] font-bold tracking-wider text-white">TIER 1</span>
               <h3 className="mt-3 text-lg font-bold text-cough-text">TB Gatekeeper</h3>
               <p className="text-sm text-cough-muted">A focused check for tuberculosis. A positive result halts the pipeline and returns an alert immediately.</p>
-            </div>
-            <div className="rounded-2xl border border-cough-border-soft bg-cough-bg-card p-7 shadow-[0_4px_20px_rgba(42,154,99,0.08)] transition-all duration-250 hover:shadow-[0_12px_32px_rgba(42,154,99,0.14)] hover:-translate-y-1">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6ed4a4] to-cough-accent-dark shadow-[0_4px_12px_rgba(42,154,99,0.2)]">
+            </motion.div>
+            <motion.div variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap} className="rounded-2xl border border-cough-border-soft bg-cough-bg-card p-7 shadow-cough-md">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#6ed4a4] to-cough-accent-dark shadow-cough-sm">
                 <svg className="h-6 w-6 stroke-white" viewBox="0 0 24 24" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
                   <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4" />
@@ -53,8 +55,8 @@ export function Home() {
               <span className="inline-block rounded-full bg-cough-accent-dark px-2.5 py-0.5 text-[0.72rem] font-bold tracking-wider text-white">TIER 2</span>
               <h3 className="mt-3 text-lg font-bold text-cough-text">Respiratory Classifier</h3>
               <p className="text-sm text-cough-muted">If TB is ruled out, screens for COPD or Pneumonia, or confirms a healthy result.</p>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
@@ -66,7 +68,7 @@ export function Home() {
               <h2 className="text-[1.55rem] font-bold tracking-tighter text-cough-text">Built for the Clinic</h2>
               <p className="text-cough-muted">The primary capture device is an ESP32-S3 with an INMP441 microphone over MQTT. If the device is unavailable, screening also works from a browser microphone recording or an uploaded WAV file.</p>
             </div>
-            <div className="rounded-2xl border border-cough-border-soft bg-cough-bg-card p-7 shadow-[0_4px_20px_rgba(42,154,99,0.08)]">
+            <div className="rounded-2xl border border-cough-border-soft bg-cough-bg-card p-7 shadow-cough-md">
               <h3 className="text-lg font-bold text-cough-text">Doctor / Nurse Portal</h3>
               <p className="text-sm text-cough-muted">Clinicians can review the spectrogram, confidence score, and a suggested next step for every screening session.</p>
             </div>
@@ -74,7 +76,7 @@ export function Home() {
 
           {/* FAQ */}
           <h2 className="mt-12 text-[1.55rem] font-bold tracking-tighter text-cough-text">Frequently Asked Questions</h2>
-          <div className="mt-2 flex flex-col gap-3">
+          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} className="mt-2 flex flex-col gap-3">
             {[
               {
                 q: "Is a CoughPH result a medical diagnosis?",
@@ -93,31 +95,32 @@ export function Home() {
                 a: "Four classes: Healthy, COPD, Pneumonia, and Tuberculosis, using the two-tier gated pipeline described on the About System page.",
               },
             ].map((faq) => (
-              <details
-                key={faq.q}
-                className="group rounded-2xl border border-cough-border-soft bg-cough-bg-card shadow-[0_4px_20px_rgba(42,154,99,0.08)] transition-shadow hover:shadow-[0_12px_32px_rgba(42,154,99,0.14)]"
-              >
+              <motion.div key={faq.q} variants={staggerItem}>
+                <details
+                  className="group rounded-2xl border border-cough-border-soft bg-cough-bg-card shadow-cough-md transition-shadow hover:shadow-cough-lg"
+                >
                 <summary className="flex cursor-pointer list-none items-center justify-between px-5.5 py-4 text-sm font-semibold text-cough-text [&::-webkit-details-marker]:hidden">
                   {faq.q}
                   <span className="ml-4 text-lg font-semibold text-cough-accent transition-transform group-open:rotate-180">+</span>
                 </summary>
                 <p className="m-0 px-5.5 pb-5 pr-6 text-sm text-cough-muted">{faq.a}</p>
               </details>
+            </motion.div>
             ))}
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* Consent notice */}
       <section className="bg-cough-bg-alt py-8">
         <div className="mx-auto max-w-[1040px] px-6">
-          <div className="rounded-2xl border border-cough-border bg-gradient-to-br from-[#f0faf5] to-[#e4f5ec] p-7 shadow-[0_4px_20px_rgba(42,154,99,0.08)]">
+          <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="rounded-2xl border border-cough-border bg-gradient-to-br from-cough-bg-alt to-cough-surface-alt p-7 shadow-cough-md">
             <h3 className="text-lg font-bold text-cough-text">Consent-First, and Compliant with Philippine Law</h3>
             <p className="text-sm text-cough-muted">No audio is captured without explicit, informed consent. CoughPH follows the Data Privacy Act of 2012 (R.A. 10173) and the Cybercrime Prevention Act of 2012 (R.A. 10175).</p>
             <Link to="/legal" className="mt-1 inline-block font-bold text-cough-accent-dark no-underline hover:text-cough-accent">
               Read the full Legal & Privacy page &rarr;
             </Link>
-          </div>
+          </motion.div>
         </div>
       </section>
     </div>

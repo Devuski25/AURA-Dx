@@ -47,7 +47,7 @@ export function getResultBadge(tbResult: string | null, respResult: string | nul
 
 export function getConfidenceColor(conf: number | null): string {
   if (conf === null) return "text-muted-foreground"
-  if (conf >= 0.9) return "text-green-600 dark:text-green-400"
-  if (conf >= 0.7) return "text-yellow-600 dark:text-yellow-400"
-  return "text-red-600 dark:text-red-400"
+  if (conf >= 0.9) return "text-green-600"
+  if (conf >= 0.7) return "text-yellow-600"
+  return "text-red-600"
 }

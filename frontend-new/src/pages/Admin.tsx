@@ -275,9 +275,9 @@ export function Admin() {
   if (user?.role !== "admin" && user?.role !== "super_admin") {
     return (
       <div className="text-center py-12">
-        <ShieldAlert className="mx-auto h-12 w-12 text-muted-foreground" />
+        <ShieldAlert className="mx-auto h-12 w-12 text-cough-muted" />
         <h2 className="mt-4 text-xl font-semibold">Access Denied</h2>
-        <p className="text-muted-foreground">Admin access required</p>
+        <p className="text-cough-muted">Admin access required</p>
       </div>
     )
   }
@@ -287,7 +287,7 @@ export function Admin() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-muted-foreground">Manage users and view system metrics</p>
+          <p className="text-cough-muted">Manage users and view system metrics</p>
         </div>
         <Button onClick={openCreateDialog}>
           <UserPlusIcon className="mr-2 h-4 w-4" />
@@ -310,7 +310,7 @@ export function Admin() {
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cough-muted" />
                   <Input
                     placeholder="Search users..."
                     value={search}
@@ -350,7 +350,7 @@ export function Admin() {
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : filteredUsers.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-8 text-cough-muted">
                   No user/s found.
                 </div>
               ) : (
@@ -372,7 +372,7 @@ export function Admin() {
                           <TableCell className="text-center">
                             <div className="font-medium">{u.full_name}</div>
                           </TableCell>
-                          <TableCell className="text-center text-sm text-muted-foreground">{u.email}</TableCell>
+                          <TableCell className="text-center text-sm text-cough-muted">{u.email}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex justify-center">
                               <Badge variant={u.role === "super_admin" ? "destructive" : u.role === "admin" ? "outline" : "info"} className={u.role === "admin" ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent" : ""}>
@@ -391,7 +391,7 @@ export function Admin() {
                             <div className="flex items-center justify-center gap-1">
                               {u.status === "pending" && (
                                 <Button variant="ghost" size="icon" onClick={() => handleApprove(u.id)} title="Approve">
-                                  <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
                                 </Button>
                               )}
                               {u.status !== "rejected" && (
@@ -430,29 +430,29 @@ export function Admin() {
                 <CardTitle>System Overview</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3">
-                <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="p-4 bg-cough-surface-alt rounded-lg">
                   <div className="flex items-center gap-3">
                     <Activity className="h-6 w-6 text-primary" />
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Screenings</p>
+                      <p className="text-sm text-cough-muted">Total Screenings</p>
                       <p className="text-2xl font-bold">{totalScreenings.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
-                <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="p-4 bg-cough-surface-alt rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Users className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    <Users className="h-6 w-6 text-green-600" />
                     <div>
-                      <p className="text-sm text-muted-foreground">Active Users</p>
+                      <p className="text-sm text-cough-muted">Active Users</p>
                       <p className="text-2xl font-bold">{users.filter(u => u.status === "approved").length}</p>
                     </div>
                   </div>
                 </div>
-                <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="p-4 bg-cough-surface-alt rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                    <Clock className="h-6 w-6 text-yellow-600" />
                     <div>
-                      <p className="text-sm text-muted-foreground">Pending Approvals</p>
+                      <p className="text-sm text-cough-muted">Pending Approvals</p>
                       <p className="text-2xl font-bold">{users.filter(u => u.status === "pending").length}</p>
                     </div>
                   </div>
@@ -471,7 +471,7 @@ export function Admin() {
                       <Badge variant={role === "super_admin" ? "destructive" : role === "admin" ? "outline" : "info"} className={role === "admin" ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent w-24" : "w-24"}>
                         {role.replace("_", " ")}
                       </Badge>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 bg-cough-surface-alt rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary rounded-full transition-all"
                           style={{ width: `${(users.filter(u => u.role === role).length / Math.max(users.length, 1)) * 100}%` }}
@@ -497,7 +497,7 @@ export function Admin() {
                       <Badge variant={status === "approved" ? "success" : status === "pending" ? "warning" : "destructive"} className="w-24">
                         {status}
                       </Badge>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 bg-cough-surface-alt rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all"
                           style={{
@@ -567,7 +567,7 @@ export function Admin() {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-cough-muted hover:text-cough-text"
                             aria-label={showPassword ? "Hide password" : "Show password"}
                           >
                             {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -664,9 +664,9 @@ export function Admin() {
               The user will lose access to their account immediately.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-3 rounded-lg bg-muted p-3 text-sm">
-            <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-muted-foreground">{deletingUser?.email}</span>
+          <div className="flex items-center gap-3 rounded-lg bg-cough-surface-alt p-3 text-sm">
+            <Mail className="h-4 w-4 text-cough-muted shrink-0" />
+            <span className="text-cough-muted">{deletingUser?.email}</span>
             <Badge variant={deletingUser?.role === "super_admin" ? "destructive" : deletingUser?.role === "admin" ? "outline" : "info"} className={deletingUser?.role === "admin" ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent ml-auto" : "ml-auto"}>
               {deletingUser?.role}
             </Badge>

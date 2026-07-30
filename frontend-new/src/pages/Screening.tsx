@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { motion, AnimatePresence } from "framer-motion"
+import { fadeUp, scaleIn } from "@/lib/motion"
 import { Loader2, Mic, MicOff, FileAudio, Play, Pause, Trash2, Upload, X, CheckCircle, AlertCircle, ChevronRight, Settings, Plus, Calendar, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -298,9 +300,9 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             <div
               className={cn(
                 "w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                step === s ? "bg-primary text-primary-foreground" :
-                ["patient", "record"].indexOf(step) >= i ? "bg-green-500 text-white" :
-                "bg-muted text-muted-foreground"
+                step === s ? "bg-cough-accent text-white" :
+                ["patient", "record"].indexOf(step) >= i ? "bg-cough-accent-dark text-white" :
+                "bg-cough-surface-alt text-cough-muted"
               )}
             >
               {step === s ? (
@@ -311,7 +313,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                 i + 1
               )}
             </div>
-            <span className={cn("mt-1 text-sm font-medium", step === s ? "text-primary" : "text-muted-foreground")}>
+            <span className={cn("mt-1 text-sm font-medium", step === s ? "text-cough-accent" : "text-cough-muted")}>
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </span>
           </div>
@@ -319,10 +321,12 @@ const fileInputRef = useRef<HTMLInputElement>(null)
       </div>
 
       {/* Step 1: Patient Selection */}
-      {step === "patient" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Patient</CardTitle>
+      <AnimatePresence mode="wait">
+        {step === "patient" && (
+          <motion.div key="patient" variants={scaleIn} initial="hidden" animate="visible" exit="exit">
+            <Card>
+              <CardHeader>
+                <CardTitle>Select Patient</CardTitle>
             <CardDescription>Choose an existing patient or create a new screening</CardDescription>
           </CardHeader>
           <CardContent>
@@ -332,7 +336,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
               </div>
             ) : patients.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">No patients found. Create a screening for a new patient.</p>
+                <p className="text-cough-muted mb-4">No patients found. Create a screening for a new patient.</p>
                 <Button onClick={() => setNewPatientModalOpen(true)} size="lg">
                   <Plus className="mr-2 h-4 w-4" />
                   New Patient Screening
@@ -349,7 +353,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                   >
                     <div className="flex-1 text-left">
                       <div className="font-medium">{patient.full_name}</div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-cough-muted">
                         DOB: {new Date(patient.date_of_birth).toLocaleDateString()} - {patient.gender}
                       </div>
                     </div>
@@ -364,7 +368,9 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             )}
           </CardContent>
         </Card>
-      )}
+      </motion.div>
+    )}
+  </AnimatePresence>
 
       <NewPatientModal
         open={newPatientModalOpen}
@@ -377,10 +383,12 @@ const fileInputRef = useRef<HTMLInputElement>(null)
       />
 
       {/* Step 2: Audio Recording */}
-      {step === "record" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Record or Upload Cough Audio</CardTitle>
+      <AnimatePresence mode="wait">
+        {step === "record" && (
+          <motion.div key="record" variants={scaleIn} initial="hidden" animate="visible" exit="exit">
+            <Card>
+              <CardHeader>
+                <CardTitle>Record or Upload Cough Audio</CardTitle>
             <CardDescription>Patient: {selectedPatient?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -409,7 +417,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                 </Button>
               )}
               {audioBlob && (
-                <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                <div className="flex items-center gap-4 p-4 bg-cough-surface-alt rounded-lg">
                   <div className="flex-1">
                     <audio controls src={audioUrl!} className="w-full" />
                   </div>
@@ -429,10 +437,10 @@ const fileInputRef = useRef<HTMLInputElement>(null)
               <div
                 className={cn(
                   "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-                  uploadedFile ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+                  uploadedFile ? "border-cough-accent bg-cough-accent/5" : "border-cough-border-soft"
                 )}
-                onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-primary", "bg-primary/5") }}
-                onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove("border-primary", "bg-primary/5") }}
+                onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-cough-accent", "bg-cough-accent/5") }}
+                onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove("border-cough-accent", "bg-cough-accent/5") }}
                 onDrop={e => {
                   e.preventDefault()
                   const file = e.dataTransfer.files[0]
@@ -456,7 +464,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                     <FileAudio className="h-10 w-10 text-primary" />
                     <div className="text-left">
                       <p className="font-medium">{uploadedFile.name}</p>
-                      <p className="text-sm text-muted-foreground">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
+                      <p className="text-sm text-cough-muted">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => { setUploadedFile(null); setAudioBlob(null); setAudioUrl(null); }}>
                       <X className="h-4 w-4" />
@@ -464,7 +472,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
-                    <Upload className="h-10 w-10 text-muted-foreground" />
+                    <Upload className="h-10 w-10 text-cough-muted" />
                     <p>Drag & drop a .wav file here, or click to browse</p>
                     <Button variant="outline" onClick={() => document.getElementById("audio-upload")?.click()}>
                       Browse Files
@@ -507,42 +515,46 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             </Button>
           </CardFooter>
         </Card>
-      )}
+      </motion.div>
+    )}
+  </AnimatePresence>
 
       {/* Step 3: Results */}
-      {step === "result" && result && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Screening Result</CardTitle>
+      <AnimatePresence mode="wait">
+        {step === "result" && result && (
+          <motion.div key="result" variants={scaleIn} initial="hidden" animate="visible" exit="exit">
+            <Card>
+              <CardHeader>
+                <CardTitle>Screening Result</CardTitle>
             <CardDescription>
               Patient: {result.patient_name} - {new Date(result.timestamp).toLocaleString()}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* TB Gatekeeper Result */}
-            <div className="p-4 bg-muted/50 rounded-lg">
+            <div className="p-4 bg-cough-surface-alt rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">Tier 1: TB Gatekeeper</h3>
                 {getTbBadge(result.tb_result.label)}
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Confidence</p>
+                  <p className="text-cough-muted">Confidence</p>
                   <p className="font-mono text-lg">{(result.tb_result.confidence * 100).toFixed(1)}%</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Cascade</p>
+                  <p className="text-cough-muted">Cascade</p>
                   <p className="font-mono text-lg">{result.cascade}</p>
                 </div>
               </div>
               <div className="mt-4">
-                <p className="text-sm text-muted-foreground mb-2">Probability Distribution</p>
+                <p className="text-sm text-cough-muted mb-2">Probability Distribution</p>
                 <div className="space-y-2">
                   {Object.entries(result.tb_result.probabilities || {}).map(([cls, prob]: [string, unknown]) => {
                     const p = prob as number
                     return (
                       <div key={cls} className="flex items-center justify-between text-sm">
-                        <span className={cn("font-medium", cls === "TB" ? "text-destructive" : "text-green-600 dark:text-green-400")}>{cls}</span>
+                        <span className={cn("font-medium", cls === "TB" ? "text-destructive" : "text-green-600")}>{cls}</span>
                         <div className="flex items-center gap-2 w-full max-w-xs">
                           <Progress value={(p * 100)} className="h-2 flex-1" />
                           <span className="font-mono w-16 text-right">{(p * 100).toFixed(1)}%</span>
@@ -557,23 +569,23 @@ const fileInputRef = useRef<HTMLInputElement>(null)
 
             {/* Respiratory Result */}
             {result.respiratory_result && (
-              <div className="p-4 bg-muted/50 rounded-lg">
+              <div className="p-4 bg-cough-surface-alt rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">Tier 2: Respiratory Classifier</h3>
                   {getRespBadge(result.respiratory_result.label)}
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Confidence</p>
+                    <p className="text-cough-muted">Confidence</p>
                     <p className="font-mono text-lg">{(result.respiratory_result.confidence * 100).toFixed(1)}%</p>
                   </div>
                 </div>
                 <div className="mt-4">
-                  <p className="text-sm text-muted-foreground mb-2">Probability Distribution</p>
+                  <p className="text-sm text-cough-muted mb-2">Probability Distribution</p>
                   <div className="space-y-2">
                     {Object.entries((result.respiratory_result.probabilities as Record<string, number>) || {}).map(([cls, prob]) => (
                       <div key={cls} className="flex items-center justify-between text-sm">
-                        <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400")}>{cls}</span>
+                        <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-yellow-600" : "text-green-600")}>{cls}</span>
                         <div className="flex items-center gap-2 w-full max-w-xs">
                           <Progress value={(prob * 100)} className="h-2 flex-1" />
                           <span className="font-mono w-16 text-right">{(prob * 100).toFixed(1)}%</span>
@@ -603,16 +615,16 @@ const fileInputRef = useRef<HTMLInputElement>(null)
                 <p className="mt-2 text-sm">Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines.</p>
               </div>
             ) : result.respiratory_result?.label === "COPD" ? (
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-800">
-                <h4 className="font-semibold text-yellow-700 dark:text-yellow-300 flex items-center gap-2">
+              <div className="p-4 bg-yellow-50/60 border border-yellow-200 rounded-lg">
+                <h4 className="font-semibold text-yellow-700 flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" />
                   Moderate Priority: COPD Suspected
                 </h4>
                 <p className="mt-2 text-sm">Clinical evaluation recommended. Consider spirometry and pulmonology referral.</p>
               </div>
             ) : (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
-                <h4 className="font-semibold text-green-700 dark:text-green-300 flex items-center gap-2">
+              <div className="p-4 bg-cough-accent-soft border border-cough-border-soft rounded-lg">
+                <h4 className="font-semibold text-cough-accent-dark flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
                   Low Priority: Healthy / No Acute Findings
                 </h4>
@@ -620,7 +632,7 @@ const fileInputRef = useRef<HTMLInputElement>(null)
               </div>
             )}
 
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-cough-muted">
               Model version: {result.model_version} &bull; Screening ID: {result.screening_id}
             </div>
           </CardContent>
@@ -633,7 +645,9 @@ const fileInputRef = useRef<HTMLInputElement>(null)
             </Button>
           </CardFooter>
         </Card>
-      )}
+      </motion.div>
+    )}
+  </AnimatePresence>
     </div>
   )
 }

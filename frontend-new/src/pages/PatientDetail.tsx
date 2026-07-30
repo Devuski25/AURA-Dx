@@ -157,7 +157,7 @@ export function PatientDetail() {
   if (!patient) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">Patient not found</p>
+        <p className="text-cough-muted">Patient not found</p>
         <Button variant="outline" onClick={() => navigate("/patients")} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Patients
@@ -178,7 +178,7 @@ export function PatientDetail() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">{patient.full_name}</h1>
-          <p className="text-muted-foreground">{patient.clinic_name} • {patient.clinician_name}</p>
+          <p className="text-cough-muted">{patient.clinic_name} • {patient.clinician_name}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate("/dashboard/patients")}>
@@ -215,47 +215,47 @@ export function PatientDetail() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Age</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Calendar className="h-4 w-4 text-cough-muted" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{age} years old</div>
-            <p className="text-xs text-muted-foreground">DOB: {new Date(patient.date_of_birth).toLocaleDateString()}</p>
+            <p className="text-xs text-cough-muted">DOB: {new Date(patient.date_of_birth).toLocaleDateString()}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Gender</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
+            <Shield className="h-4 w-4 text-cough-muted" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold capitalize">{patient.gender}</div>
-            <p className="text-xs text-muted-foreground">Age bracket: {patient.age_bracket}</p>
+            <p className="text-xs text-cough-muted">Age bracket: {patient.age_bracket}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Smoking History</CardTitle>
-            <Stethoscope className="h-4 w-4 text-muted-foreground" />
+            <Stethoscope className="h-4 w-4 text-cough-muted" />
           </CardHeader>
           <CardContent>
             {patient.smoking_history ? (
               <>
-                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">Yes</div>
-                <p className="text-xs text-muted-foreground">{patient.pack_years} pack-years</p>
+                <div className="text-2xl font-bold text-yellow-600">Yes</div>
+                <p className="text-xs text-cough-muted">{patient.pack_years} pack-years</p>
               </>
             ) : (
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">No</div>
+              <div className="text-2xl font-bold text-green-600">No</div>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Clinic</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <MapPin className="h-4 w-4 text-cough-muted" />
           </CardHeader>
           <CardContent>
             <div className="font-medium">{patient.clinic_name}</div>
-            <p className="text-xs text-muted-foreground">Clinician: {patient.clinician_name}</p>
+            <p className="text-xs text-cough-muted">Clinician: {patient.clinician_name}</p>
           </CardContent>
         </Card>
       </div>
@@ -274,7 +274,7 @@ export function PatientDetail() {
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground">None recorded</p>
+              <p className="text-cough-muted">None recorded</p>
             )}
           </CardContent>
         </Card>
@@ -290,7 +290,7 @@ export function PatientDetail() {
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground">None recorded</p>
+              <p className="text-cough-muted">None recorded</p>
             )}
           </CardContent>
         </Card>
@@ -303,7 +303,7 @@ export function PatientDetail() {
         </CardHeader>
         <CardContent>
           {screenings.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-cough-muted">
               <p>No screenings yet</p>
               <Button className="mt-4" onClick={() => navigate("/screening")}>
                 Create First Screening
@@ -327,7 +327,7 @@ export function PatientDetail() {
                     <TableRow key={s.id}>
                       <TableCell>
                         <div>{new Date(s.created_at).toLocaleDateString()}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                        <div className="text-xs text-cough-muted">{new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       </TableCell>
                       <TableCell>{getTbBadge(s.tb_result)}</TableCell>
                       <TableCell>{getRespBadge(s.respiratory_result)}</TableCell>
@@ -336,12 +336,12 @@ export function PatientDetail() {
                         {s.reviewed_by_name ? (
                           <>
                             {s.reviewed_by_name}
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-xs text-cough-muted">
                               {new Date(s.reviewed_at!).toLocaleDateString()}
                             </div>
                           </>
                         ) : (
-                          <span className="text-muted-foreground">Not reviewed</span>
+                          <span className="text-cough-muted">Not reviewed</span>
                         )}
                       </TableCell>
                       <TableCell>
