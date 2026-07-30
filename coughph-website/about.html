@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About the System - CoughPH</title>
+<meta name="description" content="How CoughPH's two-tier gated AI pipeline, ESP32-S3 hardware, and signal processing turn a cough into a screening result.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html">
+        <img class="brand-logo" src="assets/Coughweb.png" alt="University of Rizal System seal" onerror="this.style.display='none'">
+        CoughPH
+      </a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false"></button>
+      <ul class="nav-links">
+        <li><a href="index.html" data-nav="home">Home</a></li>
+        <li><a href="about.html" data-nav="about" class="is-active">About System</a></li>
+        <li><a href="team.html" data-nav="team">Our Team</a></li>
+        <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+      </ul>
+      <a class="nav-cta" href="login.html">Login</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Centered hero -->
+    <section class="abhero">
+      <div class="abcontainer">
+        <h1>About the System</h1>
+        <p>Coughing is not random noise. Its acoustic shape carries information about the airway that produced it. CoughPH is built to read that signature.</p>
+      </div>
+    </section>
+
+    <!-- Two-tier pipeline -->
+    <section>
+      <div class="container">
+        <h2>Two-Tier Gated Classification Pipeline</h2>
+        <p>Rather than one model guessing across every condition at once, screening runs through two purpose-built stages in sequence.</p>
+        <div class="pipeline" style="grid-template-columns:repeat(2,1fr);">
+          <div class="box">
+            <div class="icon-circle">
+              <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </div>
+            <span class="step-label">TIER 1</span>
+            <h3>TB Gatekeeper</h3>
+            <p>A focused binary check on a short 0.34s window of the cough, screening specifically for tuberculosis. A positive result halts the pipeline and returns a TB alert immediately.</p>
+          </div>
+          <div class="box">
+            <div class="icon-circle">
+              <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/>
+              </svg>
+            </div>
+            <span class="step-label">TIER 2</span>
+            <h3>Respiratory Classifier</h3>
+            <p>If TB is ruled out, a second model analyzes a wider 2.0s window to classify the cough as COPD, Healthy, or Pneumonia.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Four Screening Classes -->
+    <section class="section-alt">
+      <div class="fbcontainer">
+        <h2>Four Screening Classes</h2>
+
+        <div class="tag-list" id="class-tags" role="tablist">
+          <button class="tag-btn" data-target="healthy" role="tab" aria-selected="false">Healthy</button>
+          <button class="tag-btn" data-target="copd" role="tab" aria-selected="false">COPD</button>
+          <button class="tag-btn" data-target="pneumonia" role="tab" aria-selected="false">Pneumonia</button>
+          <button class="tag-btn" data-target="tb" role="tab" aria-selected="false">Tuberculosis</button>
+        </div>
+
+        <div class="class-info-display">
+          
+          <div id="info-healthy" class="info-block">
+            <h3>Healthy</h3>
+            <p>A baseline acoustic profile indicating clear airways. Healthy coughs generally have a sharp, unimpeded initial burst and lack the prolonged wheezing or wet sounds found in respiratory illnesses.</p>
+          </div>
+
+          <div id="info-copd" class="info-block">
+            <h3>Chronic Obstructive Pulmonary Disease (COPD)</h3>
+            <p>A group of lung conditions that cause breathing difficulties. COPD coughs are often chronic and can exhibit distinct acoustic markers such as lower-frequency wheezing and prolonged exhalation phases due to airflow obstruction.</p>
+          </div>
+
+          <div id="info-pneumonia" class="info-block">
+            <h3>Pneumonia</h3>
+            <p>An infection that inflames the air sacs in one or both lungs, which may fill with fluid. Coughs associated with pneumonia often have a “wet” or productive acoustic signature, characterized by specific frequency deviations.</p>
+          </div>
+
+          <div id="info-tb" class="info-block">
+            <h3>Tuberculosis (TB)</h3>
+            <p>A serious infectious bacterial disease that mainly affects the lungs. TB coughs have a highly specific signature which our Tier 1 model isolates. Early detection of this pattern is crucial for isolation and treatment.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Signal Processing -->
+    <section>
+      <div class="container grid-2">
+        <div>
+          <h2>Signal Processing</h2>
+          <p>Raw audio is standardized to 16 kHz mono, passed through a low-pass filter to reduce high-frequency noise, then converted into a Log-Mel Spectrogram — the same representation used for both tiers, sliced to a different time window for each.</p>
+        </div>
+        <table class="modern-table">
+          <thead>
+            <tr><th>Step</th><th>Detail</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Resampling</td><td>16,000 Hz, mono</td></tr>
+            <tr><td>Low-pass filter</td><td>5th-order Butterworth, 3,000 Hz cutoff</td></tr>
+            <tr><td>Spectrogram</td><td>64 Mel bins, resized for ResNet18</td></tr>
+            <tr><td>Tier 1 window</td><td>0.34 s, peak-centered</td></tr>
+            <tr><td>Tier 2 window</td><td>2.0 s, peak-centered</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Hardware -->
+    <section class="section-alt">
+      <div class="container grid-2">
+        <table class="modern-table">
+          <thead>
+            <tr><th>Component</th><th>Role</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>ESP32-S3</td><td>Microcontroller, primary capture device</td></tr>
+            <tr><td>INMP441 Mic</td><td>I2S digital audio input</td></tr>
+            <tr><td>MQTT</td><td>Transport from device to web app</td></tr>
+            <tr><td>Browser UI</td><td>Fallback (mic record / WAV upload)</td></tr>
+          </tbody>
+        </table>
+        <div>
+          <h2>Hardware &amp; Fallback</h2>
+          <p>The primary path is a dedicated ESP32-S3 device with an INMP441 microphone over I2S, publishing over MQTT. If offline, the web app records from a browser microphone or accepts an uploaded WAV file, so a screening is never blocked on hardware availability.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-row">
+        <div>
+          <strong>CoughPH</strong><br>
+          Web-based AI system for early detection of respiratory diseases via cough sound analysis.<br>
+          BS Computer Engineering thesis, University of Rizal System - Morong Campus.
+        </div>
+        <ul class="footer-links">
+          <li><a href="about.html">About System</a></li>
+          <li><a href="team.html">Our Team</a></li>
+          <li><a href="legal.html">Legal &amp; Privacy</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">For research and clinical-support use only. Not a substitute for professional medical diagnosis.</div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const tags = document.querySelectorAll('#class-tags .tag-btn');
+      const blocks = document.querySelectorAll('.info-block');
+
+      tags.forEach(btn => {
+        btn.addEventListener('click', () => {
+          // Update active button
+          tags.forEach(t => {
+            t.classList.remove('active');
+            t.setAttribute('aria-selected', 'false');
+          });
+          btn.classList.add('active');
+          btn.setAttribute('aria-selected', 'true');
+
+          // Show only the matching info block
+          const target = btn.dataset.target;
+          blocks.forEach(block => {
+            block.classList.toggle('is-visible', block.id === 'info-' + target);
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html>

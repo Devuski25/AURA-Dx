@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Our Team - CoughPH</title>
+<meta name="description" content="The five-member research team behind CoughPH.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav">
+      <a class="brand" href="index.html">
+        <img class="brand-logo" src="assets/Coughweb.png" alt="University of Rizal System seal"
+             onerror="this.style.display='none'">CoughPH
+      </a>
+
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false"></button>
+
+      <ul class="nav-links">
+        <li><a href="index.html" data-nav="home" class="is-active">Home</a></li>
+        <li><a href="about.html" data-nav="about">About System</a></li>
+        <li><a href="team.html" data-nav="team">Our Team</a></li>
+        <li><a href="legal.html" data-nav="legal">Legal &amp; Privacy</a></li>
+      </ul>
+
+      <a class="nav-cta" href="login.html">Login</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="abhero">
+      <div class="abcontainer">
+        <h1>Our Team</h1>
+        <p>CoughPH is a BS Computer Engineering thesis project from the University of Rizal System - Morong Campus, built and defended by the team below.</p>
+      </div>
+    </section>
+
+    <section class="team-section" id="project-team">
+      <div class="Tcontainer">
+        <!-- Centered + improved typography -->
+        <h2 class="team-title">Project Team</h2>
+
+        <div class="team-grid">
+          <!-- 1 -->
+          <div class="team-card reveal-on-scroll">
+            <div class="team-photo-wrap">
+              <img class="team-photo circle"
+                   src="assets/team/desiree-mejes.jpg"
+                   alt="Desiree May Mejes"
+                   loading="lazy"
+                   decoding="async">
+              <div class="team-photo-fallback circle-fallback">DM</div>
+            </div>
+            <h3 class="team-name">Desiree May Mejes</h3>
+            <div class="team-role">Researcher</div>
+          </div>
+
+          <!-- 2 -->
+          <div class="team-card reveal-on-scroll">
+            <div class="team-photo-wrap">
+              <img class="team-photo circle"
+                   src="assets/team/ahldous-argayoso.jpg"
+                   alt="Ahldous Meinard Argayoso"
+                   loading="lazy"
+                   decoding="async">
+              <div class="team-photo-fallback circle-fallback">AA</div>
+            </div>
+            <h3 class="team-name">Ahldous Meinard Argayoso</h3>
+            <div class="team-role">Researcher</div>
+          </div>
+
+          <!-- 3 -->
+          <div class="team-card reveal-on-scroll">
+            <div class="team-photo-wrap">
+              <img class="team-photo circle"
+                   src="assets/team/rhein-cama.jpg"
+                   alt="Rhein David Cama"
+                   loading="lazy"
+                   decoding="async">
+              <div class="team-photo-fallback circle-fallback">RC</div>
+            </div>
+            <h3 class="team-name">Rhein David Cama</h3>
+            <div class="team-role">Researcher</div>
+          </div>
+
+          <!-- 4 -->
+          <div class="team-card reveal-on-scroll">
+            <div class="team-photo-wrap">
+              <img class="team-photo circle"
+                   src="assets/team/michael-nepomuceno.jpg"
+                   alt="Michael Harvy Nepomuceno"
+                   loading="lazy"
+                   decoding="async">
+              <div class="team-photo-fallback circle-fallback">MN</div>
+            </div>
+            <h3 class="team-name">Michael Harvy Nepomuceno</h3>
+            <div class="team-role">Researcher</div>
+          </div>
+
+          <!-- 5 -->
+          <div class="team-card reveal-on-scroll">
+            <div class="team-photo-wrap">
+              <img class="team-photo circle"
+                   src="assets/team/mark-pesuelo.jpg"
+                   alt="Mark Louie Pesuelo"
+                   loading="lazy"
+                   decoding="async">
+              <div class="team-photo-fallback circle-fallback">MP</div>
+            </div>
+            <h3 class="team-name">Mark Louie Pesuelo</h3>
+            <div class="team-role">Researcher</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-row">
+        <div>
+          <strong>CoughPH</strong><br>
+          Web-based AI system for early detection of respiratory diseases via cough sound analysis.<br>
+          BS Computer Engineering thesis, University of Rizal System - Morong Campus.
+        </div>
+        <ul class="footer-links">
+          <li><a href="about.html">About System</a></li>
+          <li><a href="team.html">Our Team</a></li>
+          <li><a href="legal.html">Legal &amp; Privacy</a></li>
+        </ul>
+      </div>
+      <div class="footer-bottom">For research and clinical-support use only. Not a substitute for professional medical diagnosis.</div>
+    </div>
+  </footer>
+
+  <!-- Keep your existing script -->
+  <script src="js/main.js"></script>
+
+  <!-- Add scroll reveal behavior -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const cards = document.querySelectorAll(".reveal-on-scroll");
+
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            io.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.15 });
+
+      cards.forEach(card => io.observe(card));
+    });
+
+    // Optional: show fallback if image fails
+    document.querySelectorAll(".team-photo").forEach(img => {
+      img.addEventListener("error", () => {
+        const wrap = img.closest(".team-photo-wrap");
+        const fallback = wrap.querySelector(".team-photo-fallback");
+        img.style.display = "none";
+        if (fallback) fallback.style.display = "grid";
+      });
+      img.addEventListener("load", () => {
+        const wrap = img.closest(".team-photo-wrap");
+        const fallback = wrap.querySelector(".team-photo-fallback");
+        if (fallback) fallback.style.display = "none";
+      });
+    });
+  </script>
+</body>
+</html>

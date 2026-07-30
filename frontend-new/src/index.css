@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -32,6 +33,19 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* CoughPH green theme tokens */
+  --color-cough-bg: #f7fcf9;
+  --color-cough-bg-alt: #e8f6ef;
+  --color-cough-bg-card: #ffffff;
+  --color-cough-text: #1a3c30;
+  --color-cough-muted: #5c7a6c;
+  --color-cough-accent: #3cb87a;
+  --color-cough-accent-dark: #2a9a63;
+  --color-cough-accent-light: #a8e6c8;
+  --color-cough-accent-soft: #d4f0e3;
+  --color-cough-border: #c5e4d4;
+  --color-cough-border-soft: #e0f0e8;
 }
 
 :root {
@@ -93,4 +107,15 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0.015 286.375);
   --sidebar-ring: oklch(0.439 0.043 257.281);
+}
+
+/* Public page animations and utilities */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.is-visible {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
 }

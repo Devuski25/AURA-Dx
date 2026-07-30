@@ -1,6 +1,6 @@
 # COUGHPH — Step-by-Step Setup Guide
 
-**Last updated:** July 29, 2026  
+**Last updated:** July 30, 2026  
 **OS:** Windows (PowerShell)
 
 ---
@@ -151,14 +151,13 @@ INFO:     Application startup complete.
 
 ---
 
-## Step 3: Start the Backend API (Port 8001)
+## Step 3: Unified Dev Command (Backend + Frontend)
 
-This is the main backend — handles auth, patient data, and connects to Supabase + inference service.
+Now start **both the backend API and frontend dev server** from a single command.
 
-### 3a. Activate virtual environment and install dependencies
+### 3a. Set up the backend Python environment (one-time)
 
 ```powershell
-# Open a NEW PowerShell terminal (keep the inference one running)
 cd C:\Users\David\OneDrive\Documents\COUGHPH\backend
 
 # Create a virtual environment (one-time only)
@@ -171,57 +170,60 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 3b. Start the backend server
+### 3b. Install root Node dependencies (one-time)
 
 ```powershell
-uvicorn main:app --reload --host 0.0.0.0 --port 8001
-```
-
-**Expected output:**
-```
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [12345]
-INFO:     Started server process [12346]
-Starting COUGHPH FastAPI Backend...
-```
-
-**Verify it's working:**
-- Open `http://localhost:8001/docs` — Swagger UI with all API endpoints
-- Check health: `http://localhost:8001/api/health` — should show all 3 services healthy
-
-### Troubleshooting Backend
-
-- **"Connection refused" to Supabase** → Make sure `supabase start` is still running in the first terminal
-- **Module not found** → Ensure you activated the venv and installed dependencies
-- **Patient creation returns 500** → Run the SQL fix from Step 1a (clinic_id is null)
-- **Port 8001 in use** → Change in `backend\.env` (`API_PORT=8005`) and `frontend-new\.env`
-
----
-
-## Step 4: Start the Frontend (Port 5173)
-
-```powershell
-# Open a NEW PowerShell terminal
-cd C:\Users\David\OneDrive\Documents\COUGHPH\frontend-new
-
-# Install npm dependencies (one-time, or when packages change)
+cd C:\Users\David\OneDrive\Documents\COUGHPH
 npm install
+```
 
-# Start the dev server
+### 3c. Start both services with one command
+
+```powershell
+cd C:\Users\David\OneDrive\Documents\COUGHPH
 npm run dev
 ```
 
 **Expected output:**
 ```
-  VITE v8.1.1  ready in 300ms
-
-  ➜  Local:   http://localhost:5173/
-  ➜  Network: http://192.168.x.x:5173/
+[backend]  INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+[frontend] 
+[frontend]   VITE v8.x.x  ready in 300ms
+[frontend] 
+[frontend]   ➜  Local:   http://localhost:5173/
 ```
 
-**Open the app:**
-- Go to `http://localhost:5173` in your browser
-- You should see the COUGHPH login page
+> The `npm run dev` command uses `concurrently` to run both:
+> - **Backend** (cyan): `uvicorn main:app --reload --port 8001` on port 8001
+> - **Frontend** (green): `vite --port 5173` on port 5173
+
+### 3d. Verify everything
+
+| Check | URL | Expected Result |
+|-------|-----|----------------|
+| Frontend app | `http://localhost:5173` | COUGHPH website homepage loads first (not login) |
+| Backend API health | `http://localhost:8001/api/health` | `{"status":"healthy","services":{"database":"healthy","inference":"healthy","auth":"healthy"}}` |
+| Swagger docs | `http://localhost:8001/docs` | All API endpoints listed |
+| Inference health | `http://localhost:8000/health` | `{"status":"healthy","models_loaded":true}` |
+
+---
+
+## Step 4: Open the App
+
+Open `http://localhost:5173` in your browser. You should see the **COUGHPH public website** — not the login page.
+
+### Public Website Pages (no login required)
+
+| Page | URL | Content |
+|------|-----|---------|
+| **Home** | `/` | Hero section, How the System Works (2-tier pipeline), Built for Clinic, FAQ accordion, consent notice |
+| **About** | `/about` | Two-tier gated pipeline explanation, interactive four-class tag selector (Healthy/COPD/Pneumonia/TB), signal processing table, hardware specs |
+| **Our Team** | `/team` | 5 team member cards with photos, scroll-reveal animation |
+| **Legal & Privacy** | `/legal` | R.A. 10173 / R.A. 10175 governing law, consent, data subject rights table, thesis-stage disclosure |
+
+Navigation bar at the top links between all pages. Click **Login** in the nav bar to reach the login form.
+
+> The app loads the **public website first**. Only when you click "Login" does it take you to the authenticated portal. Refresh always returns to the website homepage.
 
 ---
 
@@ -290,14 +292,75 @@ When an approved clinician logs in for the first time (no prior `last_login_at`)
 
 ## Summary: All Services Running
 
-| Service | URL | Port | Terminal Command (working directory) |
-|---------|-----|------|--------------------------------------|
-| Supabase (DB + Auth) | `http://127.0.0.1:54323` | 54321 (API) | `npx supabase start` (`supabase/`) |
-| Inference | `http://localhost:8000` | 8000 | `uvicorn inference_service:app --reload --host 0.0.0.0 --port 8000` (`packages\inference\`, venv active) |
-| Backend API | `http://localhost:8001` | 8001 | `uvicorn main:app --reload --host 0.0.0.0 --port 8001` (`backend\`, venv active) |
-| Frontend | `http://localhost:5173` | 5173 | `npm run dev` (`frontend-new\`) |
+| Service | URL | Port | Terminal Command |
+|---------|-----|------|------------------|
+| Supabase (DB + Auth) | `http://127.0.0.1:54323` | 54321 (API) | `npx supabase start` (from `supabase/`) |
+| Inference | `http://localhost:8000` | 8000 | `uvicorn inference_service:app --reload --host 0.0.0.0 --port 8000` (from `packages\inference\`, venv active) |
+| Backend API | `http://localhost:8001` | 8001 | Runs via `npm run dev` from root |
+| Frontend | `http://localhost:5173` | 5173 | Runs via `npm run dev` from root |
 
-**You need 4 terminals total.** Leave them all running.
+**You need 3 terminals total:**
+1. **Terminal 1:** Supabase (`cd supabase && npx supabase start`)
+2. **Terminal 2:** Inference (`cd packages\inference && .\venv\Scripts\Activate.ps1 && uvicorn inference_service:app --reload --host 0.0.0.0 --port 8000`)
+3. **Terminal 3:** Unified backend + frontend (`cd <root> && npm run dev`)
+
+> Previously this required 4 terminals. The root `npm run dev` command now runs both backend and frontend concurrently.
+
+---
+
+## Project Architecture
+
+```
+COUGHPH/
+├── backend/                  # FastAPI backend (Python)
+│   ├── main.py               # App entrypoint
+│   ├── routers/              # API route handlers
+│   ├── services/             # Business logic
+│   └── .env                  # Backend config
+├── frontend-new/             # All frontend code (React 19 + Vite 8 + TypeScript 6)
+│   ├── src/
+│   │   ├── App.tsx           # Routes: public pages → auth → dashboard
+│   │   ├── components/
+│   │   │   ├── public/       # PublicLayout.tsx (nav + footer for website pages)
+│   │   │   └── layout/       # Authenticated Layout.tsx (sidebar + header)
+│   │   ├── pages/
+│   │   │   ├── public/       # Home.tsx, About.tsx, Team.tsx, Legal.tsx
+│   │   │   ├── Login.tsx     # Login form
+│   │   │   ├── Register.tsx  # Registration form
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Screening.tsx
+│   │   │   ├── Screenings.tsx
+│   │   │   ├── Patients.tsx
+│   │   │   └── Admin.tsx
+│   │   ├── assets/public/    # Website images (hero, team photos, etc.)
+│   │   └── index.css         # Tailwind v4 + green theme tokens + Poppins font
+│   └── .env                  # Frontend config
+├── packages/
+│   └── inference/            # ML inference service (Python / ONNX)
+├── supabase/                 # Supabase config, migrations, seed
+├── models/                   # ML model files (.onnx, .pth)
+├── package.json              # Root scripts: dev, dev:backend, dev:frontend
+└── SETUP.md                  # This file
+```
+
+### Routing Structure
+
+Routes are defined in `frontend-new/src/App.tsx`:
+
+| Route | Layout | Component | Auth Required |
+|-------|--------|-----------|---------------|
+| `/` | PublicLayout | Home | No |
+| `/about` | PublicLayout | About | No |
+| `/team` | PublicLayout | Team | No |
+| `/legal` | PublicLayout | Legal | No |
+| `/login` | — | Login | No (redirects to dashboard if already logged in) |
+| `/register` | — | Register | No (redirects to dashboard if already logged in) |
+| `/dashboard` | Layout (auth) | Dashboard | Yes |
+| `/dashboard/screening` | Layout (auth) | Screening | Yes |
+| `/dashboard/screenings` | Layout (auth) | Screenings | Yes |
+| `/dashboard/patients` | Layout (auth) | Patients | Yes |
+| `/dashboard/admin` | Layout (auth, admin only) | Admin | Yes (admin/super_admin) |
+| `*` (any other) | — | Redirect to `/` | No |
 
 ---
 
@@ -306,8 +369,7 @@ When an approved clinician logs in for the first time (no prior `last_login_at`)
 Shut down in reverse order:
 
 ```powershell
-# Terminal 4 (Frontend): Press Ctrl+C
-# Terminal 3 (Backend): Press Ctrl+C
+# Terminal 3 (Unified dev): Press Ctrl+C
 # Terminal 2 (Inference): Press Ctrl+C
 # Terminal 1 (Supabase):
 cd C:\Users\David\OneDrive\Documents\COUGHPH\supabase
@@ -354,6 +416,9 @@ Check that the venv is activated: `.\venv\Scripts\Activate.ps1` then try again. 
 
 ### "Create Patient & Continue" button does nothing
 If you see no toast or error, the auth session may be stale. Log out and log back in. If the button was already working, check the browser console for errors.
+
+### Website pages not loading (shows login page instead)
+Make sure you're running the latest version of `frontend-new/`. The app should load the public website at `/`. If it redirects to `/login`, check that `App.tsx` has the public routes defined before auth routes (routes should include `<PublicLayout>` with Home, About, Team, Legal).
 
 ---
 

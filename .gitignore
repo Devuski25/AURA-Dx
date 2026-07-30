@@ -65,6 +65,18 @@ coverage.xml
 .pytest_cache/
 .tox/
 
+# Node
+node_modules/
+.pnp
+.pnp.js
+
+# Frontend build
+frontend-new/node_modules/
+frontend-new/dist/
+
+# Vite
+*.tsbuildinfo
+
 # Misc
 *.pyc
 local_settings.py

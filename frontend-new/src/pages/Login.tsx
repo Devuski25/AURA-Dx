@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useAuth } from "@/hooks/useAuth"
+import { ArrowLeft } from "lucide-react"
 
 export function Login() {
   const { signIn, confirmLogin } = useAuth()
@@ -50,7 +51,15 @@ export function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 py-12">
-      <Card className="w-full max-w-md">
+      <div className="w-full max-w-md">
+        <button
+          onClick={() => navigate("/")}
+          className="mb-4 flex items-center gap-1.5 text-sm text-cough-accent hover:text-cough-accent-dark transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Website
+        </button>
+        <Card className="w-full">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>Sign in to your COUGHPH account</CardDescription>
@@ -122,6 +131,7 @@ export function Login() {
           </p>
         </CardFooter>
       </Card>
+      </div>
 
       <Dialog open={statusDialog?.type === "pending"} onOpenChange={() => setStatusDialog(null)}>
         <DialogContent className="sm:max-w-md">
