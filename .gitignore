@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ML Models & Data
+*.pth
+!models/*.pth
+*.pt
+*.h5
+*.model
+*.pickle
+*.pkl
+*.joblib
+*.onnx
+!models/*.onnx
+*.bin
+CoughPH-Backend - Copy/models/*.pth
+CoughPH-Backend - Copy/uploads/
+CoughPH-Backend - Copy/instance/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Testing
+.pytest_cache/
+.tox/
+
+# Node
+node_modules/
+.pnp
+.pnp.js
+
+# Frontend build
+frontend-new/node_modules/
+frontend-new/dist/
+
+# Vite
+*.tsbuildinfo
+
+# Misc
+*.pyc
+local_settings.py
+
+# Secrets — NEVER commit (contains live DB-admin / API / OAuth credentials)
+*.env.local
+backend/.env.local
+client_secret_*.json
+*.pem
+*.key
+id_rsa
+id_ed25519

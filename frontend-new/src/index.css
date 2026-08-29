@@ -1,0 +1,244 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* AURA-Dx green theme tokens */
+  --color-aura-bg: #f7fcf9;
+  --color-aura-bg-alt: #e8f6ef;
+  --color-aura-bg-card: #ffffff;
+  --color-aura-text: #1a3c30;
+  --color-aura-muted: #5c7a6c;
+  --color-aura-accent: #3cb87a;
+  --color-aura-accent-dark: #2a9a63;
+  --color-aura-accent-light: #a8e6c8;
+  --color-aura-accent-soft: #d4f0e3;
+  --color-aura-border: #c5e4d4;
+  --color-aura-border-soft: #e0f0e8;
+
+  /* Brand display font (logo typography) */
+  --font-display: "Space Grotesk", "Poppins", sans-serif;
+
+  /* Clinical precision typography */
+  --font-body: "Inter", "Poppins", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* AURA-Dx clinical color tokens */
+  --color-aura-ink: #12211F;
+  --color-aura-forest: #0E3B36;
+  --color-aura-forest-light: #155E54;
+  --color-aura-mint: #1E9E73;
+  --color-aura-mint-soft: #E3F5EC;
+  --color-aura-coral: #E2543A;
+  --color-aura-coral-soft: #FCEAE6;
+  --color-aura-sage: #EAF1EC;
+  /* Darkened from #6B7B76 (4.45:1) to meet WCAG AA (≥4.5:1) on white,
+     surface, and surface-alt backgrounds */
+  --color-aura-muted: #5C6D66;
+
+  /* Semantic surface/elevation tokens */
+  --color-aura-surface: #f7fcf9;
+  --color-aura-surface-alt: #e8f6ef;
+  --color-aura-elevated: #ffffff;
+  --color-aura-elevated-hover: #f2fbf6;
+
+  /* Brand aliases */
+  --color-aura-brand: #3cb87a;
+  --color-aura-brand-soft: #d4f0e3;
+
+  /* Semantic status tokens — warning family */
+  --color-aura-warning: #d97706;
+  --color-aura-warning-strong: #b45309;
+  --color-aura-warning-soft: #fef3c7;
+  --color-aura-warning-border: #fde68a;
+
+  /* Status text tones (flip in dark mode for AA contrast) */
+  --color-aura-pine: #0E7A55;
+  --color-aura-coral-strong: #C4351F;
+
+  /* Shadow scale — Soft UI Evolution */
+  --shadow-aura-xs: 0 1px 3px rgba(14, 59, 54, 0.04);
+  --shadow-aura-sm: 0 2px 8px rgba(42, 154, 99, 0.06);
+  --shadow-aura-md: 0 4px 20px rgba(42, 154, 99, 0.08);
+  --shadow-aura-lg: 0 12px 32px rgba(42, 154, 99, 0.14);
+  --shadow-aura-xl: 0 20px 48px rgba(42, 154, 99, 0.18);
+  --shadow-aura-card: 0 1px 3px rgba(14, 59, 54, 0.04), 0 4px 16px rgba(42, 154, 99, 0.06);
+  --shadow-aura-card-hover: 0 4px 12px rgba(14, 59, 54, 0.06), 0 12px 32px rgba(42, 154, 99, 0.12);
+
+  /* Type scale */
+  --font-family-primary: "Poppins", "Inter", sans-serif;
+  --text-aura-display: 2.35rem;
+  --text-aura-heading: 1.55rem;
+  --text-aura-sub: 1.125rem;
+  --text-aura-body: 0.9375rem;
+  --text-aura-sm: 0.8125rem;
+
+  /* Radius scale */
+  --radius-aura-sm: 10px;
+  --radius-aura-md: 16px;
+  --radius-aura-lg: 24px;
+}
+
+:root {
+  --background: #f7fcf9;
+  --foreground: #1a3c30;
+  --card: #ffffff;
+  --card-foreground: #1a3c30;
+  --popover: #ffffff;
+  --popover-foreground: #1a3c30;
+  --primary: #3cb87a;
+  --primary-foreground: #ffffff;
+  --secondary: #e8f6ef;
+  --secondary-foreground: #1a3c30;
+  --muted: #e8f6ef;
+  --muted-foreground: #5c7a6c;
+  --accent: #3cb87a;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e0f0e8;
+  --input: #c5e4d4;
+  --ring: #3cb87a;
+  --radius: 0.625rem;
+  --sidebar-background: #ffffff;
+  --sidebar-foreground: #1a3c30;
+  --sidebar-primary: #3cb87a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8f6ef;
+  --sidebar-accent-foreground: #1a3c30;
+  --sidebar-border: #e0f0e8;
+  --sidebar-ring: #3cb87a;
+}
+
+/* Public page animations and utilities */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.is-visible {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* Camera live-listening indicator */
+@keyframes aura-listen-ping {
+  0%   { transform: scale(1); opacity: 0.8; }
+  75%  { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.aura-listen-ping {
+  animation: aura-listen-ping 1.8s cubic-bezier(0, 0, 2, 1) infinite;
+}
+
+@keyframes aura-detect-burst {
+  0%   { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.3); opacity: 0; }
+}
+.aura-detect-burst {
+  animation: aura-detect-burst 0.7s ease-out forwards;
+}
+
+/* Expand hit area of compact icon buttons to the 44px touch guideline
+   without changing their visual size. Pair with relative positioning. */
+.touch-target {
+  position: relative;
+}
+
+.touch-target::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Prevent horizontal overflow on small screens without breaking sticky */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Print: clean clinical report output (Download PDF uses window.print) */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    /* Keep brand colors (status banner, badges, bars) visible on paper */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Decorative dot pattern overlay */
+.aura-dots {
+  background-image: radial-gradient(circle, rgba(42, 154, 99, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Subtle section wave divider */
+.aura-wave-top {
+  position: relative;
+}
+.aura-wave-top::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: inherit;
+  clip-path: ellipse(55% 100% at 50% 100%);
+}
+
+/* Smooth card lift utility */
+.aura-lift {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+}
+.aura-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-aura-card-hover);
+}
