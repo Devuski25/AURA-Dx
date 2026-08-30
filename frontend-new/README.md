@@ -1,4 +1,15 @@
-# React + TypeScript + Vite
+# AURA-Dx Frontend (Cloudflare Pages)
+
+SPA built with React + TypeScript + Vite. Deployed to `https://aura-dx.xyz` via Cloudflare Pages.
+
+SPA routing is handled by `public/_redirects`:
+```
+/* /index.html 200
+```
+
+This rewrites all paths (e.g. `/auth/callback`, `/dashboard`) to `index.html` so the React Router can resolve them client-side. Required because Cloudflare Pages serves static files only — without this, deep links return 404.
+
+---
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
