@@ -96,7 +96,7 @@ def _get_jwks_sync(issuer: Optional[str] = None) -> Optional[list]:
     return None
 
 
-_ALLOWED_ISS_DOMAINS = {"supabase.co", "supabase.io", "localhost", "127.0.0.1"}
+_ALLOWED_ISS_DOMAINS = {"supabase.co", "supabase.io"}
 
 def _token_iss(token: str) -> Optional[str]:
     """Read iss claim without verifying signature, but only for known Supabase domains."""
@@ -109,7 +109,7 @@ def _token_iss(token: str) -> Optional[str]:
         try:
             from urllib.parse import urlparse
             host = urlparse(iss).netloc
-            if any(host.endswith(d) or host == "127.0.0.1:54321" for d in _ALLOWED_ISS_DOMAINS):
+            if any(host.endswith(d) for d in _ALLOWED_ISS_DOMAINS):
                 return iss
         except Exception:
             pass

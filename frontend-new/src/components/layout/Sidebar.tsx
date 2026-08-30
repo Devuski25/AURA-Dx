@@ -6,7 +6,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import {
   AudioLines,
   ClipboardList,
-  ExternalLink,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -205,7 +204,7 @@ export function Sidebar({
             whileTap={{ scale: 0.88 }}
             transition={{ type: "spring", stiffness: 500, damping: 20 }}
             className={cn(
-              "rounded-md p-2 text-white hover:bg-black/10",
+              "rounded-md p-2 text-white transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
               !isMobile && "hidden"
             )}
             onClick={onClose}
@@ -243,7 +242,7 @@ export function Sidebar({
                   title={showLabels ? undefined : item.name}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "group relative z-10 flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors",
+                    "group relative z-10 flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
                     showLabels ? "justify-start" : "justify-center",
                     isActive
                       ? "text-[#14382a]"
@@ -296,29 +295,26 @@ export function Sidebar({
 
         <div className="shrink-0 border-t border-white/15 p-3">
           {showLabels ? (
-            <a
-              href="/legal"
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              to="/help-support"
+              onClick={onClose}
               className="mb-2 flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#dff0e7] transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
             >
               <LifeBuoy className="h-5 w-5 shrink-0" aria-hidden="true" />
               Help &amp; Support
-              <ExternalLink className="ml-auto h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
-            </a>
+            </Link>
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
-                <a
-                  href="/legal"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <Link
+                  to="/help-support"
+                  onClick={onClose}
                   aria-label="Help and support"
                   title="Help and support"
                   className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-lg text-[#dff0e7] transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                 >
                   <LifeBuoy className="h-5 w-5" aria-hidden="true" />
-                </a>
+                </Link>
               </TooltipTrigger>
               <TooltipContent side="right">Help &amp; Support</TooltipContent>
             </Tooltip>
@@ -354,7 +350,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-black/10 hover:text-white"
+                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>
@@ -376,7 +372,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-black/10 hover:text-white"
+                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>

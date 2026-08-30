@@ -206,7 +206,7 @@ export function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -240,7 +240,7 @@ export function Login() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
+                  className="text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline focus-visible:outline-none focus-visible:underline"
                 >
                   Forgot password?
                 </button>
@@ -293,7 +293,7 @@ export function Login() {
             Don't have an account?{" "}
             <Link
               to="/register"
-              className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline"
+              className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline focus-visible:outline-none focus-visible:underline"
             >
               Register an Account
             </Link>

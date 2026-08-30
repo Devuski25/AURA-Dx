@@ -126,7 +126,7 @@ export function Home() {
               </motion.div>
               <Link
                 to="/about"
-                className="group inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-4 text-sm font-semibold text-white/90 no-underline backdrop-blur-sm transition-all duration-200 hover:border-white/35 hover:bg-white/10"
+                className="group inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-4 text-sm font-semibold text-white/90 no-underline backdrop-blur-sm transition-all duration-200 hover:border-white/35 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
               >
                 See how it works
                 <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
@@ -173,7 +173,7 @@ export function Home() {
             </p>
             <Link
               to="/about"
-              className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl"
+              className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
             >
               Explore Our Technology
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
@@ -235,7 +235,7 @@ export function Home() {
               </p>
               <Link
                 to="/login"
-                className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl"
+                className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
               >
                 Try It Now
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
@@ -325,7 +325,7 @@ export function Home() {
               <div>
                 <h3 className="m-0 text-lg font-bold text-aura-text">Consent-First, and Compliant with Philippine Law</h3>
                 <p className="mt-2 m-0 text-sm leading-relaxed text-aura-muted">No audio is captured without explicit, informed consent. AURA-Dx follows the Data Privacy Act of 2012 (R.A. 10173) and the Cybercrime Prevention Act of 2012 (R.A. 10175).</p>
-                <Link to="/legal" className="group mt-4 inline-flex items-center gap-1.5 font-semibold text-aura-accent-dark no-underline transition-colors hover:text-aura-accent">
+                <Link to="/legal" className="group mt-4 inline-flex items-center gap-1.5 font-semibold text-aura-accent-dark no-underline transition-colors hover:text-aura-accent focus-visible:outline-none focus-visible:underline">
                   Read the full Legal &amp; Privacy page
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
                 </Link>

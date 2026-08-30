@@ -1,15 +1,15 @@
-import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion"
-import { pageVariants, spring } from "@/lib/motion"
+import { pageVariants } from "@/lib/motion"
 import { Logo } from "@/components/layout/Logo"
-import { ArrowUpRight } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { ArrowUpRight, Home, Info, ShieldCheck, Users } from "lucide-react"
 
 const NAV_ITEMS = [
-  { label: "Home", path: "/" },
-  { label: "About System", path: "/about" },
-  { label: "Our Team", path: "/team" },
-  { label: "Legal & Privacy", path: "/legal" },
+  { label: "Home", path: "/", icon: Home },
+  { label: "About System", path: "/about", icon: Info },
+  { label: "Our Team", path: "/team", icon: Users },
+  { label: "Legal & Privacy", path: "/legal", icon: ShieldCheck },
 ]
 
 function ScrollProgress() {
@@ -24,7 +24,7 @@ function ScrollProgress() {
   )
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks() {
   const { pathname } = useLocation()
   return (
     <ul className="m-0 flex list-none flex-col gap-1 lg:flex-row lg:gap-0">
@@ -32,8 +32,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         <li key={item.path}>
           <Link
             to={item.path}
-            onClick={onNavigate}
-            className={`block rounded-lg px-4 py-2.5 text-sm font-semibold no-underline transition-all duration-200 ${
+            className={`block rounded-lg px-4 py-2.5 text-sm font-semibold no-underline transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2 ${
               pathname === item.path
                 ? "bg-aura-forest text-white shadow-sm shadow-aura-forest/20"
                 : "text-aura-text/70 hover:bg-aura-bg-alt hover:text-aura-text"
@@ -48,10 +47,10 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export function PublicLayout() {
-  const [navOpen, setNavOpen] = useState(false)
+  const { pathname } = useLocation()
 
   return (
-    <div className="min-h-screen bg-aura-bg font-[Poppins,sans-serif] text-aura-text">
+    <div className="min-h-screen bg-aura-bg pb-20 font-[Poppins,sans-serif] text-aura-text lg:pb-0">
       <ScrollProgress />
 
       {/* ─── Main header ─── */}
@@ -65,56 +64,16 @@ export function PublicLayout() {
             <Logo size="lg" />
           </Link>
 
-          {/* Mobile hamburger */}
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            transition={{ type: "spring", stiffness: 500, damping: 20 }}
-            className="relative z-50 flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-aura-border bg-white lg:hidden"
-            onClick={() => setNavOpen(!navOpen)}
-            aria-label="Toggle navigation"
-            aria-expanded={navOpen}
-          >
-            <span aria-hidden="true" className="relative block h-4 w-5">
-              <motion.span
-                animate={navOpen ? { y: 7, rotate: 45 } : { y: 0, rotate: 0 }}
-                transition={spring.snappy}
-                className="absolute left-0 top-0 block h-0.5 w-5 rounded bg-aura-text"
-              />
-              <motion.span
-                animate={navOpen ? { y: -7, rotate: -45 } : { y: 0, rotate: 0 }}
-                transition={spring.snappy}
-                className="absolute bottom-0 left-0 block h-0.5 w-5 rounded bg-aura-text"
-              />
-            </span>
-          </motion.button>
-
           {/* Desktop nav */}
           <nav className="hidden lg:block">
             <NavLinks />
           </nav>
 
-          {/* Mobile dropdown */}
-          <AnimatePresence>
-            {navOpen && (
-              <motion.nav
-                key="mobile-nav"
-                initial={{ opacity: 0, y: -10, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.97 }}
-                transition={spring.gentle}
-                style={{ transformOrigin: "top right" }}
-                className="absolute inset-x-4 top-[60px] z-50 flex flex-col items-stretch gap-1 rounded-2xl border border-aura-border-soft bg-white p-3 shadow-aura-lg lg:hidden"
-              >
-                <NavLinks onNavigate={() => setNavOpen(false)} />
-              </motion.nav>
-            )}
-          </AnimatePresence>
-
           {/* CTA button */}
           <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
             <Link
               to="/login"
-              className="block shrink-0 rounded-full bg-aura-forest px-6 py-2.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl"
+                className="block shrink-0 rounded-full bg-aura-forest px-6 py-2.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
             >
               Login
             </Link>
@@ -159,7 +118,7 @@ export function PublicLayout() {
                     <li key={item.path}>
                       <Link
                         to={item.path}
-                        className="group inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white"
+                        className="group inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                       >
                         {item.label}
                         <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
@@ -217,6 +176,31 @@ export function PublicLayout() {
           </div>
         </div>
       </footer>
+
+      {/* Mobile bottom navigation */}
+      <nav
+        aria-label="Mobile navigation"
+        className="fixed inset-x-0 bottom-0 z-[60] flex border-t border-aura-border-soft bg-white/95 backdrop-blur-lg lg:hidden"
+      >
+        {NAV_ITEMS.map((navItem) => {
+          const active = pathname === navItem.path
+          const Icon = navItem.icon
+          return (
+            <Link
+              key={navItem.path}
+              to={navItem.path}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 text-[0.7rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent",
+                active ? "bg-aura-accent/10 text-aura-accent" : "text-aura-muted hover:text-aura-text"
+              )}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+              <span>{navItem.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
     </div>
   )
 }

@@ -89,3 +89,6 @@ client_secret_*.json
 *.key
 id_rsa
 id_ed25519
+# Runtime PIDs (dev.ps1)
+.pids/
+*.pid

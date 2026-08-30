@@ -402,7 +402,7 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                     className="h-10 pr-9 pl-9 transition-shadow focus-visible:ring-2 focus-visible:ring-aura-brand"
                   />
                   {search && (
-                    <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-aura-muted transition-colors hover:bg-aura-surface-alt hover:text-aura-text">
+                    <button type="button" onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-aura-muted transition-colors hover:bg-aura-surface-alt hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand">
                       <XCircle className="h-4 w-4" aria-hidden="true" />
                     </button>
                   )}

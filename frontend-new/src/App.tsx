@@ -13,6 +13,7 @@ import { PatientRecords } from "@/pages/PatientRecords"
 import { PatientDetail } from "@/pages/PatientDetail"
 import { ScreeningDetail } from "@/pages/ScreeningDetail"
 import { Admin } from "@/pages/Admin"
+import { HelpSupport } from "@/pages/HelpSupport"
 import { Home } from "@/pages/public/Home"
 import { About } from "@/pages/public/About"
 import { Team } from "@/pages/public/Team"
@@ -103,6 +104,18 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
+      </Route>
+
+      {/* Standalone help & support (authenticated, role-aware) */}
+      <Route
+        path="/help-support"
+        element={
+          <PrivateRoute>
+            <Layout />
+          </PrivateRoute>
+        }
+      >
+        <Route index element={<HelpSupport />} />
       </Route>
 
       {/* Fallback: redirect unknown routes to home */}

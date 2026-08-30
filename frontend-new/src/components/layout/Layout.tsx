@@ -78,7 +78,7 @@ export function Layout() {
                 <motion.button
                   whileTap={{ scale: 0.88 }}
                   transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                  className="rounded-md p-2.5 text-aura-muted hover:bg-aura-surface-alt lg:hidden"
+                  className="rounded-md p-2.5 text-aura-muted transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand lg:hidden"
                   onClick={() => setSidebarOpen(true)}
                   aria-label="Open sidebar"
                   aria-expanded={sidebarOpen}

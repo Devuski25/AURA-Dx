@@ -657,7 +657,7 @@ export function Admin() {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
                             aria-label={showPassword ? "Hide password" : "Show password"}
                           >
                             {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}

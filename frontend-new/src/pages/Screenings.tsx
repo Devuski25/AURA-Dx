@@ -292,23 +292,23 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                 <TableHeader className="sticky top-0 z-10 bg-aura-sage">
                   <TableRow>
                     <TableHead aria-sort={sortField === "patient_name" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("patient_name")} className="flex items-center gap-1 cursor-pointer select-none">
+                      <button type="button" onClick={() => handleSort("patient_name")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Patient <SortIcon field="patient_name" />
                       </button>
                     </TableHead>
                     <TableHead>Age & Gender</TableHead>
                     <TableHead aria-sort={sortField === "respiratory_result" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("respiratory_result")} className="flex items-center gap-1 cursor-pointer select-none">
+                      <button type="button" onClick={() => handleSort("respiratory_result")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Result <SortIcon field="respiratory_result" />
                       </button>
                     </TableHead>
                     <TableHead aria-sort={sortField === "status" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("status")} className="flex items-center gap-1 cursor-pointer select-none">
+                      <button type="button" onClick={() => handleSort("status")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Status <SortIcon field="status" />
                       </button>
                     </TableHead>
                     <TableHead aria-sort={sortField === "created_at" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("created_at")} className="flex items-center gap-1 cursor-pointer select-none">
+                      <button type="button" onClick={() => handleSort("created_at")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Date <SortIcon field="created_at" />
                       </button>
                     </TableHead>
