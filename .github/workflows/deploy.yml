@@ -1,10 +1,12 @@
-name: Deploy frontend to Cloudflare Pages
+name: Deploy Worker to Cloudflare
 
 on:
   push:
     branches: [main]
     paths:
       - 'frontend-new/**'
+      - 'worker/**'
+      - 'wrangler.jsonc'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
@@ -20,28 +22,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend-new/package-lock.json
+            cache-dependency-path: frontend-new/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         working-directory: frontend-new
         run: npm ci
 
-      - name: Build
+      - name: Build frontend
         working-directory: frontend-new
         run: npm run build
         env:
-          # Production env vars baked at build time
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_INFERENCE_URL: ${{ secrets.VITE_INFERENCE_URL }}
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+      - name: Deploy Worker to Cloudflare
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: aura-dx
-          directory: frontend-new/dist
-          gitHubDeploymentEnvironment: production
+          workingDirectory: '.'

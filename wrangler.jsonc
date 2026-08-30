@@ -1,0 +1,9 @@
+{
+  "name": "aura-dx",
+  "main": "worker/src/index.js",
+  "compatibility_date": "2026-08-30",
+  "assets": {
+    "directory": "./frontend-new/dist",
+    "binding": "ASSETS"
+  }
+}
