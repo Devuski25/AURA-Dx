@@ -21,9 +21,11 @@
 
 ---
 
-## Quick Start (Recommended) — One Command
+### Quick Start (Recommended) — One Command
 
 > **Windows only.** macOS/Linux users follow the manual steps in Section 2+.
+
+#### Full stack (with local Supabase + frontend dev server)
 
 From the repo root, the `dev.ps1` manager starts/stops/restarts all 4 services:
 
@@ -36,18 +38,31 @@ cd C:\Users\David\OneDrive\Documents\COUGHPH
 .\dev.ps1 status     # Show which services are up + backend health detail
 ```
 
+#### Backend only (production setup — no Docker needed)
+
+The app is deployed to `aura-dx.xyz`. For local testing with the tunnel:
+
+```powershell
+cd C:\Users\David\OneDrive\Documents\COUGHPH
+
+.\dev-backend.ps1 start    # Start inference + backend only (no Docker/Supabase)
+.\dev-backend.ps1 status   # Show status + backend health
+.\dev-backend.ps1 tunnel   # Start the Cloudflare Tunnel
+.\dev-backend.ps1 stop     # Stop everything
+```
+
 If blocked by execution policy:
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\dev.ps1 start
+powershell -ExecutionPolicy Bypass -File .\dev-backend.ps1 start
 ```
 
 **Behavior:**
 - `start` is **idempotent** — already-running services are skipped (safe to run anytime)
-- Supabase starts first (30–60s on cold start), then inference, backend, frontend
-- PIDs tracked in `.pids\`; `stop`/`restart` sweep ports 8000/8001/5174 to catch orphaned processes (never touches Docker/Supabase ports)
+- Starts inference + backend only — no Docker, no Supabase, no frontend dev server
+- PIDs tracked in `.pids\`; `stop` sweeps ports 8000/8001 to catch orphaned processes
 - All logs written to `logs\` (e.g. `logs\backend_err.log`)
 
-> **NOTE:** The backend + frontend are configured to use the **production** Supabase project (`zczzviyyrrrmzmvjyigx.supabase.co`) for auth/DB. The local Supabase (`:54321`) can still be started via `dev.ps1` for migration/local-database work, but the running app talks to production.
+> **NOTE:** The backend + frontend are configured to use the **production** Supabase project (`zczzviyyrrrmzmvjyigx.supabase.co`) for auth/DB. Use `.\dev-backend.ps1` for the production setup — it skips Docker entirely. Use `.\dev.ps1` only if you need local Supabase for migration/database work.
 
 ---
 
