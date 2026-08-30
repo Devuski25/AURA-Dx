@@ -1,8 +1,9 @@
 # AURA-Dx — Complete Setup Guide
 
-**Last updated:** August 16, 2026  
+**Last updated:** August 30, 2026  
 **OS:** Windows (PowerShell) · macOS · Linux  
-**Ports:** Inference `8000` · Backend `8001` · Frontend `5174` · Supabase `54321`
+**Ports:** Inference `8000` · Backend `8001` · Frontend `5174` · Supabase `54321`  
+**Production domain:** `https://aura-dx.xyz` (Cloudflare Pages + Cloudflare Tunnel)
 
 ---
 
@@ -129,29 +130,25 @@ Apply the migration `supabase/migrations/001_clean_reset_and_profiles.sql` via S
 - Creates trigger `on_auth_user_created` → `handle_new_user()`: first-ever user → `role=super_admin, status=approved`; all others → `role=clinician, status=pending`
 - Creates RLS policies: superadmin full access, admin reads all + edits non-superadmins, users read/update own row
 
-### 2c. Google OAuth setup
+### 2c. Google OAuth setup (production domain)
 
-1. **Google Cloud Console** → APIs & Services → Credentials → Create OAuth Client ID
+1. **Google Cloud Console** → APIs & Services → Credentials → OAuth 2.0 Client ID
    - Application type: Web application
-   - Authorized JavaScript origins: `http://localhost:5174`
+   - Authorized JavaScript origins: `https://aura-dx.xyz`
    - Authorized redirect URIs: `https://zczzviyyrrrmzmvjyigx.supabase.co/auth/v1/callback`
    - Copy Client ID and Client Secret
 
 2. **Supabase Dashboard** → Authentication → Sign In / Providers → Google:
    - Enable Google
-   - Paste Client ID and Client Secret
+   - Paste Client ID and **Client Secret** (the newest one — check the Google Cloud Credentials page for the current active secret)
    - Save
 
 3. **Supabase Dashboard** → Authentication → URL Configuration:
-   - Site URL: `http://localhost:5174`
-   - Redirect URLs: `https://zczzviyyrrrmzmvjyigx.supabase.co/auth/v1/callback`, `http://localhost:5174/**`, `http://localhost:5174/auth/callback`
+   - Site URL: `https://aura-dx.xyz`
+   - Redirect URLs: `https://aura-dx.xyz/auth/callback`, `https://aura-dx.xyz/reset-password`, `https://aura-dx.xyz`
    - Save
 
-### 2d. Verify superadmin rule
-
-1. Register first account → should be `super_admin` + `approved`, auto-redirects to `/dashboard`
-2. Register second account → should be `clinician` + `pending`, shows pending dialog
-3. As superadmin, go to `/dashboard/admin`, edit user roles
+> **Multiple client secrets?** Google Cloud may list several secrets. Use the **newest enabled** one. Delete older unused secrets from Google Cloud to keep things clean.
 
 > **Wrong-role trap:** First-account rule only fires when `profiles` is empty. If already seeded, truncate profiles and create new first user.
 
@@ -216,6 +213,41 @@ App runs at `http://localhost:5174`.
 
 ---
 
+## Production Deployment (aura-dx.xyz)
+
+The app is deployed to production via **Cloudflare Pages** (frontend) + **Cloudflare Tunnel** (backend + inference). The laptop runs the backend on `:8001` and inference on `:8000`; the tunnel forwards traffic when running.
+
+### Architecture
+
+```
+https://aura-dx.xyz          → Cloudflare Pages (always up)
+https://api.aura-dx.xyz      → Cloudflare Tunnel → localhost:8001 (backend)
+https://infer.aura-dx.xyz    → Cloudflare Tunnel → localhost:8000 (inference)
+```
+
+### What you need to run the tunnel
+
+```powershell
+# Start the tunnel (must be running for api/infer subdomains to work):
+cloudflared tunnel run aura-dx-backend
+```
+
+The tunnel config is at `~/.cloudflared/config.yml` and already routes:
+- `api.aura-dx.xyz` → `http://localhost:8001`
+- `infer.aura-dx.xyz` → `http://localhost:8000`
+- Unknown paths → `http_status:404`
+
+### Local dev override
+
+To test the tunnel locally without the production domain, edit `frontend-new/.env`:
+```env
+VITE_API_URL=http://localhost:8001
+VITE_INFERENCE_URL=http://localhost:8000
+```
+The tunnel intercepts at the DNS level — when it's not running, `api.aura-dx.xyz` returns a 502.
+
+---
+
 ## Step 5: Verify Everything
 
 | Check | URL | Expected |
@@ -266,7 +298,7 @@ Approved clinician logging in first time (no `last_login_at`) sees confirmation 
 
 | Symptom | Cause / Fix |
 |---------|-------------|
-| **Approve button shows "Failed to fetch"** | Backend not running. Start via `.\dev.ps1 start` or manually on port 8001. Check `VITE_API_URL` = `http://localhost:8001`. |
+| **Approve button shows "Failed to fetch"** | Backend not running. Start via `.\dev.ps1 start` or manually on port 8001. Check `VITE_API_URL`. |
 | **"Provider is not enabled" / Google 403** | Google provider off in Supabase, or Client ID/Secret wrong. Re-check Step 2c. |
 | **`redirect_uri_mismatch`** | Google redirect URI doesn't match Supabase callback. Confirm exact match: `https://zczzviyyrrrmzmvjyigx.supabase.co/auth/v1/callback` |
 | **"Access blocked" on Google login** | App in Testing mode and email not added to Test users. Add it (Step 2c) or publish app. |
@@ -276,10 +308,12 @@ Approved clinician logging in first time (no `last_login_at`) sees confirmation 
 | **Missing `audit_logs` table** | Tables should exist from migration. If not, check Supabase SQL Editor for errors during migration. |
 | **`GET /api/patients` returns 500 once a patient exists** | `patient_list_view` missing `updated_at`. Re-run `supabase/production_fix1.sql` (recreates both views with `updated_at`). |
 | **Patient/screening creation fails for a brand-new user (500, NOT NULL)** | Signup trigger wasn't assigning `clinic_id`, so new profiles had `clinic_id=NULL`. Re-run `supabase/production_fix1.sql` (fixes `handle_new_user()` + backfills). |
-| **CORS errors on frontend** | Backend must be running. Check `http://localhost:8001/api/health`. |
+| **CORS errors on frontend** | Backend must be running. Check `http://localhost:8001/api/health`. For production, ensure `CORS_ORIGINS=https://aura-dx.xyz` in `backend/.env.local`. |
 | **Port 8000/8001/5174 stuck after a crash** | Run `.\dev.ps1 stop` (or `restart`) — it sweeps and kills orphaned listeners on those ports. |
 | **Backend shows healthy but local Supabase is down** | Expected — backend uses **production** Supabase. Local `:54321` is only for DB/migration work. |
 | **`dev.ps1 restart` shows Supabase DOWN afterward** | Fixed — `stop` now waits for port 54321 to fully release before starting. If it still happens, ensure Docker Desktop is running before `restart`. |
+| **api.aura-dx.xyz returns 502** | Cloudflare Tunnel not running. Start it: `cloudflared tunnel run aura-dx-backend`. |
+| **infer.aura-dx.xyz returns 502** | Same as above — tunnel must be running for both subdomains. |
 
 ---
 
@@ -304,10 +338,16 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_rtTqLL8VnxdSmaIAtHDQrQ_TrMrOwlt
 VITE_API_URL=http://localhost:8001
 ```
 
-### `frontend-new/.env` (fallback defaults — .env.local overrides)
+### `frontend-new/.env` (production defaults — .env.local overrides)
 ```
 VITE_SUPABASE_URL=https://zczzviyyrrrmzmvjyigx.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_rtTqLL8VnxdSmaIAtHDQrQ_TrMrOwlt
+VITE_API_URL=https://api.aura-dx.xyz
+VITE_INFERENCE_URL=https://infer.aura-dx.xyz
+```
+
+### `frontend-new/.env.local` (override for local dev testing)
+```
 VITE_API_URL=http://localhost:8001
 VITE_INFERENCE_URL=http://localhost:8000
 ```
