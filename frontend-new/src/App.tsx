@@ -5,6 +5,7 @@ import { PublicLayout } from "@/components/public/PublicLayout"
 import { Login } from "@/pages/Login"
 import { Register } from "@/pages/Register"
 import { AuthCallback } from "@/pages/AuthCallback"
+import { ResetPassword } from "@/pages/ResetPassword"
 import { Dashboard } from "@/pages/Dashboard"
 import { Screening } from "@/pages/Screening"
 import { Screenings } from "@/pages/Screenings"
@@ -79,6 +80,7 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPassword />} />
 
       {/* Authenticated app */}
       <Route

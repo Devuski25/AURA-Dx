@@ -108,8 +108,8 @@ export function Home() {
               <span aria-hidden="true" className="inline-block h-2 w-2 animate-pulse rounded-full bg-aura-accent" />
               Acoustic Unit for Respiratory Analysis
             </motion.span>
-            <h1 className="m-0 max-w-[20ch] font-display text-[2.5rem] font-bold leading-[1.06] tracking-tight text-white md:text-[3.2rem]">
-              For a Better State of&nbsp;Respiratory&nbsp;Health.
+            <h1 className="m-0 max-w-[18ch] break-words font-display text-[2.1rem] font-bold leading-[1.1] tracking-tight text-white md:max-w-[20ch] md:text-[3.2rem] md:leading-[1.06]">
+              For a Better State of Respiratory Health.
             </h1>
             <p className="mt-6 max-w-[44ch] text-[1.05rem] leading-relaxed text-white/70 md:text-lg">
               Screen for tuberculosis, COPD, and pneumonia from a single cough — powered by a two-tier AI pipeline, reviewed by a clinician.
