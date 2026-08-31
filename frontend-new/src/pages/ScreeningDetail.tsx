@@ -395,20 +395,23 @@ function tierColor(tier: "tb" | "resp", cls: string): string {
 export function ScreeningDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { accessToken } = useAuth()
   const [screening, setScreening] = useState<ScreeningDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (id) fetchScreening()
-  }, [id])
+    if (id && accessToken) fetchScreening()
+  }, [id, accessToken])
 
   const fetchScreening = async () => {
-    if (!id) return
+    if (!id || !accessToken) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(getApiUrl(`/api/screenings/${id}`))
+      const res = await fetch(getApiUrl(`/api/screenings/${id}`), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || "Screening not found")
@@ -453,7 +456,6 @@ export function ScreeningDetail() {
     }
   }
 
-  const { accessToken } = useAuth()
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
   const [reviewNotes, setReviewNotes] = useState("")
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
