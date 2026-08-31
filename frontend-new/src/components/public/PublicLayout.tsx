@@ -9,7 +9,6 @@ const NAV_ITEMS = [
   { label: "Home", path: "/", icon: Home },
   { label: "About System", path: "/about", icon: Info },
   { label: "Our Team", path: "/team", icon: Users },
-  { label: "Help & Support", path: "/help-support", icon: LifeBuoy },
   { label: "Legal & Privacy", path: "/legal", icon: ShieldCheck },
 ]
 
@@ -108,6 +107,14 @@ export function PublicLayout() {
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-aura-accent" />
                 Thesis-stage research prototype
               </div>
+              <Link
+                to="/help-support"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              >
+                <LifeBuoy className="h-3.5 w-3.5" aria-hidden="true" />
+                Help &amp; Support
+                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
             </div>
 
             {/* Quick Links */}

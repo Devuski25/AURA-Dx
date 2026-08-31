@@ -141,8 +141,6 @@ export function ResetPassword() {
     // Clear the local recovery flag so navigating back here won't re-enter recovery mode
     setIsPasswordRecovery(false)
     toast.success("Password updated. Please sign in with your new password.")
-    // Redirect to /login so the user can authenticate with the new credentials
-    navigate("/login", { replace: true })
   }
 
   const goToLogin = () => {
