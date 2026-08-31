@@ -708,7 +708,7 @@ export function ScreeningDetail() {
         <h2 className="mb-4 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
           Review Status
         </h2>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5">
           <div>
             <FieldLabel>Status</FieldLabel>
             <div
@@ -724,18 +724,8 @@ export function ScreeningDetail() {
               {screening.status === "pending_review" ? "Pending Review" : screening.reviewed_by ? "Reviewed" : screening.status}
             </div>
           </div>
-          <div>
-            <FieldLabel>Reviewed By</FieldLabel>
-            <div className="text-sm font-medium text-aura-ink">{screening.reviewed_by_name || "Not yet reviewed"}</div>
-          </div>
-          <div>
-            <FieldLabel>Review Date</FieldLabel>
-            <div className="text-sm font-medium tabular-nums text-aura-ink">
-              {screening.reviewed_at ? dateTimeFormat.format(new Date(screening.reviewed_at)) : "—"}
-            </div>
-          </div>
           {screening.review_notes && (
-            <div className="sm:col-span-3">
+            <div>
               <FieldLabel>Review Notes</FieldLabel>
               <div className="text-sm font-medium text-aura-ink">{screening.review_notes}</div>
             </div>
