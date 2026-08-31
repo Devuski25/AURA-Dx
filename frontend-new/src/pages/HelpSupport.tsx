@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { AnimatePresence, motion, type Variants } from "framer-motion"
 import {
   Activity,
@@ -10,11 +10,20 @@ import {
   Download,
   LifeBuoy,
   ShieldCheck,
+  ShieldAlert,
 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -36,12 +45,14 @@ const item: Variants = {
 }
 
 export function HelpSupport() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   const role = user?.role
   const isAdmin = role === "admin" || role === "super_admin"
 
   const [loading, setLoading] = useState(true)
   const [openItems, setOpenItems] = useState<Set<string>>(new Set())
+  const [legalGuardOpen, setLegalGuardOpen] = useState(false)
   const guideRef = useRef<HTMLElement>(null)
 
   /* Simulated mount load so skeletons are visible while the page settles. */
@@ -397,15 +408,55 @@ export function HelpSupport() {
         className="flex flex-col items-start justify-between gap-3 pb-2 sm:flex-row sm:items-center"
       >
         <p className="text-sm text-aura-muted">Need our privacy and data policies?</p>
-        <Link
-          to="/legal"
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-aura-border-soft bg-aura-bg-card px-4 text-sm font-medium text-aura-text shadow-aura-xs transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent"
-        >
-          <ShieldCheck className="h-4 w-4 text-aura-accent" aria-hidden="true" />
-          Legal &amp; Privacy
-          <ArrowRight className="h-4 w-4 text-aura-muted" aria-hidden="true" />
-        </Link>
+        {user ? (
+          <button
+            type="button"
+            onClick={() => setLegalGuardOpen(true)}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-aura-border-soft bg-aura-bg-card px-4 text-sm font-medium text-aura-text shadow-aura-xs transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent"
+          >
+            <ShieldCheck className="h-4 w-4 text-aura-accent" aria-hidden="true" />
+            Legal &amp; Privacy
+            <ArrowRight className="h-4 w-4 text-aura-muted" aria-hidden="true" />
+          </button>
+        ) : (
+          <Link
+            to="/legal"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-aura-border-soft bg-aura-bg-card px-4 text-sm font-medium text-aura-text shadow-aura-xs transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent"
+          >
+            <ShieldCheck className="h-4 w-4 text-aura-accent" aria-hidden="true" />
+            Legal &amp; Privacy
+            <ArrowRight className="h-4 w-4 text-aura-muted" aria-hidden="true" />
+          </Link>
+        )}
       </motion.footer>
+
+      <Dialog open={legalGuardOpen} onOpenChange={setLegalGuardOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-aura-warning" />
+              Leave active workspace?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Navigating to Legal &amp; Privacy requires leaving your active workspace session. Do you wish to log out and proceed?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setLegalGuardOpen(false)}>
+              No, stay here
+            </Button>
+            <Button
+              onClick={async () => {
+                setLegalGuardOpen(false)
+                await signOut()
+                navigate("/legal")
+              }}
+            >
+              Yes, sign out &amp; continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }

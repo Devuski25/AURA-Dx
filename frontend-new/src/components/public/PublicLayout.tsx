@@ -3,12 +3,13 @@ import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion"
 import { pageVariants } from "@/lib/motion"
 import { Logo } from "@/components/layout/Logo"
 import { cn } from "@/lib/utils"
-import { ArrowUpRight, Home, Info, ShieldCheck, Users } from "lucide-react"
+import { ArrowUpRight, Home, Info, LifeBuoy, ShieldCheck, Users } from "lucide-react"
 
 const NAV_ITEMS = [
   { label: "Home", path: "/", icon: Home },
   { label: "About System", path: "/about", icon: Info },
   { label: "Our Team", path: "/team", icon: Users },
+  { label: "Help & Support", path: "/help-support", icon: LifeBuoy },
   { label: "Legal & Privacy", path: "/legal", icon: ShieldCheck },
 ]
 
@@ -96,9 +97,9 @@ export function PublicLayout() {
       {/* ─── Footer ─── */}
       <footer className="bg-aura-forest px-6 pb-8 pt-14 text-white">
         <div className="mx-auto max-w-7xl">
-          <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
             {/* Brand column */}
-            <div>
+            <div className="col-span-2 sm:col-span-1 lg:col-span-1">
               <Logo size="md" inverse withSubtitle />
               <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/60">
                 Web-based AI system for early detection of respiratory diseases via cough sound analysis.

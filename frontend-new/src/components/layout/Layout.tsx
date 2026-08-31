@@ -71,7 +71,7 @@ export function Layout() {
           onSignOut={handleSignOut}
           user={user}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-[100dvh] min-w-0 flex-1 flex-col overflow-y-auto">
           <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-aura-border-soft bg-aura-elevated/90 px-4 backdrop-blur-md lg:px-6 print:hidden">
             <Tooltip>
               <TooltipTrigger asChild>

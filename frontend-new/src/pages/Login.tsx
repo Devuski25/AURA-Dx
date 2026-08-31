@@ -35,6 +35,7 @@ export function Login() {
   }, [])
 
   const [loading, setLoading] = useState(false)
+  const [oauthInFlight, setOauthInFlight] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -272,20 +273,50 @@ export function Login() {
               disabled={loading}
               onClick={async () => {
                 setError(null)
+                setOauthInFlight(true)
                 setLoading(true)
                 try {
                   const { error } = await signInWithOAuth("google")
                   if (error) {
                     setError(error.message)
+                    setOauthInFlight(false)
                   }
+                  // On success the browser is redirected to Google — no further state to reset
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Google sign-in failed")
+                  setOauthInFlight(false)
                 } finally {
-                  setLoading(false)
+                  if (!oauthInFlight) setLoading(false)
                 }
               }}
             >
-              <GoogleIcon className="h-4 w-4" />
-              Continue with Google
+              {oauthInFlight ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" role="status" aria-live="polite" />
+                  Redirecting to Google…
+                </>
+              ) : (
+                <>
+                  <GoogleIcon className="h-4 w-4" />
+                  Continue with Google
+                </>
+              )}
             </Button>
+
+            {oauthInFlight && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full h-10"
+                onClick={() => {
+                  setOauthInFlight(false)
+                  setLoading(false)
+                  setError(null)
+                }}
+              >
+                Cancel
+              </Button>
+            )}
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">

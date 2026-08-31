@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { supabase } from "@/lib/supabase"
 import { ArrowLeft } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
+import { toast } from "sonner"
 
 export function ResetPassword() {
   const { user, loading: authLoading, signOut } = useAuth()
@@ -137,6 +138,11 @@ export function ResetPassword() {
     setLoading(false)
     // Sign out so the user must sign in again with the new password
     await supabase.auth.signOut()
+    // Clear the local recovery flag so navigating back here won't re-enter recovery mode
+    setIsPasswordRecovery(false)
+    toast.success("Password updated. Please sign in with your new password.")
+    // Redirect to /login so the user can authenticate with the new credentials
+    navigate("/login", { replace: true })
   }
 
   const goToLogin = () => {
@@ -264,7 +270,7 @@ export function ResetPassword() {
 
                 <Button type="submit" className="w-full h-10 bg-emerald-700 text-white shadow-sm transition-colors duration-200 hover:bg-emerald-800 focus-visible:ring-emerald-600" disabled={loading || passwordStrength < 3}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" role="status" aria-live="polite" />}
-                  {loading ? "Updating…" : "Update Password"}
+                  {loading ? "Updating…" : "Change Password"}
                 </Button>
               </form>
             )}
