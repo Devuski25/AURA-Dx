@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from "react"
+import { useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
-import { Loader2, Search, Edit, Trash2, Users, XCircle, FileDown } from "lucide-react"
+import { Loader2, Search, Edit, Trash2, Users, XCircle, FileDown, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -119,6 +120,7 @@ function getConditionClass(condition: string) {
 
 export function Patients({ embedded = false }: { embedded?: boolean }) {
   const { user, accessToken } = useAuth()
+  const navigate = useNavigate()
   const [search, setSearch] = useState("")
   const [genderFilter, setGenderFilter] = useState("all")
   const [diseaseFilter, setDiseaseFilter] = useState("all")
@@ -539,6 +541,27 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                       </TableCell>
                       <TableCell className="w-32 px-4 text-right align-middle">
                         <div className="flex items-center justify-end gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="touch-target h-8 w-8 rounded-full text-aura-muted transition-colors hover:bg-aura-sage hover:text-aura-forest"
+                                onClick={() => {
+                                  const latest = patient.latest_screening
+                                  if (latest?.id) {
+                                    navigate(`/dashboard/screenings/${latest.id}`)
+                                  } else {
+                                    navigate(`/dashboard/patients/${patient.id}`)
+                                  }
+                                }}
+                                aria-label={`View ${patient.full_name}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View details</TooltipContent>
+                          </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
