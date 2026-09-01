@@ -99,7 +99,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     : { variants: staggerContainer, initial: "hidden" as const, animate: "visible" as const }
   const itemProps = reduceMotion ? {} : { variants: staggerItem }
 
-  const handleSort = (field: SortableField) => {
+  const handleSort = useCallback((field: SortableField) => {
     if (sortField === field) {
       if (sortDirection === "asc") {
         setSortDirection("desc")
@@ -113,7 +113,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
       setSortField(field)
       setSortDirection("asc")
     }
-  }
+  }, [sortField, sortDirection])
 
   const filteredAndSortedScreenings = useMemo(() => {
     let result = [...screenings]
@@ -166,7 +166,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     return <span className="text-aura-muted"><ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /></span>
   }
 
-  const downloadPDF = async (screeningId: string) => {
+  const downloadPDF = useCallback(async (screeningId: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
@@ -191,7 +191,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
       console.error("PDF download failed:", error)
       toast.error("Failed to download PDF")
     }
-  }
+  }, [])
 
   return (
     <div className="space-y-6">

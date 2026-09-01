@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, lazy, Suspense } from "react"
 import { Toaster } from "@/components/ui/sonner"
 import { Layout } from "@/components/layout/Layout"
 import { PublicLayout } from "@/components/public/PublicLayout"
@@ -7,14 +7,6 @@ import { Register } from "@/pages/Register"
 import { AuthCallback } from "@/pages/AuthCallback"
 import { ResetPassword } from "@/pages/ResetPassword"
 import { Dashboard } from "@/pages/Dashboard"
-import { Screening } from "@/pages/Screening"
-import { Screenings } from "@/pages/Screenings"
-import { Patients } from "@/pages/Patients"
-import { PatientRecords } from "@/pages/PatientRecords"
-import { PatientDetail } from "@/pages/PatientDetail"
-import { ScreeningDetail } from "@/pages/ScreeningDetail"
-import { Admin } from "@/pages/Admin"
-import { HelpSupport } from "@/pages/HelpSupport"
 import { Home } from "@/pages/public/Home"
 import { About } from "@/pages/public/About"
 import { Team } from "@/pages/public/Team"
@@ -22,6 +14,22 @@ import { Legal } from "@/pages/public/Legal"
 import { AuthProvider } from "@/context/AuthContext"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
+
+// Lazy loaded heavy components
+const Screening = lazy(() => import("@/pages/Screening").then(m => ({ default: m.Screening })))
+const PatientRecords = lazy(() => import("@/pages/PatientRecords").then(m => ({ default: m.PatientRecords })))
+const PatientDetail = lazy(() => import("@/pages/PatientDetail").then(m => ({ default: m.PatientDetail })))
+const ScreeningDetail = lazy(() => import("@/pages/ScreeningDetail").then(m => ({ default: m.ScreeningDetail })))
+const Admin = lazy(() => import("@/pages/Admin").then(m => ({ default: m.Admin })))
+const HelpSupport = lazy(() => import("@/pages/HelpSupport").then(m => ({ default: m.HelpSupport })))
+
+function SuspenseLoader() {
+  return (
+    <div className="flex h-[50vh] w-full items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
+  )
+}
 
 function PrivateRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { user, loading } = useAuth()
@@ -92,17 +100,19 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="screening" element={<Screening />} />
-        <Route path="patient-records" element={<PatientRecords />} />
-        <Route path="screenings" element={<PatientRecords defaultTab="screenings" />} />
-        <Route path="patients" element={<PatientRecords defaultTab="patients" />} />
-        <Route path="patients/:id" element={<PatientDetail />} />
-        <Route path="screenings/:id" element={<ScreeningDetail />} />
+        <Route path="screening" element={<Suspense fallback={<SuspenseLoader />}><Screening /></Suspense>} />
+        <Route path="patient-records" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords /></Suspense>} />
+        <Route path="screenings" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords defaultTab="screenings" /></Suspense>} />
+        <Route path="patients" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords defaultTab="patients" /></Suspense>} />
+        <Route path="patients/:id" element={<Suspense fallback={<SuspenseLoader />}><PatientDetail /></Suspense>} />
+        <Route path="screenings/:id" element={<Suspense fallback={<SuspenseLoader />}><ScreeningDetail /></Suspense>} />
         <Route
           path="admin"
           element={
             <PrivateRoute allowedRoles={["admin", "super_admin"]}>
-              <Admin />
+              <Suspense fallback={<SuspenseLoader />}>
+                <Admin />
+              </Suspense>
             </PrivateRoute>
           }
         />
@@ -117,7 +127,7 @@ function AppRoutes() {
           </PrivateRoute>
         }
       >
-        <Route index element={<HelpSupport />} />
+        <Route index element={<Suspense fallback={<SuspenseLoader />}><HelpSupport /></Suspense>} />
       </Route>
 
       {/* Fallback: redirect unknown routes to home */}

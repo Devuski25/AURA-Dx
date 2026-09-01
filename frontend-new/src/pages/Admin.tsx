@@ -242,7 +242,7 @@ export function Admin() {
     }
   }
 
-  const handleApprove = async (userId: string) => {
+  const handleApprove = useCallback(async (userId: string) => {
     try {
       const res = await fetch(getApiUrl(`/api/users/${userId}`), {
         method: "PATCH",
@@ -262,9 +262,9 @@ export function Admin() {
       console.error("Error approving user:", error)
       toast.error(error instanceof Error ? error.message : "Failed to approve user")
     }
-  }
+  }, [accessToken, refetchUsers])
 
-  const handleReject = async (userId: string) => {
+  const handleReject = useCallback(async (userId: string) => {
     try {
       const res = await fetch(getApiUrl(`/api/users/${userId}`), {
         method: "PATCH",
@@ -284,20 +284,23 @@ export function Admin() {
       console.error("Error rejecting user:", error)
       toast.error(error instanceof Error ? error.message : "Failed to reject user")
     }
-  }
+  }, [accessToken, refetchUsers])
 
-  const filteredUsers = users
-    .filter(u => {
-      if (search) {
-        const s = search.toLowerCase()
-        return u.full_name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s)
-      }
-      return true
-    })
-    .filter(u => roleFilter === "all" || u.role === roleFilter)
-    .filter(u => statusFilter === "all" || u.status === statusFilter)
+  const filteredUsers = useMemo(() =>
+    users
+      .filter(u => {
+        if (search) {
+          const s = search.toLowerCase()
+          return u.full_name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s)
+        }
+        return true
+      })
+      .filter(u => roleFilter === "all" || u.role === roleFilter)
+      .filter(u => statusFilter === "all" || u.status === statusFilter),
+    [users, search, roleFilter, statusFilter]
+  )
 
-  const openEditDialog = (u: any) => {
+  const openEditDialog = useCallback((u: any) => {
     setEditingUser(u)
     setShowPassword(false)
     form.reset({
@@ -310,9 +313,9 @@ export function Admin() {
       password: "",
     })
     setDialogOpen(true)
-  }
+  }, [form])
 
-  const openCreateDialog = () => {
+  const openCreateDialog = useCallback(() => {
     setEditingUser(null)
     setShowPassword(false)
     form.reset({
@@ -325,7 +328,7 @@ export function Admin() {
       license_number: "",
     })
     setDialogOpen(true)
-  }
+  }, [form])
 
   useEffect(() => {
     const state = location.state as { openAddUser?: boolean } | null

@@ -131,8 +131,7 @@ export function Screening() {
 
   useEffect(() => {
     if (!user) return
-    void refreshPatients()
-    void refreshStatuses()
+    void Promise.all([refreshPatients(), refreshStatuses()])
   }, [user, refreshPatients, refreshStatuses])
 
   const patients = useMemo(() => patientsData ?? [], [patientsData])

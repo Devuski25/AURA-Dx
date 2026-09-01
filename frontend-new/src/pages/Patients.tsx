@@ -260,28 +260,31 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
     setCurrentPage(1)
   }, [search, genderFilter, diseaseFilter])
 
-  const filteredPatients = patients
-    .filter(p => {
-      if (search) {
-        const searchLower = search.toLowerCase()
-        return p.full_name.toLowerCase().includes(searchLower)
-      }
-      return true
-    })
-    .filter(p => {
-      if (genderFilter === "all") return true
-      return p.gender === genderFilter
-    })
-    .filter(p => {
-      if (diseaseFilter === "all") return true
-      return getPatientDisease(p) === diseaseFilter
-    })
+  const filteredPatients = useMemo(() =>
+    patients
+      .filter(p => {
+        if (search) {
+          const searchLower = search.toLowerCase()
+          return p.full_name.toLowerCase().includes(searchLower)
+        }
+        return true
+      })
+      .filter(p => {
+        if (genderFilter === "all") return true
+        return p.gender === genderFilter
+      })
+      .filter(p => {
+        if (diseaseFilter === "all") return true
+        return getPatientDisease(p) === diseaseFilter
+      }),
+    [patients, search, genderFilter, diseaseFilter]
+  )
 
   const totalPages = Math.max(1, Math.ceil(filteredPatients.length / rowsPerPage))
   const firstRowIndex = (currentPage - 1) * rowsPerPage
   const visiblePatients = filteredPatients.slice(firstRowIndex, firstRowIndex + rowsPerPage)
 
-  const openEditDialog = (patient: any) => {
+  const openEditDialog = useCallback((patient: any) => {
     setEditingPatient(patient)
     form.reset({
       full_name: patient.full_name,
@@ -293,12 +296,12 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
       symptoms: patient.symptoms || [],
     })
     setDialogOpen(true)
-  }
+  }, [form])
 
-  const confirmDelete = (patient: any) => {
+  const confirmDelete = useCallback((patient: any) => {
     setDeletingPatient(patient)
     setDeleteConfirmOpen(true)
-  }
+  }, [])
 
   const handleExportPdf = useCallback(() => {
     if (filteredPatients.length === 0) {

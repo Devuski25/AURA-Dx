@@ -236,18 +236,24 @@ async def health_check():
         "inference": "unknown",
         "auth": "unknown"
     }
-    try:
-        supabase.table("profiles").select("id").limit(1).execute()
-        services["database"] = "healthy"
-    except Exception:
-        services["database"] = "unhealthy"
+    async def check_db() -> str:
+        try:
+            supabase.table("profiles").select("id").limit(1).execute()
+            return "healthy"
+        except Exception:
+            return "unhealthy"
 
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(f"{settings.inference_service_url}/health", timeout=5)
-            services["inference"] = "healthy" if r.status_code == 200 else "unhealthy"
-    except Exception:
-        services["inference"] = "unhealthy"
+    async def check_inference() -> str:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(f"{settings.inference_service_url}/health", timeout=5)
+                return "healthy" if r.status_code == 200 else "unhealthy"
+        except Exception:
+            return "unhealthy"
+
+    db_ok, inference_ok = await asyncio.gather(check_db(), check_inference())
+    services["database"] = db_ok
+    services["inference"] = inference_ok
 
     services["auth"] = "healthy"
 
@@ -371,32 +377,35 @@ async def logout(user: dict = Depends(get_current_user)):
 
 
 @router.get("/users", response_model=List[UserResponse])
-async def list_users(user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+async def list_users(
+    user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
+    limit: int = 100,
+    offset: int = 0
+):
     clinic_id = user.get("clinic_id")
     query = supabase.table("profiles").select("*")
     if user.get("role") != "super_admin" and clinic_id:
         query = query.eq("clinic_id", clinic_id)
-    res = query.order("created_at", desc=True).execute()
-    profiles = res.data or []
+    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+    profiles_res = query.execute()
+    profiles = profiles_res.data or []
 
     # Filter out users with unconfirmed emails (fake emails)
-    # Fetch auth users to check email_confirmed_at
+    # Fetch auth users to check email_confirmed_at — parallel with profiles fetch
     try:
-        auth_req = urllib.request.Request(
-            f"{settings.supabase_url}/auth/v1/admin/users",
-            headers={
-                "Authorization": f"Bearer {settings.supabase_service_key}",
-                "apikey": settings.supabase_anon_key,
-                "Content-Type": "application/json",
-            },
-            method="GET",
-        )
-        with urllib.request.urlopen(auth_req, timeout=10) as resp:
-            auth_data = json.loads(resp.read())
-        auth_users = auth_data.get("users", [])
-        confirmed_emails = {u["email"] for u in auth_users if u.get("email_confirmed_at")}
-
-        profiles = [p for p in profiles if p["email"] in confirmed_emails]
+        async with httpx.AsyncClient() as client:
+            auth_res = await client.get(
+                f"{settings.supabase_url}/auth/v1/admin/users",
+                headers={
+                    "Authorization": f"Bearer {settings.supabase_service_key}",
+                    "apikey": settings.supabase_anon_key,
+                },
+                timeout=10.0
+            )
+            auth_data = auth_res.json()
+            auth_users = auth_data.get("users", [])
+            confirmed_emails = {u["email"] for u in auth_users if u.get("email_confirmed_at")}
+            profiles = [p for p in profiles if p["email"] in confirmed_emails]
     except Exception as e:
         print(f"[list_users] Failed to filter unconfirmed emails: {e}")
         # Fallback: return all profiles if auth check fails
@@ -563,14 +572,19 @@ async def list_clinics(user: dict = Depends(get_current_user)):
 async def list_patients(
     search: Optional[str] = None,
     clinic_id: Optional[str] = None,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user),
+    limit: int = 100,
+    offset: int = 0
 ):
     role = user.get("role")
     user_clinic_id = user.get("clinic_id")
     try:
-        res = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id)
+        query = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id)
+        query = query.range(offset, offset + limit - 1)
     except Exception:
-        res = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id)
+        query = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id)
+        query = query.range(offset, offset + limit - 1)
+    res = query.execute()
     return [PatientResponse(**p) for p in (res.data or [])]
 
 
@@ -808,19 +822,25 @@ async def list_screenings(
     patient_id: Optional[str] = None,
     tb_result: Optional[str] = None,
     respiratory_result: Optional[str] = None,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user),
+    limit: int = 100,
+    offset: int = 0
 ):
     role = user.get("role")
     clinic_id = user.get("clinic_id")
     user_id = user.get("sub")
 
     try:
-        query = supabase.table("screening_history_view").select("*")
+        query = supabase.table("screening_history_view").select(
+            "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
+            "clinic_name,clinician_name,tb_result,tb_confidence,"
+            "respiratory_result,respiratory_confidence,cascade_path,"
+            "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
+            "audio_duration_sec,created_at"
+        )
         if role == "clinician":
-            # Clinicians see their own screenings, not limited by clinic_id
             query = query.eq("clinician_id", user_id)
         elif role != "super_admin":
-            # Admins see their clinic's screenings
             query = query.eq("clinic_id", clinic_id)
         if patient_id:
             query = query.eq("patient_id", patient_id)
@@ -828,10 +848,10 @@ async def list_screenings(
             query = query.eq("tb_result", tb_result)
         if respiratory_result:
             query = query.eq("respiratory_result", respiratory_result)
-        res = query.order("created_at", desc=True).execute()
+        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+        res = query.execute()
         return [ScreeningResponse(**s) for s in (res.data or [])]
     except Exception:
-        # Fallback: query base screening_history_view might not exist, use base table
         query = supabase.table("screenings").select("*")
         if role == "clinician":
             query = query.eq("clinician_id", user_id)
@@ -843,7 +863,8 @@ async def list_screenings(
             query = query.eq("tb_result", tb_result)
         if respiratory_result:
             query = query.eq("respiratory_result", respiratory_result)
-        res = query.order("created_at", desc=True).execute()
+        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+        res = query.execute()
         return [_enrich_screening(s) for s in (res.data or [])]
 
 
@@ -854,7 +875,13 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
     user_id = user.get("sub")
 
     try:
-        query = supabase.table("screening_history_view").select("*").eq("id", screening_id)
+        query = supabase.table("screening_history_view").select(
+            "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
+            "clinic_name,clinician_name,tb_result,tb_confidence,"
+            "respiratory_result,respiratory_confidence,cascade_path,"
+            "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
+            "audio_duration_sec,created_at"
+        ).eq("id", screening_id)
         if role == "clinician":
             query = query.eq("clinician_id", user_id)
         elif role != "super_admin":
@@ -956,7 +983,13 @@ async def download_screening_pdf(
 ):
     """Generate and download PDF report for a screening."""
     try:
-        screening = supabase.table("screening_history_view").select("*").eq("id", screening_id).single().execute()
+        screening = supabase.table("screening_history_view").select(
+            "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
+            "clinic_name,clinician_name,tb_result,tb_confidence,tb_probabilities,"
+            "respiratory_result,respiratory_confidence,respiratory_probabilities,"
+            "cascade_path,model_version,status,reviewed_by_name,reviewed_at,review_notes,"
+            "audio_duration_sec,created_at,clinic_id,clinician_id"
+        ).eq("id", screening_id).single().execute()
     except Exception:
         screening = supabase.table("screenings").select("*").eq("id", screening_id).single().execute()
     if not screening.data:

@@ -148,6 +148,10 @@ export function Home() {
                   src={WebdesHero}
                   alt="AURA-Dx respiratory screening"
                   className="relative block w-full rounded-2xl object-contain"
+                  loading="lazy"
+                  decoding="async"
+                  width={640}
+                  height={480}
                 />
               </div>
             </motion.div>

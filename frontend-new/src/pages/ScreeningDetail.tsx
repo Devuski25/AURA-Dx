@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 import { useParams, useNavigate } from "react-router-dom"
 import {
@@ -627,9 +627,9 @@ export function ScreeningDetail() {
             <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">
               Probability Distribution
             </div>
-            {Object.entries(screening.tb_probabilities).map(([cls, prob]) => (
+            {useMemo(() => Object.entries(screening.tb_probabilities!).map(([cls, prob]) => (
               <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("tb", cls)} />
-            ))}
+            )), [screening.tb_probabilities])}
           </div>
         )}
         {tbFlagged && (
@@ -664,9 +664,9 @@ export function ScreeningDetail() {
               <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">
                 Probability Distribution
               </div>
-              {Object.entries(screening.respiratory_probabilities).map(([cls, prob]) => (
+              {useMemo(() => Object.entries(screening.respiratory_probabilities!).map(([cls, prob]) => (
                 <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("resp", cls)} />
-              ))}
+              )), [screening.respiratory_probabilities])}
             </div>
           )}
 

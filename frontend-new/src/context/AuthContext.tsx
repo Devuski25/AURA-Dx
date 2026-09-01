@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
 
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const skipAuthEventRef = useRef(false)
   const pendingLoginUserIdRef = useRef<string | null>(null)
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     skipAuthEventRef.current = true
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
@@ -152,17 +152,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     skipAuthEventRef.current = false
     return { error: null }
-  }
+  }, [fetchProfile])
 
-  const confirmLogin = async () => {
+  const confirmLogin = useCallback(async () => {
     const userId = pendingLoginUserIdRef.current
     if (userId) {
       pendingLoginUserIdRef.current = null
       await fetchProfile(userId)
     }
-  }
+  }, [fetchProfile])
 
-  const signUp = async (data: {
+  const signUp = useCallback(async (data: {
     email: string
     password: string
     full_name: string
@@ -211,14 +211,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     skipAuthEventRef.current = false
     return { error: error ? new Error(error.message) : null, autoApproved }
-  }
+  }, [])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     setUser(null)
-  }
+  }, [])
 
-  const signInWithOAuth = async (provider: "google") => {
+  const signInWithOAuth = useCallback(async (provider: "google") => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -229,17 +229,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     })
     return { error: error ? new Error(error.message) : null }
-  }
+  }, [])
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
       await fetchProfile(session.user.id)
     }
-  }
+  }, [fetchProfile])
+
+  const contextValue = useMemo(
+    () => ({ user, loading, accessToken, signIn, signUp, signInWithOAuth, signOut, refreshUser, confirmLogin }),
+    [user, loading, accessToken, signIn, signUp, signInWithOAuth, signOut, refreshUser, confirmLogin]
+  )
 
   return (
-    <AuthContext.Provider value={{ user, loading, accessToken, signIn, signUp, signInWithOAuth, signOut, refreshUser, confirmLogin }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   )

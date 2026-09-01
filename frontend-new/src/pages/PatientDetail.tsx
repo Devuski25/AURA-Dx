@@ -68,47 +68,65 @@ export function PatientDetail() {
 
   useEffect(() => {
     if (id) {
-      fetchPatient()
-      fetchScreenings()
-    }
-  }, [id])
-
-  const fetchPatient = async () => {
-    if (!id || !accessToken) return
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(getApiUrl(`/api/patients/${id}`), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || "Patient not found")
+      const loadAll = async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          const [patientRes, screeningsRes] = await Promise.all([
+            fetch(getApiUrl(`/api/patients/${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
+            fetch(getApiUrl(`/api/screenings?patient_id=${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
+          ])
+          if (!patientRes.ok) {
+            const err = await patientRes.json().catch(() => ({}))
+            throw new Error(err.detail || "Patient not found")
+          }
+          if (!screeningsRes.ok) {
+            const err = await screeningsRes.json().catch(() => ({}))
+            throw new Error(err.detail || "Failed to load screenings")
+          }
+          const [patientData, screeningsData] = await Promise.all([patientRes.json(), screeningsRes.json()])
+          setPatient(patientData)
+          setScreenings(screeningsData || [])
+        } catch (error) {
+          console.error("Error fetching patient:", error)
+          setError(error instanceof Error ? error.message : "Failed to load patient")
+        } finally {
+          setLoading(false)
+        }
       }
-      const data = await res.json()
-      setPatient(data)
-    } catch (error) {
-      console.error("Error fetching patient:", error)
-      setError(error instanceof Error ? error.message : "Failed to load patient")
-    } finally {
-      setLoading(false)
+      loadAll()
     }
-  }
+  }, [id, accessToken])
 
-  const fetchScreenings = async () => {
-    if (!id || !accessToken) return
-    try {
-      const res = await fetch(getApiUrl(`/api/screenings?patient_id=${id}`), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || "Failed to load screenings")
+  const handleRetry = () => {
+    if (id) {
+      const loadAll = async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          const [patientRes, screeningsRes] = await Promise.all([
+            fetch(getApiUrl(`/api/patients/${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
+            fetch(getApiUrl(`/api/screenings?patient_id=${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
+          ])
+          if (!patientRes.ok) {
+            const err = await patientRes.json().catch(() => ({}))
+            throw new Error(err.detail || "Patient not found")
+          }
+          if (!screeningsRes.ok) {
+            const err = await screeningsRes.json().catch(() => ({}))
+            throw new Error(err.detail || "Failed to load screenings")
+          }
+          const [patientData, screeningsData] = await Promise.all([patientRes.json(), screeningsRes.json()])
+          setPatient(patientData)
+          setScreenings(screeningsData || [])
+        } catch (error) {
+          console.error("Error fetching patient:", error)
+          setError(error instanceof Error ? error.message : "Failed to load patient")
+        } finally {
+          setLoading(false)
+        }
       }
-      const data = await res.json()
-      setScreenings(data || [])
-    } catch (error) {
-      console.error("Error fetching screenings:", error)
+      loadAll()
     }
   }
 
@@ -188,7 +206,7 @@ export function PatientDetail() {
           <p className="text-lg font-medium text-aura-text">Could not load patient</p>
           <p className="text-aura-muted">{error}</p>
         </div>
-        <Button variant="outline" onClick={fetchPatient} className="gap-2">
+        <Button variant="outline" onClick={handleRetry} className="gap-2">
           <RefreshCw className="h-4 w-4" />
           Retry
         </Button>
