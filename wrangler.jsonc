@@ -2,6 +2,10 @@
   "name": "aura-dx",
   "main": "worker/src/index.js",
   "compatibility_date": "2026-08-30",
+  "routes": [
+    { "pattern": "auradx.xyz", "custom_domain": true },
+    { "pattern": "www.auradx.xyz", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./frontend-new/dist",
     "binding": "ASSETS",

@@ -9,7 +9,7 @@
 #
 # Notes:
 #   - No Docker required. Starts only inference (:8000) and backend (:8001).
-#   - Frontend is on Cloudflare Pages (aura-dx.xyz) — no local dev server needed.
+#   - Frontend is on Cloudflare Pages (auradx.xyz) — no local dev server needed.
 #   - Supabase is the production instance — no local Supabase needed.
 #   - Idempotent: 'start' auto-detects already-running services and skips them.
 #   - PIDs tracked in .pids\; kill sweeps ports 8000/8001 to catch orphans.
@@ -150,7 +150,7 @@ function Show-Status {
     $tunnel = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if ($tunnel) {
-        Write-Host "  Tunnel: running (api.aura-dx.xyz -> :8001, infer.aura-dx.xyz -> :8000)"
+        Write-Host "  Tunnel: running (api.auradx.xyz -> :8001, infer.auradx.xyz -> :8000)"
     } else {
         Write-Host "  Tunnel: not running (start with '.\dev-backend.ps1 tunnel')"
     }

@@ -1,6 +1,6 @@
 # AURA-Dx Frontend (Cloudflare Pages)
 
-SPA built with React + TypeScript + Vite. Deployed to `https://aura-dx.xyz` via Cloudflare Pages.
+SPA built with React + TypeScript + Vite. Deployed to `https://auradx.xyz` via Cloudflare Pages.
 
 SPA routing is handled by `public/_redirects`:
 ```

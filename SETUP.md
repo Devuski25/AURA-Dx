@@ -3,7 +3,7 @@
 **Last updated:** August 30, 2026  
 **OS:** Windows (PowerShell) · macOS · Linux  
 **Ports:** Inference `8000` · Backend `8001` · Frontend `5174` · Supabase `54321`  
-**Production domain:** `https://aura-dx.xyz` (Cloudflare Pages + Cloudflare Tunnel)
+**Production domain:** `https://auradx.xyz` (Cloudflare Pages + Cloudflare Tunnel)
 
 ---
 
@@ -40,7 +40,7 @@ cd C:\Users\David\OneDrive\Documents\COUGHPH
 
 #### Backend only (production setup — no Docker needed)
 
-The app is deployed to `aura-dx.xyz`. For local testing with the tunnel:
+The app is deployed to `auradx.xyz`. For local testing with the tunnel:
 
 ```powershell
 cd C:\Users\David\OneDrive\Documents\COUGHPH
@@ -125,6 +125,7 @@ API_HOST=0.0.0.0
 API_PORT=8001
 JWT_SECRET=super-secret-jwt-token-with-at-least-32-characters-long
 JWT_ALGORITHM=HS256
+CORS_ORIGINS=https://auradx.xyz
 ```
 
 > **Important:** `SUPABASE_SERVICE_KEY` must be the **legacy `service_role` JWT** (looks like `eyJhbGciOiJIUzI1NiIs...`). The newer `sb_secret_*` keys are **not** valid JWTs and will make GoTrue admin calls (register) fail.
@@ -149,7 +150,7 @@ Apply the migration `supabase/migrations/001_clean_reset_and_profiles.sql` via S
 
 1. **Google Cloud Console** → APIs & Services → Credentials → OAuth 2.0 Client ID
    - Application type: Web application
-   - Authorized JavaScript origins: `https://aura-dx.xyz`
+   - Authorized JavaScript origins: `https://auradx.xyz`
    - Authorized redirect URIs: `https://zczzviyyrrrmzmvjyigx.supabase.co/auth/v1/callback`
    - Copy Client ID and Client Secret
 
@@ -159,8 +160,8 @@ Apply the migration `supabase/migrations/001_clean_reset_and_profiles.sql` via S
    - Save
 
 3. **Supabase Dashboard** → Authentication → URL Configuration:
-   - Site URL: `https://aura-dx.xyz`
-   - Redirect URLs: `https://aura-dx.xyz/auth/callback`, `https://aura-dx.xyz/reset-password`, `https://aura-dx.xyz`
+   - Site URL: `https://auradx.xyz`
+   - Redirect URLs: `https://auradx.xyz/auth/callback`, `https://auradx.xyz/reset-password`, `https://auradx.xyz`
    - Save
 
 > **Multiple client secrets?** Google Cloud may list several secrets. Use the **newest enabled** one. Delete older unused secrets from Google Cloud to keep things clean.
@@ -228,16 +229,16 @@ App runs at `http://localhost:5174`.
 
 ---
 
-## Production Deployment (aura-dx.xyz)
+## Production Deployment (auradx.xyz)
 
 The app is deployed to production via **Cloudflare Pages** (frontend) + **Cloudflare Tunnel** (backend + inference). The laptop runs the backend on `:8001` and inference on `:8000`; the tunnel forwards traffic when running.
 
 ### Architecture
 
 ```
-https://aura-dx.xyz          → Cloudflare Pages (always up)
-https://api.aura-dx.xyz      → Cloudflare Tunnel → localhost:8001 (backend)
-https://infer.aura-dx.xyz    → Cloudflare Tunnel → localhost:8000 (inference)
+https://auradx.xyz          → Cloudflare Pages (always up)
+https://api.auradx.xyz      → Cloudflare Tunnel → localhost:8001 (backend)
+https://infer.auradx.xyz    → Cloudflare Tunnel → localhost:8000 (inference)
 ```
 
 ### What you need to run the tunnel
@@ -248,8 +249,8 @@ cloudflared tunnel run aura-dx-backend
 ```
 
 The tunnel config is at `~/.cloudflared/config.yml` and already routes:
-- `api.aura-dx.xyz` → `http://localhost:8001`
-- `infer.aura-dx.xyz` → `http://localhost:8000`
+- `api.auradx.xyz` → `http://localhost:8001`
+- `infer.auradx.xyz` → `http://localhost:8000`
 - Unknown paths → `http_status:404`
 
 ### Local dev override
@@ -259,7 +260,7 @@ To test the tunnel locally without the production domain, edit `frontend-new/.en
 VITE_API_URL=http://localhost:8001
 VITE_INFERENCE_URL=http://localhost:8000
 ```
-The tunnel intercepts at the DNS level — when it's not running, `api.aura-dx.xyz` returns a 502.
+The tunnel intercepts at the DNS level — when it's not running, `api.auradx.xyz` returns a 502.
 
 ---
 
@@ -323,12 +324,12 @@ Approved clinician logging in first time (no `last_login_at`) sees confirmation 
 | **Missing `audit_logs` table** | Tables should exist from migration. If not, check Supabase SQL Editor for errors during migration. |
 | **`GET /api/patients` returns 500 once a patient exists** | `patient_list_view` missing `updated_at`. Re-run `supabase/production_fix1.sql` (recreates both views with `updated_at`). |
 | **Patient/screening creation fails for a brand-new user (500, NOT NULL)** | Signup trigger wasn't assigning `clinic_id`, so new profiles had `clinic_id=NULL`. Re-run `supabase/production_fix1.sql` (fixes `handle_new_user()` + backfills). |
-| **CORS errors on frontend** | Backend must be running. Check `http://localhost:8001/api/health`. For production, ensure `CORS_ORIGINS=https://aura-dx.xyz` in `backend/.env.local`. |
+| **CORS errors on frontend** | Backend must be running. Check `http://localhost:8001/api/health`. For production, ensure `CORS_ORIGINS=https://auradx.xyz` in `backend/.env.local`. |
 | **Port 8000/8001/5174 stuck after a crash** | Run `.\dev.ps1 stop` (or `restart`) — it sweeps and kills orphaned listeners on those ports. |
 | **Backend shows healthy but local Supabase is down** | Expected — backend uses **production** Supabase. Local `:54321` is only for DB/migration work. |
 | **`dev.ps1 restart` shows Supabase DOWN afterward** | Fixed — `stop` now waits for port 54321 to fully release before starting. If it still happens, ensure Docker Desktop is running before `restart`. |
-| **api.aura-dx.xyz returns 502** | Cloudflare Tunnel not running. Start it: `cloudflared tunnel run aura-dx-backend`. |
-| **infer.aura-dx.xyz returns 502** | Same as above — tunnel must be running for both subdomains. |
+| **api.auradx.xyz returns 502** | Cloudflare Tunnel not running. Start it: `cloudflared tunnel run aura-dx-backend`. |
+| **infer.auradx.xyz returns 502** | Same as above — tunnel must be running for both subdomains. |
 
 ---
 
@@ -357,8 +358,8 @@ VITE_API_URL=http://localhost:8001
 ```
 VITE_SUPABASE_URL=https://zczzviyyrrrmzmvjyigx.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_rtTqLL8VnxdSmaIAtHDQrQ_TrMrOwlt
-VITE_API_URL=https://api.aura-dx.xyz
-VITE_INFERENCE_URL=https://infer.aura-dx.xyz
+VITE_API_URL=https://api.auradx.xyz
+VITE_INFERENCE_URL=https://infer.auradx.xyz
 ```
 
 ### `frontend-new/.env.local` (override for local dev testing)

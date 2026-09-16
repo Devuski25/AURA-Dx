@@ -92,3 +92,6 @@ id_ed25519
 # Runtime PIDs (dev.ps1)
 .pids/
 *.pid
+
+# Patient audio recordings — NEVER commit (PHI)
+backend/uploads_audio/

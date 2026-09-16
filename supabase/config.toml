@@ -156,8 +156,8 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "https://aura-dx.xyz"
-additional_redirect_urls = ["https://aura-dx.xyz/auth/callback", "https://aura-dx.xyz/reset-password", "https://aura-dx.xyz"]
+site_url = "https://auradx.xyz"
+additional_redirect_urls = ["https://auradx.xyz/auth/callback", "https://auradx.xyz/reset-password", "https://auradx.xyz"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

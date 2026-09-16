@@ -41,7 +41,11 @@ _last_cleanup: float = 0
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     global _last_cleanup
-    client_ip = request.client.host if request.client else "unknown"
+    # Behind the Cloudflare Tunnel every request's client host is 127.0.0.1,
+    # which would funnel ALL users into one shared rate-limit bucket.
+    # Use the X-Forwarded-For header (set by cloudflared) when present.
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (request.client.host if request.client else "unknown")
     now = time()
 
     # Periodic cleanup of stale IP entries to prevent memory leak

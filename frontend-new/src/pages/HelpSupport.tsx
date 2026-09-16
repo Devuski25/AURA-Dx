@@ -32,7 +32,7 @@ type FaqCategory = { id: string; label: string; icon: typeof ShieldCheck; items:
 
 type GuideSection = { title: string; body: string }
 
-const SUPPORT_EMAIL = "support@aura-dx.xyz"
+const SUPPORT_EMAIL = "support@auradx.xyz"
 const SKELETON_MS = 450
 
 const container: Variants = {
@@ -79,7 +79,7 @@ export function HelpSupport() {
           },
           {
             q: "How do I check my approval status?",
-            a: "New accounts stay “pending” until a Super Admin approves them. You’ll see a status banner on sign-in. If approval is delayed, contact support@aura-dx.xyz.",
+            a: "New accounts stay “pending” until a Super Admin approves them. You’ll see a status banner on sign-in. If approval is delayed, contact support@auradx.xyz.",
           },
         ],
       },
@@ -172,7 +172,7 @@ export function HelpSupport() {
     const shared: GuideSection[] = [
       {
         title: "1. Signing in safely",
-        body: "Always sign in from the official portal over HTTPS. Never share your password. If you suspect unauthorized access, reset your password and notify support@aura-dx.xyz immediately.",
+        body: "Always sign in from the official portal over HTTPS. Never share your password. If you suspect unauthorized access, reset your password and notify support@auradx.xyz immediately.",
       },
       {
         title: "2. Capturing a screening",
