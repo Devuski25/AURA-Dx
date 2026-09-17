@@ -579,31 +579,31 @@ async def list_patients(
 ):
     role = user.get("role")
     user_clinic_id = user.get("clinic_id")
+    # Both helpers apply pagination internally and return the executed response.
+    # (Previously .range() was called on the already-executed view response,
+    # which raised AttributeError and 500'd for roles that can read the view.)
     try:
-        query = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id)
-        query = query.range(offset, offset + limit - 1)
+        res = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset, limit)
     except Exception:
-        query = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id)
-        query = query.range(offset, offset + limit - 1)
-    res = query.execute()
+        res = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id, offset, limit)
     return [PatientResponse(**p) for p in (res.data or [])]
 
 
-def _fetch_patients_with_view(search, clinic_id, role, user_clinic_id):
+def _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset: int, limit: int):
     query = supabase.table("patient_list_view").select("*")
     query = _scope_query(query, role, user_clinic_id, clinic_id)
     if search:
         query = query.ilike("full_name", f"%{search}%")
-    return query.order("created_at", desc=True).execute()
+    return query.range(offset, offset + limit - 1).order("created_at", desc=True).execute()
 
 
-def _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id):
+def _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id, offset: int, limit: int):
     """Fallback when patient_list_view doesn't exist — query base tables and join in Python."""
     query = supabase.table("patients").select("*")
     query = _scope_query(query, role, user_clinic_id, clinic_id)
     if search:
         query = query.ilike("full_name", f"%{search}%")
-    res = query.order("created_at", desc=True).execute()
+    res = query.range(offset, offset + limit - 1).order("created_at", desc=True).execute()
 
     rows = res.data or []
     if not rows:
