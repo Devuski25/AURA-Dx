@@ -385,7 +385,7 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
             <CardHeader className="border-b border-aura-border-soft px-6 py-5">
               <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
                 <div>
-                  <CardTitle className="font-display text-lg font-semibold text-aura-ink">Patient Records</CardTitle>
+                  <CardTitle className="font-display text-lg font-semibold text-aura-ink">All Patients</CardTitle>
                   <p className="mt-1 text-sm tabular-nums text-aura-muted">
                     Showing {filteredPatients.length} of {patients.length} records
                   </p>
@@ -489,8 +489,8 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visiblePatients.map(patient => (
-                    <motion.tr key={patient.id} {...(reduceMotion ? {} : itemProps)} className="align-middle border-b border-aura-border-soft transition-colors hover:bg-aura-surface-alt">
+                  {visiblePatients.map((patient, idx) => (
+                    <motion.tr key={patient.id} {...(reduceMotion ? {} : itemProps)} className={`align-middle border-b border-aura-border-soft transition-colors hover:bg-aura-surface-alt ${idx % 2 === 1 ? "bg-aura-table-stripe" : ""}`}>
                       <TableCell className="px-4 align-middle">
                         <div className="flex items-center gap-3">
                           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${getAvatarColor(patient.full_name)}`}>
@@ -510,7 +510,7 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                       </TableCell>
                       <TableCell className="px-4 align-middle">
                         {patient.smoking_history ? (
-                          <Badge variant="secondary">
+                          <Badge variant="outline" className="border-aura-border bg-transparent font-medium text-aura-muted">
                             {patient.pack_years ? `${patient.pack_years} pack-years` : "Yes"}
                           </Badge>
                         ) : (

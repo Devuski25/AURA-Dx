@@ -20,7 +20,7 @@ function TeamCard({ member }: { member: typeof TEAM[number] }) {
     <motion.div
       variants={staggerItem}
       whileHover={{ y: -6, transition: { type: "spring", stiffness: 300, damping: 24 } }}
-      className="group rounded-2xl border border-aura-border-soft bg-aura-bg-card px-5 py-7 text-center shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover hover:border-aura-accent/25"
+      className="group rounded-2xl border border-aura-border bg-white px-5 py-7 text-center shadow-[0_2px_10px_rgba(14,59,54,0.08)] transition-all duration-300 hover:shadow-[0_6px_20px_rgba(14,59,54,0.12)] hover:border-aura-accent/25"
     >
       <div className="relative mx-auto mb-5 h-28 w-28 overflow-hidden rounded-full border-[3px] border-aura-accent/15 bg-aura-bg-alt transition-all duration-300 group-hover:border-aura-accent/40 group-hover:shadow-lg group-hover:shadow-aura-accent/10">
         <img
@@ -72,7 +72,7 @@ export function Team() {
       </section>
 
       {/* Team grid */}
-      <section className="aura-dots px-6 py-20">
+      <section className="bg-aura-mint-wash px-6 py-20">
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 text-center">
             <h2 className="text-[clamp(1.6rem,2.5vw,2.2rem)] font-extrabold leading-tight tracking-tight text-aura-text">

@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export function Legal() {
   return (
@@ -38,7 +39,7 @@ export function Legal() {
       </section>
 
       {/* Consent */}
-      <section className="aura-dots bg-aura-bg-alt px-6 py-20">
+      <section className="bg-aura-mint-wash px-6 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">Consent</h2>
           <p className="mt-3 max-w-[68ch] leading-relaxed text-aura-muted">Every screening session — live microphone or uploaded file — is gated behind an explicit consent step before any audio is captured or processed. Declining consent stops the flow at that point; no data is retained.</p>
@@ -63,10 +64,10 @@ export function Legal() {
                   ["Export", "Download your screening history and personal data in a portable format at any time."],
                   ["Erasure", "Request permanent deletion of your recordings and screening history from the system."],
                   ["Withdraw consent", "Decline or withdraw consent for future audio capture without affecting past interactions."],
-                ].map(([right, meaning]) => (
-                  <tr key={right} className="group">
-                    <td className="border-b border-aura-border-soft px-6 py-4 text-sm font-medium text-aura-text">{right}</td>
-                    <td className="border-b border-aura-border-soft px-6 py-4 text-sm text-aura-muted group-last:border-b-0">{meaning}</td>
+                ].map(([right, meaning], idx) => (
+                  <tr key={right} className={cn("group", idx % 2 === 1 && "bg-aura-table-stripe")}>
+                    <td className="border-b border-aura-border px-6 py-4 text-sm font-medium text-aura-text">{right}</td>
+                    <td className="border-b border-aura-border px-6 py-4 text-sm text-aura-legal-text group-last:border-b-0">{meaning}</td>
                   </tr>
                 ))}
               </tbody>
@@ -76,11 +77,11 @@ export function Legal() {
       </section>
 
       {/* Thesis-stage notice */}
-      <section className="aura-dots bg-aura-bg-alt px-6 py-20">
+      <section className="bg-white px-6 py-20">
         <div className="mx-auto max-w-4xl">
-          <div className="rounded-2xl border border-aura-border bg-gradient-to-br from-aura-bg-alt to-aura-surface-alt p-8 shadow-aura-card">
+          <div className="rounded-2xl border border-aura-border-soft border-l-4 border-l-aura-accent bg-white p-8 shadow-aura-card">
             <h3 className="text-lg font-bold text-aura-text">Thesis-Stage Disclosure</h3>
-            <p className="mt-2 text-sm leading-relaxed text-aura-muted">AURA-Dx is a thesis-stage research prototype developed at the University of Rizal System — Morong Campus. It is intended to demonstrate a screening-support workflow and is not a certified diagnostic medical device. Screening results should not replace evaluation by a licensed physician.</p>
+            <p className="mt-2 text-sm leading-relaxed text-aura-legal-text">AURA-Dx is a thesis-stage research prototype developed at the University of Rizal System — Morong Campus. It is intended to demonstrate a screening-support workflow and is not a certified diagnostic medical device. Screening results should not replace evaluation by a licensed physician.</p>
           </div>
         </div>
       </section>

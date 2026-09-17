@@ -396,9 +396,9 @@ export function Admin() {
                         {card.title.map((line) => <span key={line} className="block">{line}</span>)}
                       </p>
                       <span className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                        card.tone === "neutral" && "bg-aura-sage text-aura-forest",
-                        card.tone === "healthy" && "bg-white/80 text-aura-mint",
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl",
+                        card.tone === "neutral" && "bg-aura-forest/10 text-aura-forest",
+                        card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine",
                         card.tone === "alert" && "bg-aura-warning-soft text-aura-warning-strong"
                       )}>
                         <Icon className="h-4 w-4" aria-hidden="true" />
@@ -407,9 +407,11 @@ export function Admin() {
                     <p className={cn(
                       "font-display text-3xl font-semibold leading-none tabular-nums",
                       card.tone === "neutral" && "text-aura-ink",
-                      card.tone === "healthy" && "text-aura-mint",
+                      card.tone === "healthy" && "text-aura-pine",
                       card.tone === "alert" && "text-aura-warning-strong"
-                    )}>{card.value}</p>
+                    )}>
+                      {card.value}
+                    </p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -514,8 +516,8 @@ export function Admin() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredUsers.map((u) => (
-                        <TableRow key={u.id} className="align-middle border-b border-aura-line hover:bg-aura-surface-alt">
+                      {filteredUsers.map((u, idx) => (
+                        <TableRow key={u.id} className={cn("align-middle border-b border-aura-line hover:bg-aura-surface-alt", idx % 2 === 1 && "bg-aura-table-stripe")}>
                           <TableCell className="px-4 align-middle">
                             <div className="truncate font-medium">{u.full_name}</div>
                           </TableCell>
@@ -524,7 +526,7 @@ export function Admin() {
                           </TableCell>
                           <TableCell className="px-4 text-center align-middle">
                             <div className="flex justify-center">
-                              <Badge variant="secondary" className="border-transparent bg-aura-sage text-aura-forest">
+                              <Badge variant="outline" className="border-aura-border bg-transparent font-medium text-aura-muted">
                                 {u.role.replace("_", " ")}
                               </Badge>
                             </div>

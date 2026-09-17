@@ -1,12 +1,13 @@
 import { motion, useReducedMotion } from "framer-motion"
 import { Activity, AlertTriangle, Check, ChevronDown, HeartPulse, Mic, ShieldCheck, Stethoscope, Waves, Wind, type LucideIcon } from "lucide-react"
 import { cardHover, fadeUp, spring, staggerContainer, staggerItem } from "@/lib/motion"
+import { cn } from "@/lib/utils"
 
 const CONDITIONS: { icon: LucideIcon; name: string; chip: string; desc: string }[] = [
-  { icon: HeartPulse, name: "Healthy", chip: "bg-green-100 text-green-700", desc: "Clear acoustic patterns — no signs of respiratory abnormality." },
-  { icon: Wind, name: "COPD", chip: "bg-amber-100 text-amber-800", desc: "Indicators such as wheezing and prolonged expiration patterns." },
-  { icon: Waves, name: "Pneumonia", chip: "bg-orange-100 text-orange-800", desc: "Patterns consistent with lung inflammation or infection." },
-  { icon: AlertTriangle, name: "Tuberculosis", chip: "bg-red-100 text-red-700", desc: "Acoustic markers flagged immediately by the Tier 1 gatekeeper." },
+  { icon: HeartPulse, name: "Healthy", chip: "bg-aura-sage text-aura-forest", desc: "Clear acoustic patterns — no signs of respiratory abnormality." },
+  { icon: Wind, name: "COPD", chip: "bg-aura-sage text-aura-forest", desc: "Inddicators such as wheezing and prolonged expiration patterns." },
+  { icon: Waves, name: "Pneumonia", chip: "bg-aura-sage text-aura-forest", desc: "Patterns consistent with lung inflammation or infection." },
+  { icon: AlertTriangle, name: "Tuberculosis", chip: "bg-aura-sage text-aura-forest", desc: "Acoustic markers flagged immediately by the Tier 1 gatekeeper." },
 ]
 
 function FlowNode({ icon: Icon, title, sub, delay = 0 }: { icon: LucideIcon; title: string; sub: string; delay?: number }) {
@@ -99,7 +100,7 @@ export function About() {
       </section>
 
       {/* How the System Works */}
-      <section className="aura-dots bg-aura-bg-alt px-6 py-20">
+      <section className="bg-white px-6 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">How the System Works</h2>
           <p className="mt-2 text-aura-muted">One audio clip moves through two gated stages before it becomes a screening result.</p>
@@ -141,8 +142,8 @@ export function About() {
           <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {CONDITIONS.map((condition) => (
               <motion.div key={condition.name} variants={staggerItem} className="transition-transform duration-300 hover:-translate-y-1">
-                <details className="group h-full rounded-2xl border border-aura-border-soft bg-aura-bg-card shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl p-6 text-base font-bold text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent-dark [&::-webkit-details-marker]:hidden">
+                <details className="group h-full rounded-2xl border border-aura-border-soft bg-aura-bg-card shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover group-open:border-aura-accent/40 group-open:shadow-aura-card-hover">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl p-6 text-base font-bold text-aura-text transition-colors group-open:text-aura-forest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent-dark [&::-webkit-details-marker]:hidden">
                     <span aria-hidden="true" className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${condition.chip}`}>
                       <condition.icon className="h-5 w-5" />
                     </span>
@@ -163,7 +164,7 @@ export function About() {
       </section>
 
       {/* Two-tier pipeline */}
-      <section className="bg-aura-bg-alt px-6 py-20">
+      <section className="bg-aura-mint-wash px-6 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">Two-Tier Gated Classification Pipeline</h2>
           <p className="mt-2 text-aura-muted">Rather than one model guessing across every condition at once, screening runs through two purpose-built stages in sequence.</p>
@@ -196,11 +197,11 @@ export function About() {
               <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">Signal Processing</h2>
               <p className="mt-3 text-aura-muted leading-relaxed">Raw audio is standardized to 16 kHz mono, passed through a low-pass filter to reduce high-frequency noise, then converted into a Log-Mel Spectrogram — the same representation used for both tiers, sliced to a different time window for each.</p>
             </div>
-            <motion.table variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="w-full border-separate overflow-hidden rounded-2xl border border-aura-border-soft bg-aura-bg-card shadow-aura-card">
+            <motion.table variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="w-full border-separate overflow-hidden rounded-2xl border border-aura-border-soft bg-aura-table-neutral shadow-aura-card">
               <thead>
                 <tr>
-                  <th className="bg-aura-bg-alt px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-aura-text">Step</th>
-                  <th className="bg-aura-bg-alt px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-aura-text">Detail</th>
+                  <th className="bg-aura-sage px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-aura-text">Step</th>
+                  <th className="bg-aura-sage px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-aura-text">Detail</th>
                 </tr>
               </thead>
               <tbody>
@@ -210,10 +211,10 @@ export function About() {
                   ["Spectrogram", "64 Mel bins, resized for ResNet18"],
                   ["Tier 1 window", "0.34 s, peak-centered"],
                   ["Tier 2 window", "2.0 s, peak-centered"],
-                ].map(([step, detail]) => (
-                  <tr key={step} className="group">
-                    <td className="border-b border-aura-border-soft px-6 py-4 text-sm font-medium text-aura-text">{step}</td>
-                    <td className="border-b border-aura-border-soft px-6 py-4 text-sm text-aura-muted group-last:border-b-0">{detail}</td>
+                ].map(([step, detail], idx) => (
+                  <tr key={step} className={cn("group", idx % 2 === 1 && "bg-white/60")}>
+                    <td className="border-b border-aura-border px-6 py-4 text-sm font-medium text-aura-text">{step}</td>
+                    <td className="border-b border-aura-border px-6 py-4 text-sm text-aura-muted group-last:border-b-0">{detail}</td>
                   </tr>
                 ))}
               </tbody>

@@ -176,8 +176,7 @@ export function Sidebar({
                 <motion.button
                   type="button"
                   onClick={onToggleCollapsed}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.92 }}
+                  whileTap={{ scale: 0.98 }}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                   aria-label="Toggle sidebar"
                   aria-expanded={!collapsed}
@@ -233,6 +232,12 @@ export function Sidebar({
                     layoutId="activeNav"
                     transition={reduceMotion ? { duration: 0 } : spring.snappy}
                     className="absolute inset-0 rounded-lg bg-white/90 shadow-aura-sm"
+                  />
+                )}
+                {isActive && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-0 top-1/2 z-10 h-6 w-1 -translate-y-1/2 rounded-r-full bg-aura-accent"
                   />
                 )}
                 <Link
@@ -332,13 +337,18 @@ export function Sidebar({
                 <p className="truncate text-sm font-medium text-white">
                   {user?.full_name || "Clinician"}
                 </p>
-                <p className="flex items-center gap-1.5 text-xs capitalize text-[#dff0e7]">
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-aura-accent opacity-40" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-aura-accent" />
-                  </span>
-                  <span className="truncate">
-                    {user?.role?.replace("_", " ") || "Clinician"}
+                <p className="mt-0.5 flex items-center">
+                  <span
+                    className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-aura-accent/40 bg-aura-accent/20 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-white"
+                    title={`Signed in as ${user?.role?.replace("_", " ") || "Clinician"}`}
+                  >
+                    <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-aura-accent opacity-40" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-aura-accent" />
+                    </span>
+                    <span className="truncate">
+                      {user?.role?.replace("_", " ") || "Clinician"}
+                    </span>
                   </span>
                 </p>
               </div>
@@ -360,10 +370,19 @@ export function Sidebar({
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-10 w-10" title={user?.full_name || "Clinician"}>
-                <AvatarImage src={avatarSrc} alt={user?.full_name || ""} />
-                <AvatarFallback>{avatarFallback}</AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="h-10 w-10" title={user?.full_name || "Clinician"}>
+                  <AvatarImage src={avatarSrc} alt={user?.full_name || ""} />
+                  <AvatarFallback>{avatarFallback}</AvatarFallback>
+                </Avatar>
+                <span
+                  aria-hidden="true"
+                  title={user?.role?.replace("_", " ") || "Clinician"}
+                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white/60 bg-aura-accent text-[8px] font-bold uppercase text-white"
+                >
+                  {(user?.role || "c").charAt(0).toUpperCase()}
+                </span>
+              </div>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <motion.button

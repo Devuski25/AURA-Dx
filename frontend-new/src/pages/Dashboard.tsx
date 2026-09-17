@@ -169,12 +169,17 @@ export function Dashboard() {
   const timeLabel = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(lastUpdated ?? new Date())
   const roleLabel = (user?.role || "").replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())
 
+  const isAnonymous = (s: { patient_name: string | null }) => !s.patient_name
+
   const renderStatusBadge = (status: string, reviewedBy: string | null) => {
     if (status === "pending_review") return <Badge variant="warning">Pending Review</Badge>
     if (reviewedBy) return <Badge variant="success">Reviewed</Badge>
     return <Badge variant="secondary">{status}</Badge>
   }
 
+  /* B3: strict color legend — red = critical only, yellow = pending/warning,
+     green = positive/healthy, neutral = plain counts. COPD/Pneumonia counts
+     are informational, so they render neutral instead of yellow. */
   const cards = [
     {
       title: ["Total", "Screenings"],
@@ -192,13 +197,13 @@ export function Dashboard() {
       title: ["COPD", "Positive"],
       value: stats.copd,
       icon: Stethoscope,
-      tone: "alert" as const,
+      tone: "neutral" as const,
     },
     {
       title: ["Pneumonia", "Positive"],
       value: stats.pneumonia,
-      icon: XCircle,
-      tone: "alert" as const,
+      icon: Stethoscope,
+      tone: "neutral" as const,
     },
     {
       title: ["Healthy"],
@@ -331,7 +336,6 @@ export function Dashboard() {
                     "h-full min-h-[124px] rounded-2xl border border-aura-border-soft shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover",
                     card.tone === "neutral" && "bg-white",
                     card.tone === "tb-alert" && "border-l-aura-coral bg-aura-coral-soft",
-                    card.tone === "alert" && "border-l-aura-warning-strong bg-aura-warning-soft",
                     card.tone === "healthy" && "border-l-aura-mint bg-aura-mint-soft"
                   )}>
                     <CardContent className="flex h-full flex-col justify-between p-4">
@@ -342,9 +346,8 @@ export function Dashboard() {
                       <span className={cn(
                         "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                         card.tone === "neutral" && "bg-aura-forest/10 text-aura-forest",
-                          card.tone === "tb-alert" && "bg-aura-elevated/80 text-aura-coral",
-                          card.tone === "alert" && "bg-aura-elevated/80 text-aura-warning-strong",
-                          card.tone === "healthy" && "bg-aura-elevated/80 text-aura-mint"
+                          card.tone === "tb-alert" && "bg-aura-coral/15 text-aura-coral-strong",
+                          card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine"
                         )}>
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </span>
@@ -352,9 +355,8 @@ export function Dashboard() {
                       <p className={cn(
                         "font-display text-3xl font-bold leading-none tabular-nums lg:text-4xl",
                         card.tone === "neutral" && "text-aura-ink",
-                        card.tone === "tb-alert" && "text-aura-coral",
-                        card.tone === "alert" && "text-aura-warning-strong",
-                        card.tone === "healthy" && "text-aura-mint"
+                        card.tone === "tb-alert" && "text-aura-coral-strong",
+                        card.tone === "healthy" && "text-aura-pine"
                       )}>
                         <AnimatedStat value={card.value} />
                       </p>
@@ -429,12 +431,26 @@ export function Dashboard() {
                           to={`/dashboard/screenings/${screening.id}`}
                           className="group flex w-full items-center gap-4 px-6 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand hover:bg-aura-surface-alt active:bg-aura-bg-alt"
                         >
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-aura-forest/10 font-semibold text-aura-forest">
-                            {screening.patient_name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "?"}
-                          </div>
+                            <div className={cn(
+                              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-semibold",
+                              isAnonymous(screening)
+                                ? "border border-dashed border-aura-border bg-aura-sage text-aura-muted"
+                                : "bg-aura-forest/10 text-aura-forest"
+                            )}>
+                              {isAnonymous(screening) ? (
+                                <FileText className="h-5 w-5" aria-hidden="true" />
+                              ) : (
+                                screening.patient_name?.split(" ").map((part) => part[0]).slice(0, 2).join("")
+                              )}
+                            </div>
 
                           <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold text-aura-ink">{screening.patient_name || "Unknown patient"}</p>
+                            <p className={cn(
+                              "truncate font-semibold",
+                              isAnonymous(screening) ? "italic text-aura-muted" : "text-aura-ink"
+                            )}>
+                              {isAnonymous(screening) ? "Anonymous Screening" : screening.patient_name}
+                            </p>
                             <p className="mt-1 truncate text-xs text-aura-muted">
                               {formatRelativeTime(screening.created_at)} · {shortDateFormat.format(new Date(screening.created_at))} · {screening.clinician_name || "—"}
                             </p>

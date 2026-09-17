@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
 import { useCachedData } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
+import { cn } from "@/lib/utils"
 import { getResultBadge } from "@/lib/badge-helpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -305,8 +306,8 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSortedScreenings.map(screening => (
-                    <TableRow key={screening.id} className="hover:bg-aura-surface-alt">
+                  {filteredAndSortedScreenings.map((screening, idx) => (
+                    <TableRow key={screening.id} className={cn("hover:bg-aura-surface-alt", idx % 2 === 1 && "bg-aura-table-stripe")}>
                       <TableCell>
                         <div className="font-medium">{screening.patient_name || "Unknown patient"}</div>
                         <div className="text-xs text-aura-muted">{screening.clinician_name}</div>

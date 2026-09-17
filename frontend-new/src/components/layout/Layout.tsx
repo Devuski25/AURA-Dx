@@ -4,7 +4,6 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Menu } from "lucide-react"
-import { Logo } from "@/components/layout/Logo"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { ScrollTopButton } from "@/components/ScrollTopButton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -14,6 +13,19 @@ import { useAuth } from "@/hooks/useAuth"
 import { pageVariants } from "@/lib/motion"
 
 const STORAGE_KEY = "aura-dx:sidebar-collapsed"
+
+/* Route-aware page title shown in the top bar (B1: the AURA-Dx logo already
+   lives in the sidebar, so the header carries context instead of a dup logo) */
+const PAGE_TITLES: { match: (p: string) => boolean; title: string; crumb: string }[] = [
+  { match: p => p === "/dashboard", title: "Dashboard", crumb: "Overview" },
+  { match: p => p.startsWith("/dashboard/screening/"), title: "Screening Result", crumb: "Screening Records" },
+  { match: p => p === "/dashboard/screening", title: "New Screening", crumb: "Screening" },
+  { match: p => p === "/dashboard/patient-records", title: "Patient Records", crumb: "Records" },
+  { match: p => p.startsWith("/dashboard/patients/"), title: "Patient Detail", crumb: "Patient Records" },
+  { match: p => p === "/dashboard/patients", title: "Patients", crumb: "Records" },
+  { match: p => p.startsWith("/dashboard/admin"), title: "User Management", crumb: "Administration" },
+  { match: p => p === "/dashboard/help-support", title: "Help & Support", crumb: "Support" },
+]
 
 function getInitialCollapsed() {
   try {
@@ -58,6 +70,7 @@ export function Layout() {
   }
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin"
+  const pageInfo = PAGE_TITLES.find(entry => entry.match(location.pathname))
 
   return (
     <div className="min-h-screen overflow-x-clip bg-aura-surface">
@@ -90,9 +103,14 @@ export function Layout() {
               <TooltipContent>Open navigation</TooltipContent>
             </Tooltip>
 
-            <Logo size="lg" />
-
-            <div className="flex-1" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display text-[0.95rem] font-semibold leading-tight text-aura-ink">
+                {pageInfo?.title ?? "AURA-Dx"}
+              </p>
+              <p className="truncate text-xs text-aura-muted">
+                {pageInfo ? pageInfo.crumb : "Acoustic Unit for Respiratory Analysis"}
+              </p>
+            </div>
           </header>
 
           <AnimatePresence mode="wait">

@@ -112,7 +112,7 @@ export function Home() {
               For a Better State of Respiratory Health.
             </h1>
             <p className="mt-6 max-w-[44ch] text-[1.05rem] leading-relaxed text-white/70 md:text-lg">
-              Screen for tuberculosis, COPD, and pneumonia from a single cough — powered by a two-tier AI pipeline, reviewed by a clinician.
+              Clinical cough screening for tuberculosis, COPD, and pneumonia — a two-tier AI pipeline that flags findings for clinician review, built around patient consent.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <motion.div whileHover={reduceMotion ? undefined : { scale: 1.04 }} whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={spring.snappy}>
@@ -160,7 +160,7 @@ export function Home() {
       </section>
 
       {/* ─── Mission Statement ─── */}
-      <section className="aura-dots px-6 py-20 md:py-24">
+      <section className="bg-aura-cream px-6 py-16 md:py-20">
         <div className="mx-auto max-w-4xl text-center">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 24 }}
@@ -172,12 +172,11 @@ export function Home() {
               Our Mission
             </span>
             <p className="m-0 font-display text-[clamp(1.25rem,2.8vw,1.75rem)] font-semibold leading-snug tracking-tight text-aura-text">
-              Start living your healthiest life with early respiratory screening.
-              AURA-Dx provides world-class AI-assisted analysis in a comforting, consent-first, patient-centered environment.
+              Early detection changes outcomes. AURA-Dx gives clinics a fast, standardized cough-screening workflow — AI-assisted analysis under clinician review, with patient consent at every step.
             </p>
             <Link
               to="/about"
-              className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
+              className="group mt-5 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
             >
               Explore Our Technology
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
@@ -187,13 +186,13 @@ export function Home() {
       </section>
 
       {/* ─── How It Works ─── */}
-      <section className="px-6 py-20 md:py-24">
+      <section className="bg-aura-mint-wash px-6 py-16 md:py-20">
         <div className="mx-auto max-w-6xl">
           <SectionHeading centered>Getting Screened Is Simple</SectionHeading>
           <p className="mt-3 text-center text-aura-muted">Three steps, under a minute of your time.</p>
 
           {/* Step connector line (desktop) */}
-          <div className="relative mt-12">
+          <div className="relative mt-8">
             <div aria-hidden="true" className="absolute left-[16.67%] right-[16.67%] top-6 hidden h-[2px] bg-gradient-to-r from-aura-accent/20 via-aura-accent/40 to-aura-accent/20 md:block" />
 
             <motion.ol variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="relative grid list-none gap-6 p-0 md:grid-cols-3">
@@ -209,7 +208,7 @@ export function Home() {
                     whileInView={{ scale: 1 }}
                     viewport={{ once: true }}
                     transition={{ ...spring.bouncy, delay: 0.15 + i * 0.12 }}
-                    className="relative z-10 mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-sm font-bold text-white shadow-lg shadow-aura-forest/25 tabular-nums"
+                    className="relative z-10 mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-sm font-bold text-white shadow-lg shadow-aura-forest/25 tabular-nums"
                   >
                     {i + 1}
                   </motion.div>
@@ -229,7 +228,7 @@ export function Home() {
       </section>
 
       {/* ─── Built for the Clinic ─── */}
-      <section className="bg-aura-bg-alt px-6 py-20 md:py-24">
+      <section className="bg-aura-mint-wash-deep px-6 py-16 md:py-20">
         <div className="mx-auto max-w-6xl">
           <div className="grid items-center gap-14 md:grid-cols-2">
             <div>
@@ -271,7 +270,7 @@ export function Home() {
       </section>
 
       {/* ─── FAQ ─── */}
-      <section className="bg-aura-bg-alt px-6 py-20 md:py-24">
+      <section className="bg-white px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
           <SectionHeading centered>Frequently Asked Questions</SectionHeading>
           <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} className="mt-10 flex flex-col gap-3">
@@ -307,7 +306,7 @@ export function Home() {
                         transition={reduceMotion ? { duration: 0 } : { duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
                         className="overflow-hidden"
                       >
-                        <p className="m-0 px-6 pb-6 pr-7 text-sm leading-relaxed text-aura-muted">{faq.a}</p>
+                        <p className="m-0 px-6 pb-6 pr-7 text-sm leading-relaxed text-aura-legal-text">{faq.a}</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -319,7 +318,7 @@ export function Home() {
       </section>
 
       {/* ─── Consent notice ─── */}
-      <section className="px-6 py-20 md:py-24">
+      <section className="bg-aura-cream px-6 pb-16 pt-12 md:pb-20 md:pt-14">
         <div className="mx-auto max-w-4xl">
           <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="rounded-2xl border border-aura-border bg-gradient-to-br from-aura-bg-alt to-aura-surface-alt p-8 shadow-aura-card md:p-10">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:gap-6">

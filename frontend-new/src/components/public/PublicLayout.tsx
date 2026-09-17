@@ -100,16 +100,16 @@ export function PublicLayout() {
             {/* Brand column */}
             <div className="col-span-2 sm:col-span-1 lg:col-span-1">
               <Logo size="md" inverse withSubtitle />
-              <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/60">
+              <p className="mt-4 max-w-xs text-sm leading-relaxed text-aura-footer-link">
                 Web-based AI system for early detection of respiratory diseases via cough sound analysis.
               </p>
-              <div className="mt-4 flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-[0.65rem] font-semibold tracking-wide text-white/50 uppercase">
+              <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-aura-footer-link/40 bg-white/10 px-3 py-1.5 text-[0.65rem] font-semibold tracking-wide text-aura-footer-link uppercase">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-aura-accent" />
                 Thesis-stage research prototype
               </div>
               <Link
                 to="/help-support"
-                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               >
                 <LifeBuoy className="h-3.5 w-3.5" aria-hidden="true" />
                 Help &amp; Support
@@ -126,7 +126,7 @@ export function PublicLayout() {
                     <li key={item.path}>
                       <Link
                         to={item.path}
-                        className="group inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                        className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                       >
                         {item.label}
                         <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
@@ -142,19 +142,19 @@ export function PublicLayout() {
               <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-white/35">Legal</h4>
               <ul className="m-0 flex list-none flex-col gap-3 p-0">
                 <li>
-                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white">
+                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white">
                     Privacy Policy
                     <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
                   </Link>
                 </li>
                 <li>
-                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white">
+                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white">
                     Data Rights
                     <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
                   </Link>
                 </li>
                 <li>
-                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-white/65 no-underline transition-colors hover:text-white">
+                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white">
                     Consent Policy
                     <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
                   </Link>
@@ -166,13 +166,13 @@ export function PublicLayout() {
             <div>
               <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-white/35">Institution</h4>
               <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                <li className="text-sm font-medium text-white/65">
+                <li className="text-sm font-medium text-aura-footer-link">
                   University of Rizal System
                 </li>
-                <li className="text-sm text-white/45">
+                <li className="text-sm text-aura-footer-link/80">
                   Morong Campus
                 </li>
-                <li className="text-sm text-white/45">
+                <li className="text-sm text-aura-footer-link/80">
                   BS Computer Engineering
                 </li>
               </ul>

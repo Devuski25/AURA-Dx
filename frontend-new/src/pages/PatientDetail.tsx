@@ -52,6 +52,7 @@ interface Screening {
   status: string
   reviewed_by_name: string | null
   reviewed_at: string | null
+  review_notes: string | null
   created_at: string
 }
 
@@ -239,25 +240,29 @@ export function PatientDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1">
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">{patient.full_name}</h1>
-          <p className="text-aura-muted">{patient.clinic_name} • {patient.clinician_name}</p>
+      {/* Header — one back action, app-wide pattern (B6) */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/patient-records")} className="-ml-2 mt-0.5 shrink-0 gap-1">
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{patient.full_name}</h1>
+            <p className="text-aura-muted">{patient.clinic_name} • {patient.clinician_name}</p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => navigate("/dashboard/patients")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Patients
-          </Button>
           <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
             <DialogTrigger asChild>
-              <Button variant="destructive" disabled={deleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
+              {/* B7: destructive action gets low-emphasis styling; the confirm
+                  dialog stays the hard stop before deletion */}
+              <Button
+                variant="ghost"
+                disabled={deleting}
+                className="gap-1.5 text-aura-coral-strong hover:bg-aura-coral-soft hover:text-aura-coral-strong"
+              >
+                <Trash2 className="h-4 w-4" />
                 Delete
               </Button>
             </DialogTrigger>
@@ -435,6 +440,36 @@ export function PatientDetail() {
                 </TableBody>
               </Table>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* B10: give the space below Screening History purpose — review notes */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Clinician Notes &amp; Remarks</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {screenings.filter(s => s.review_notes).length === 0 ? (
+            <p className="text-sm text-aura-muted">
+              No clinician notes recorded yet. Notes added while reviewing a screening will appear here.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {screenings.filter(s => s.review_notes).map(s => (
+                <li key={s.id} className="rounded-xl border border-aura-border-soft bg-aura-surface-alt/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-aura-ink">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </span>
+                    <span className="text-xs text-aura-muted">
+                      {s.reviewed_by_name ? `Reviewed by ${s.reviewed_by_name}` : "Review pending"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-aura-text">{s.review_notes}</p>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

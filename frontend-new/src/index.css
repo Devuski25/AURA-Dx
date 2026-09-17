@@ -84,6 +84,16 @@
   --color-aura-warning-soft: #fef3c7;
   --color-aura-warning-border: #fde68a;
 
+  /* Marketing site section tones (Part A spec) — exactly three backgrounds:
+     dark green (hero/footer), white, and one mint wash reused everywhere. */
+  --color-aura-cream: #FAF9F5;
+  --color-aura-mint-wash: #E8F3ED;
+  --color-aura-mint-wash-deep: #EEF5F1;
+  --color-aura-footer-link: #B8D4C8;
+  --color-aura-legal-text: #1A2E26;
+  --color-aura-table-stripe: #F6FAF8;
+  --color-aura-table-neutral: #F7F7F7;
+
   /* Status text tones (flip in dark mode for AA contrast) */
   --color-aura-pine: #0E7A55;
   --color-aura-coral-strong: #C4351F;
