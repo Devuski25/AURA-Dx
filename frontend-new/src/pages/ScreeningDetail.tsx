@@ -288,7 +288,7 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
         {cfg.icon}
       </div>
       <div>
-        <p className={cn("font-display text-xl font-bold leading-tight tracking-wide", cfg.title)}>{cfg.label}</p>
+        <p className={cn("aura-pop-in font-display text-xl font-bold leading-tight tracking-wide", cfg.title)}>{cfg.label}</p>
         <p className={cn("mt-1 font-mono text-[11px] uppercase tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
       </div>
     </motion.div>

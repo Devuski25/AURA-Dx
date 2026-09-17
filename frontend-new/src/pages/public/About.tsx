@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "framer-motion"
 import { Activity, AlertTriangle, Check, ChevronDown, HeartPulse, Mic, ShieldCheck, Stethoscope, Waves, Wind, type LucideIcon } from "lucide-react"
-import { cardHover, fadeUp, spring, staggerContainer, staggerItem } from "@/lib/motion"
+import { cardHover, fadeUp, spring, fastStagger, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 
 const CONDITIONS: { icon: LucideIcon; name: string; chip: string; desc: string }[] = [
@@ -115,7 +115,7 @@ export function About() {
             <FlowNode icon={Activity} title="Screening Result" sub="Confidence score + suggested next step" delay={0.66} />
           </div>
 
-          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.5 }} className="mt-6 grid gap-4 sm:grid-cols-2">
+          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.5 }} className="mt-6 grid gap-4 sm:grid-cols-2">
             <motion.div variants={staggerItem} className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-5 shadow-aura-xs">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-700" aria-hidden="true" />
               <p className="m-0 text-sm leading-relaxed text-gray-900">
@@ -139,7 +139,7 @@ export function About() {
           <p className="mt-2 text-aura-muted">
             Four respiratory classes in one pass — screening support, not a medical diagnosis. Tap a class to see its markers.
           </p>
-          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {CONDITIONS.map((condition) => (
               <motion.div key={condition.name} variants={staggerItem} className="transition-transform duration-300 hover:-translate-y-1">
                 <details className="group h-full rounded-2xl border border-aura-border-soft bg-aura-bg-card shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover group-open:border-aura-accent/40 group-open:shadow-aura-card-hover">
@@ -168,7 +168,7 @@ export function About() {
         <div className="mx-auto max-w-6xl">
           <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">Two-Tier Gated Classification Pipeline</h2>
           <p className="mt-2 text-aura-muted">Rather than one model guessing across every condition at once, screening runs through two purpose-built stages in sequence.</p>
-          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="mt-8 grid gap-6 md:grid-cols-2">
+          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="mt-8 grid gap-6 md:grid-cols-2">
             <motion.div variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap} className="rounded-2xl border border-aura-border-soft bg-aura-bg-card p-8 shadow-aura-card">
               <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-aura-accent-light to-aura-accent-dark shadow-aura-sm">
                 <Check className="h-7 w-7 text-white" />

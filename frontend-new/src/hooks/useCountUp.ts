@@ -5,7 +5,7 @@ import { animate, useReducedMotion } from "framer-motion"
  * Animates a number from 0 to `target` with an ease-out curve.
  * Returns the target instantly under prefers-reduced-motion.
  */
-export function useCountUp(target: number, duration = 0.9): number {
+export function useCountUp(target: number, duration = 0.4): number {
   const reduceMotion = useReducedMotion()
   const [value, setValue] = useState(() => (reduceMotion ? target : 0))
 

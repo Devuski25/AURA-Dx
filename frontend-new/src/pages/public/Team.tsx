@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 import { Users } from "lucide-react"
-import { staggerContainer, staggerItem } from "@/lib/motion"
+import { fastStagger, staggerItem } from "@/lib/motion"
 import DesireeImg from "@/assets/public/team/desiree-mejes.jpg"
 import AhldousImg from "@/assets/public/team/ahldous-argayoso.jpg"
 import RheinImg from "@/assets/public/team/rhein-cama.jpg"
@@ -22,7 +22,7 @@ function TeamCard({ member }: { member: typeof TEAM[number] }) {
       whileHover={{ y: -6, transition: { type: "spring", stiffness: 300, damping: 24 } }}
       className="group rounded-2xl border border-aura-border bg-white px-5 py-7 text-center shadow-[0_2px_10px_rgba(14,59,54,0.08)] transition-all duration-300 hover:shadow-[0_6px_20px_rgba(14,59,54,0.12)] hover:border-aura-accent/25"
     >
-      <div className="relative mx-auto mb-5 h-28 w-28 overflow-hidden rounded-full border-[3px] border-aura-accent/15 bg-aura-bg-alt transition-all duration-300 group-hover:border-aura-accent/40 group-hover:shadow-lg group-hover:shadow-aura-accent/10">
+      <div className="relative mx-auto mb-5 h-28 w-28 overflow-hidden rounded-full border-[3px] border-aura-accent/15 bg-aura-sage transition-[border-color,box-shadow] duration-300 group-hover:border-aura-accent/40 group-hover:shadow-lg group-hover:shadow-aura-accent/10">
         <img
           src={member.img}
           alt={member.name}
@@ -80,7 +80,7 @@ export function Team() {
             </h2>
             <p className="mt-2 text-aura-muted">The researchers behind AURA-Dx</p>
           </div>
-          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-5">
+          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-2 gap-5 md:grid-cols-3 lg:grid-cols-5">
             {TEAM.map((member) => (
               <TeamCard key={member.name} member={member} />
             ))}

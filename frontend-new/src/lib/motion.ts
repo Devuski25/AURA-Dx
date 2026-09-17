@@ -59,3 +59,21 @@ export const tooltipVariants: Variants = {
   visible: { opacity: 1, scale: 1, transition: { duration: 0.15, ease: "easeOut" } },
   exit: { opacity: 0, scale: 0.95, transition: { duration: 0.1, ease: "easeIn" } },
 }
+
+/* ─── Motion-audit additions ─── */
+
+/**
+ * For `initial` on elements that pair plain-value animation with
+ * whileInView/animate: returns `false` under reduced motion (renders final
+ * state instantly) instead of an object — keeps hook/prop shape stable
+ * across renders and avoids Framer "changed initial" errors (#310 class).
+ */
+export function entrance(reduced: boolean, values: Record<string, number | string>) {
+  return reduced ? false : values
+}
+
+/** 30ms stagger — spec cap (#2) for marketing-section staggering. */
+export const fastStagger: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.03, delayChildren: 0.04 } },
+}

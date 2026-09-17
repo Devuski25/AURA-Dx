@@ -49,5 +49,6 @@ export function FormDescription({ className, ...props }: React.HTMLAttributes<HT
 }
 
 export function FormMessage({ className, children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn("text-sm text-destructive", className)} {...props}>{children}</p>
+  // aura-shake gives validation errors an instant, tactile entrance (motion spec #8)
+  return <p className={cn("aura-shake text-sm text-destructive", className)} {...props}>{children}</p>
 }

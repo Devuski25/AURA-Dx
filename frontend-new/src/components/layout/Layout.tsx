@@ -14,6 +14,39 @@ import { pageVariants } from "@/lib/motion"
 
 const STORAGE_KEY = "aura-dx:sidebar-collapsed"
 
+/* Route-change progress bar (motion spec #1): a 3px brand gradient fixed to
+   the viewport top, scaleX-driven so it's compositor-only. Shows instantly on
+   route change, fades out ~350ms later — pure polish, never blocks painting. */
+function RouteProgress() {
+  const { pathname } = useLocation()
+  const [active, setActive] = useState(false)
+
+  useEffect(() => {
+    setActive(true)
+    const t = window.setTimeout(() => setActive(false), 350)
+    return () => window.clearTimeout(t)
+  }, [pathname])
+
+  return (
+    <AnimatePresence>
+      {active && (
+        <motion.div
+          key={pathname}
+          aria-hidden="true"
+          className="aura-route-progress z-[70]"
+          initial={{ scaleX: 0, opacity: 1 }}
+          animate={{ scaleX: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{
+            scaleX: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+            opacity: { duration: 0.18, delay: 0.17 },
+          }}
+        />
+      )}
+    </AnimatePresence>
+  )
+}
+
 /* Route-aware page title shown in the top bar (B1: the AURA-Dx logo already
    lives in the sidebar, so the header carries context instead of a dup logo) */
 const PAGE_TITLES: { match: (p: string) => boolean; title: string; crumb: string }[] = [
@@ -74,6 +107,7 @@ export function Layout() {
 
   return (
     <div className="min-h-screen overflow-x-clip bg-aura-surface">
+      <RouteProgress />
       <div className="flex min-h-screen flex-row">
         <Sidebar
           collapsed={collapsed}

@@ -252,3 +252,123 @@ body {
   transform: translateY(-4px);
   box-shadow: var(--shadow-aura-card-hover);
 }
+
+/* ─── Motion-audit utilities (all compositor-only: transform/opacity) ─── */
+
+/* Route-change top progress bar (spec #1). Width is driven by JS via
+   transform: scaleX() writes only — never layout properties. */
+.aura-route-progress {
+  position: fixed;
+  inset: 0 auto auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-aura-brand), var(--color-aura-mint));
+  transform-origin: 0 50%;
+  will-change: transform, opacity;
+}
+
+/* Card sheen sweep on hover — transform on an isolated pseudo layer.
+   Hover-capable pointers only, so touch devices never get stuck sheens. */
+.aura-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.aura-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.35) 50%, transparent 68%);
+  transform: translateX(-130%) skewX(-8deg);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .aura-sheen:hover::after {
+    transform: translateX(130%) skewX(-8deg);
+  }
+}
+
+/* Hero ambient glow drift (spec #2) — pre-blurred layer, compositor-only. */
+@keyframes aura-orb-drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -28px, 0); }
+}
+.aura-orb-drift {
+  animation: aura-orb-drift 10s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Validation error entrance (spec #8) — subtle horizontal shake. */
+@keyframes aura-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+.aura-shake {
+  animation: aura-shake 0.3s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* Critical result badge arrival pop (spec #9) — runs once on mount. */
+@keyframes aura-pop-in {
+  0% { transform: scale(0.92); opacity: 0; }
+  60% { transform: scale(1.03); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.aura-pop-in {
+  animation: aura-pop-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* Lift wrapper with hover-capable guard so touch never sticks. */
+.hover-lift {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-aura-card-hover);
+  }
+}
+
+/* ─── Radix enter/exit animations (motion spec #4/#5) ───
+   The UI primitives (dialog/select/dropdown/tooltip) use tailwindcss-animate
+   class names, but tw-animate-css was never installed — they rendered with
+   zero animation. These @utility definitions reimplement that API
+   compositor-only (opacity + transform), so the existing JSX works verbatim
+   and participates in Tailwind variants like data-[state=open]:. */
+@keyframes aura-enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+      scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1));
+  }
+}
+@keyframes aura-exit {
+  to {
+    opacity: var(--tw-exit-opacity, 1);
+    transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
+      scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1));
+  }
+}
+@utility animate-in {
+  animation-name: aura-enter;
+  animation-duration: 120ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+@utility animate-out {
+  animation-name: aura-exit;
+  animation-duration: 100ms;
+  animation-timing-function: ease-in;
+  animation-fill-mode: both;
+}
+@utility fade-in-0 { --tw-enter-opacity: 0; }
+@utility fade-out-0 { --tw-exit-opacity: 0; }
+@utility zoom-in-95 { --tw-enter-scale: 0.95; }
+@utility zoom-out-95 { --tw-exit-scale: 0.95; }
+@utility slide-in-from-top-2 { --tw-enter-translate-y: -0.5rem; }
+@utility slide-in-from-bottom-2 { --tw-enter-translate-y: 0.5rem; }
+@utility slide-in-from-left-2 { --tw-enter-translate-x: -0.5rem; }
+@utility slide-in-from-right-2 { --tw-enter-translate-x: 0.5rem; }

@@ -19,7 +19,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react"
-import { fadeUp, spring, staggerContainer, staggerItem } from "@/lib/motion"
+import { fadeUp, fastStagger, spring, staggerItem } from "@/lib/motion"
 import WebdesHero from "@/assets/public/webdes.png"
 
 /* ---------- Local interactive helpers ---------- */
@@ -85,10 +85,10 @@ export function Home() {
       <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-[#0a352e] via-[#0d4a3f] to-aura-forest">
         {/* Decorative grid dots */}
         <div aria-hidden="true" className="absolute inset-0 aura-dots opacity-40" />
-        {/* Decorative glow orbs */}
+        {/* Decorative glow orbs — slow ambient drift, compositor-only */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-aura-accent/10 blur-[100px]" />
-          <div className="absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-aura-mint/10 blur-[80px]" />
+          <div className="aura-orb-drift absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-aura-accent/10 blur-[100px]" />
+          <div className="aura-orb-drift absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-aura-mint/10 blur-[80px]" style={{ animationDelay: "-5s" }} />
         </div>
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-6 md:grid-cols-[1.2fr_0.8fr] md:py-0">
@@ -163,8 +163,9 @@ export function Home() {
       <section className="bg-aura-cream px-6 py-16 md:py-20">
         <div className="mx-auto max-w-4xl text-center">
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            variants={fadeUp}
+            initial={reduceMotion ? false : "hidden"}
+            whileInView="visible"
             viewport={{ once: true }}
             transition={spring.gentle}
           >
@@ -195,7 +196,7 @@ export function Home() {
           <div className="relative mt-8">
             <div aria-hidden="true" className="absolute left-[16.67%] right-[16.67%] top-6 hidden h-[2px] bg-gradient-to-r from-aura-accent/20 via-aura-accent/40 to-aura-accent/20 md:block" />
 
-            <motion.ol variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="relative grid list-none gap-6 p-0 md:grid-cols-3">
+            <motion.ol variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="relative grid list-none gap-6 p-0 md:grid-cols-3">
               {STEPS.map((step, i) => (
                 <motion.li
                   key={step.title}
@@ -207,13 +208,13 @@ export function Home() {
                     initial={reduceMotion ? false : { scale: 0 }}
                     whileInView={{ scale: 1 }}
                     viewport={{ once: true }}
-                    transition={{ ...spring.bouncy, delay: 0.15 + i * 0.12 }}
+                    transition={{ ...spring.bouncy, delay: 0.12 + i * 0.04 }}
                     className="relative z-10 mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-sm font-bold text-white shadow-lg shadow-aura-forest/25 tabular-nums"
                   >
                     {i + 1}
                   </motion.div>
 
-                  <div className="rounded-2xl border border-aura-border-soft bg-aura-bg-card p-6 shadow-aura-card transition-all duration-300 hover:-translate-y-1 hover:shadow-aura-card-hover">
+                  <div className="aura-sheen rounded-2xl border border-aura-border-soft bg-aura-bg-card p-6 shadow-aura-card transition-all duration-300 hover:-translate-y-1 hover:shadow-aura-card-hover">
                     <span aria-hidden="true" className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-aura-mint-soft text-aura-forest transition-transform duration-300 group-hover:scale-110">
                       <step.icon className="h-6 w-6" />
                     </span>
@@ -244,7 +245,7 @@ export function Home() {
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
               </Link>
             </div>
-            <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.25 }} className="flex flex-col gap-4">
+            <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.25 }} className="flex flex-col gap-4">
               {[
                 { icon: Mic, title: "Browser Microphone", desc: "Record cough audio directly in the portal — no extra hardware needed." },
                 { icon: FileAudio, title: "WAV Upload", desc: "Analyze an existing recording from any device." },
@@ -253,7 +254,7 @@ export function Home() {
                 <motion.div
                   key={feature.title}
                   variants={staggerItem}
-                  className="group flex items-start gap-4 rounded-xl border border-aura-border-soft bg-aura-bg-card p-5 shadow-aura-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-aura-card-hover"
+                  className="aura-sheen group flex items-start gap-4 rounded-xl border border-aura-border-soft bg-aura-bg-card p-5 shadow-aura-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-aura-card-hover"
                 >
                   <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-aura-mint-soft text-aura-forest transition-all duration-300 group-hover:scale-110 group-hover:bg-aura-accent/15">
                     <feature.icon className="h-5 w-5" />
@@ -273,7 +274,7 @@ export function Home() {
       <section className="bg-white px-6 py-16 md:py-20">
         <div className="mx-auto max-w-3xl">
           <SectionHeading centered>Frequently Asked Questions</SectionHeading>
-          <motion.div variants={staggerContainer} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} className="mt-10 flex flex-col gap-3">
+          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} className="mt-10 flex flex-col gap-3">
             {FAQS.map((faq, i) => {
               const open = openFaq === i
               return (

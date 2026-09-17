@@ -315,11 +315,11 @@ export function Dashboard() {
               <Button
                 onClick={() => void refreshScreenings()}
                 size="icon"
-                className="h-10 w-10 rounded-lg border border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:border-white/35 hover:bg-white/20"
+                className="group h-10 w-10 rounded-lg border border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:border-white/35 hover:bg-white/20"
                 aria-label="Refresh dashboard"
                 title="Refresh dashboard"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -333,7 +333,7 @@ export function Dashboard() {
               return (
                 <motion.div key={card.title.join("-")} {...itemProps}>
                   <Card className={cn(
-                    "h-full min-h-[124px] rounded-2xl border border-aura-border-soft shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover",
+                    "aura-sheen h-full min-h-[124px] rounded-2xl border border-aura-border-soft shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover",
                     card.tone === "neutral" && "bg-white",
                     card.tone === "tb-alert" && "border-l-aura-coral bg-aura-coral-soft",
                     card.tone === "healthy" && "border-l-aura-mint bg-aura-mint-soft"
@@ -544,7 +544,7 @@ export function Dashboard() {
                   ) : (
                     <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-aura-mint-soft">
-                        <CheckCircle className="h-6 w-6 text-aura-mint" />
+                        <CheckCircle className="aura-pop-in h-6 w-6 text-aura-mint" aria-hidden="true" />
                       </div>
                       <p className="text-sm font-medium text-aura-ink">Everything Is Up To Date</p>
                       <p className="text-xs text-aura-muted">No accounts are awaiting approval</p>
