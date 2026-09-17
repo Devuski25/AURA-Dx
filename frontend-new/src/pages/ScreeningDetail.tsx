@@ -400,6 +400,23 @@ export function ScreeningDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  /* Probability lists hoisted to the very top of the component — above every
+     early return. Calling useMemo inside conditional JSX changed the hook
+     count between renders and crashed the page with React error #310
+     whenever probabilities were null. */
+  const tbProbabilityBars = useMemo(() => {
+    if (!screening?.tb_probabilities) return null
+    return Object.entries(screening.tb_probabilities).map(([cls, prob]) => (
+      <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("tb", cls)} />
+    ))
+  }, [screening?.tb_probabilities])
+  const respProbabilityBars = useMemo(() => {
+    if (!screening?.respiratory_probabilities) return null
+    return Object.entries(screening.respiratory_probabilities).map(([cls, prob]) => (
+      <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("resp", cls)} />
+    ))
+  }, [screening?.respiratory_probabilities])
+
   useEffect(() => {
     if (id && accessToken) fetchScreening()
   }, [id, accessToken])
@@ -627,9 +644,7 @@ export function ScreeningDetail() {
             <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">
               Probability Distribution
             </div>
-            {useMemo(() => Object.entries(screening.tb_probabilities!).map(([cls, prob]) => (
-              <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("tb", cls)} />
-            )), [screening.tb_probabilities])}
+            {tbProbabilityBars}
           </div>
         )}
         {tbFlagged && (
@@ -664,9 +679,7 @@ export function ScreeningDetail() {
               <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">
                 Probability Distribution
               </div>
-              {useMemo(() => Object.entries(screening.respiratory_probabilities!).map(([cls, prob]) => (
-                <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("resp", cls)} />
-              )), [screening.respiratory_probabilities])}
+              {respProbabilityBars}
             </div>
           )}
 
