@@ -42,7 +42,7 @@ interface ScreeningDetail {
   respiratory_result: string | null
   respiratory_confidence: number | null
   respiratory_probabilities: Record<string, number> | null
-  cascade_path: string
+  cascade_path: string | null
   model_version: string
   status: string
   reviewed_by: string | null
@@ -50,7 +50,7 @@ interface ScreeningDetail {
   review_notes: string | null
   created_at: string
   updated_at: string
-  patient_name: string
+  patient_name: string | null
   patient_dob: string
   age_bracket: string
   patient_gender: string
@@ -126,8 +126,8 @@ function TierStatusPill({ ok, label }: { ok: boolean; label: string }) {
 }
 
 /* ---------- Cascade stepper ---------- */
-function CascadeStepper({ path }: { path: string }) {
-  const steps = path
+function CascadeStepper({ path }: { path?: string | null }) {
+  const steps = (path ?? "")
     .split("→")
     .map(s => s.trim())
     .filter(Boolean)
@@ -531,7 +531,7 @@ export function ScreeningDetail() {
         <div>
           <h1 className="font-display text-2xl font-bold text-aura-ink">Screening Result</h1>
           <div className="mt-1 flex items-center gap-2 text-[13.5px] text-aura-muted">
-            <strong className="font-semibold text-aura-ink">{screening.patient_name}</strong>
+            <strong className="font-semibold text-aura-ink">{screening.patient_name || "Unknown patient"}</strong>
             <span className="h-[3px] w-[3px] rounded-full bg-aura-muted" />
             {screening.clinic_name}
           </div>
@@ -560,7 +560,7 @@ export function ScreeningDetail() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
           <div>
             <FieldLabel>Name</FieldLabel>
-            <div className="text-[13.5px] font-medium text-aura-ink">{screening.patient_name}</div>
+            <div className="text-[13.5px] font-medium text-aura-ink">{screening.patient_name || "Unknown patient"}</div>
           </div>
           <div>
             <FieldLabel>Age / Gender</FieldLabel>
@@ -619,7 +619,7 @@ export function ScreeningDetail() {
         confidence={screening.tb_confidence ?? 0}
         modelVersion={screening.model_version}
         decisions={[
-          { label: "Cascade Decision", value: screening.cascade_path.includes("Tier 2") ? "Continued to Tier 2" : "Stopped at Tier 1" },
+          { label: "Cascade Decision", value: (screening.cascade_path ?? "").includes("Tier 2") ? "Continued to Tier 2" : "Stopped at Tier 1" },
         ]}
       >
         {screening.tb_probabilities && (

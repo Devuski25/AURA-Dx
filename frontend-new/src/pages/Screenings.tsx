@@ -26,7 +26,7 @@ type SortDirection = "asc" | "desc" | null
 interface Screening {
   id: string
   patient_id: string
-  patient_name: string
+  patient_name: string | null
   date_of_birth: string
   gender: string
   age_bracket: string
@@ -308,7 +308,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   {filteredAndSortedScreenings.map(screening => (
                     <TableRow key={screening.id} className="hover:bg-aura-surface-alt">
                       <TableCell>
-                        <div className="font-medium">{screening.patient_name}</div>
+                        <div className="font-medium">{screening.patient_name || "Unknown patient"}</div>
                         <div className="text-xs text-aura-muted">{screening.clinician_name}</div>
                       </TableCell>
                       <TableCell>
@@ -326,7 +326,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         <div className="flex items-center justify-end gap-1">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="touch-target h-8 w-8 rounded-full text-aura-muted hover:text-aura-ink" onClick={() => navigate(`/dashboard/screenings/${screening.id}`)} aria-label={`View details for ${screening.patient_name}`}>
+                              <Button variant="ghost" size="icon" className="touch-target h-8 w-8 rounded-full text-aura-muted hover:text-aura-ink" onClick={() => navigate(`/dashboard/screenings/${screening.id}`)} aria-label={`View details for ${screening.patient_name || "patient"}`}>
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>
@@ -334,7 +334,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="touch-target h-8 w-8 rounded-full text-aura-muted hover:text-aura-ink" onClick={() => downloadPDF(screening.id)} aria-label={`Download PDF for ${screening.patient_name}`}>
+                              <Button variant="ghost" size="icon" className="touch-target h-8 w-8 rounded-full text-aura-muted hover:text-aura-ink" onClick={() => downloadPDF(screening.id)} aria-label={`Download PDF for ${screening.patient_name || "patient"}`}>
                                 <Download className="h-4 w-4" />
                               </Button>
                             </TooltipTrigger>

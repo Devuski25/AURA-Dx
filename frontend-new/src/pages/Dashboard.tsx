@@ -33,8 +33,8 @@ import { EmptyState } from "@/components/EmptyState"
 
 interface Screening {
   id: string
-  patient_name: string
-  clinician_name: string
+  patient_name: string | null
+  clinician_name: string | null
   tb_result: string
   respiratory_result: string | null
   status: string
@@ -430,11 +430,11 @@ export function Dashboard() {
                           className="group flex w-full items-center gap-4 px-6 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand hover:bg-aura-surface-alt active:bg-aura-bg-alt"
                         >
                             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-aura-forest/10 font-semibold text-aura-forest">
-                            {screening.patient_name.split(" ").map((part) => part[0]).slice(0, 2).join("")}
+                            {screening.patient_name?.split(" ").map((part) => part[0]).slice(0, 2).join("") || "?"}
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold text-aura-ink">{screening.patient_name}</p>
+                            <p className="truncate font-semibold text-aura-ink">{screening.patient_name || "Unknown patient"}</p>
                             <p className="mt-1 truncate text-xs text-aura-muted">
                               {formatRelativeTime(screening.created_at)} · {shortDateFormat.format(new Date(screening.created_at))} · {screening.clinician_name || "—"}
                             </p>
