@@ -1000,6 +1000,14 @@ async def download_screening_pdf(
     if "patient_name" not in data:
         data = _enrich_screening(data)
 
+    # Joined fields (patient_name, gender, age_bracket, ...) can legitimately be
+    # None for orphaned records; .get(key, default) does NOT help because the key
+    # exists — and calling e.g. .capitalize() on None crashed the whole report.
+    for _k in ("patient_name", "age_bracket", "patient_gender", "gender", "patient_dob",
+               "clinic_name", "clinician_name", "cascade_path", "model_version", "status"):
+        if data.get(_k) is None:
+            data[_k] = "N/A"
+
     role = user.get("role")
     user_clinic_id = user.get("clinic_id")
     if role != "super_admin" and data.get("clinic_id") != user_clinic_id:
