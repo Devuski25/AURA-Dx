@@ -512,11 +512,18 @@ export function Screening() {
               </span>
             )}
             <div className="flex w-16 flex-col items-center" aria-current={isActive ? "step" : undefined}>
-              <div
+              {/* Item 11: completed steps are real buttons — clinicians can go back
+                  a step without losing entered data (wizard state persists), but
+                  cannot skip forward past an unfinished step. */}
+              <button
+                type="button"
+                disabled={!isComplete}
+                onClick={() => isComplete && setStep(s as typeof step)}
+                aria-label={isComplete ? `Go back to step ${i + 1}: ${s}` : `Step ${i + 1}: ${s}`}
                 className={cn(
-                  "relative flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors",
+                  "relative flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand focus-visible:ring-offset-2",
                   isActive && "border-[#0E7A55] bg-[#0E7A55] text-white ring-4 ring-[#0E7A55]/15",
-                  isComplete && "border-aura-accent-dark bg-aura-accent-dark text-white",
+                  isComplete && "cursor-pointer border-aura-accent-dark bg-aura-accent-dark text-white hover:brightness-110 active:scale-95",
                   !isActive && !isComplete && "border-aura-border-soft bg-white text-gray-600"
                 )}
               >
@@ -530,7 +537,7 @@ export function Screening() {
                   />
                 )}
                 {isComplete ? <CheckCircle className="h-5 w-5" aria-hidden="true" /> : i + 1}
-              </div>
+              </button>
                 <span className={cn("mt-1.5 text-xs font-medium", isActive ? "font-semibold text-aura-forest" : "text-gray-600")}>
                 {s.charAt(0).toUpperCase() + s.slice(1)}
               </span>
@@ -658,7 +665,9 @@ export function Screening() {
                                               </span>
                                             )}
                                           </span>
-                                          <span className="truncate text-xs text-aura-muted">{patient.patientId}</span>
+                                          {/* Item 2: raw DB UUID removed from the picker —
+                                              DOB/age/sex in the next column identify the patient;
+                                              the full ID lives on Patient Detail only. */}
                                         </span>
                                         <span className="hidden min-w-0 truncate text-xs text-aura-muted sm:block">
                                           {patient.dob} &middot; {patient.age !== null ? `${patient.age} yrs` : "—"} &middot;{" "}
@@ -700,14 +709,17 @@ export function Screening() {
 
                       {/* Pinned footer action */}
                       <div className="border-t border-aura-border-soft p-3">
-                        <button
+                        {/* Item 6 decision: all page-level "create new [X]" actions use the
+                            solid primary style; dashed-outline stays reserved for inline/
+                            empty-state add actions. This is a page-level create action. */}
+                        <Button
                           type="button"
                           onClick={() => setNewPatientModalOpen(true)}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-green-600 bg-transparent px-3 py-2 text-sm font-semibold text-green-700 transition-colors hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.99]"
+                          className="w-full gap-2"
                         >
                           <Plus className="h-4 w-4" aria-hidden="true" />
                           New Patient
-                        </button>
+                        </Button>
                       </div>
                     </>
                   )}

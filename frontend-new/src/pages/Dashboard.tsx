@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
 import { useCachedData } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
-import { getResultBadge } from "@/lib/badge-helpers"
+import { renderResultBadges, ConfidenceChip } from "@/lib/badge-helpers"
 import { EmptyState } from "@/components/EmptyState"
 
 interface Screening {
@@ -36,7 +36,9 @@ interface Screening {
   patient_name: string | null
   clinician_name: string | null
   tb_result: string
+  tb_confidence: number | null
   respiratory_result: string | null
+  respiratory_confidence: number | null
   status: string
   reviewed_by_name: string | null
   created_at: string
@@ -177,9 +179,9 @@ export function Dashboard() {
     return <Badge variant="secondary">{status}</Badge>
   }
 
-  /* B3: strict color legend — red = critical only, yellow = pending/warning,
-     green = positive/healthy, neutral = plain counts. COPD/Pneumonia counts
-     are informational, so they render neutral instead of yellow. */
+  /* Item 3: app-wide color legend — red = active infection risk (TB,
+     Pneumonia), yellow = chronic warning (COPD), green = healthy/cleared,
+     neutral = plain counts. Matches the result badges used in every table. */
   const cards = [
     {
       title: ["Total", "Screenings"],
@@ -197,13 +199,13 @@ export function Dashboard() {
       title: ["COPD", "Positive"],
       value: stats.copd,
       icon: Stethoscope,
-      tone: "neutral" as const,
+      tone: "copd" as const,
     },
     {
       title: ["Pneumonia", "Positive"],
       value: stats.pneumonia,
       icon: Stethoscope,
-      tone: "neutral" as const,
+      tone: "critical" as const,
     },
     {
       title: ["Healthy"],
@@ -335,7 +337,8 @@ export function Dashboard() {
                   <Card className={cn(
                     "aura-sheen h-full min-h-[124px] rounded-2xl border border-aura-border-soft shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover",
                     card.tone === "neutral" && "bg-white",
-                    card.tone === "tb-alert" && "border-l-aura-coral bg-aura-coral-soft",
+                    (card.tone === "tb-alert" || card.tone === "critical") && "border-l-aura-coral bg-aura-coral-soft",
+                    card.tone === "copd" && "border-l-aura-warning-strong bg-aura-warning-soft",
                     card.tone === "healthy" && "border-l-aura-mint bg-aura-mint-soft"
                   )}>
                     <CardContent className="flex h-full flex-col justify-between p-4">
@@ -346,20 +349,29 @@ export function Dashboard() {
                       <span className={cn(
                         "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                         card.tone === "neutral" && "bg-aura-forest/10 text-aura-forest",
-                          card.tone === "tb-alert" && "bg-aura-coral/15 text-aura-coral-strong",
-                          card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine"
-                        )}>
+                        (card.tone === "tb-alert" || card.tone === "critical") && "bg-aura-coral/15 text-aura-coral-strong",
+                        card.tone === "copd" && "bg-aura-warning-soft text-aura-warning-strong",
+                        card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine"
+                      )}>
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </span>
                       </div>
                       <p className={cn(
                         "font-display text-3xl font-bold leading-none tabular-nums lg:text-4xl",
                         card.tone === "neutral" && "text-aura-ink",
-                        card.tone === "tb-alert" && "text-aura-coral-strong",
+                        (card.tone === "tb-alert" || card.tone === "critical") && "text-aura-coral-strong",
+                        card.tone === "copd" && "text-aura-warning-strong",
                         card.tone === "healthy" && "text-aura-pine"
                       )}>
                         <AnimatedStat value={card.value} />
                       </p>
+                      {/* Item 9: a zero on an alert-stat means "checked and clear",
+                          not "no data" — say so explicitly. */}
+                      {card.value === 0 && card.tone !== "neutral" && card.tone !== "healthy" && (
+                        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+                          Checked &middot; clear
+                        </p>
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -454,14 +466,16 @@ export function Dashboard() {
                             <p className="mt-1 truncate text-xs text-aura-muted">
                               {formatRelativeTime(screening.created_at)} · {shortDateFormat.format(new Date(screening.created_at))} · {screening.clinician_name || "—"}
                             </p>
-                            <div className="mt-2 flex flex-wrap gap-2 sm:hidden">
-                              {getResultBadge(screening.tb_result, screening.respiratory_result)}
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">
+                              {renderResultBadges(screening.tb_result, screening.respiratory_result)}
+                              <ConfidenceChip value={screening.respiratory_confidence} />
                               {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                             </div>
                           </div>
 
-                          <div className="hidden shrink-0 items-center gap-2 sm:flex">
-                            {getResultBadge(screening.tb_result, screening.respiratory_result)}
+                          <div className="hidden shrink-0 flex-wrap items-center gap-1.5 sm:flex">
+                            {renderResultBadges(screening.tb_result, screening.respiratory_result)}
+                            <ConfidenceChip value={screening.respiratory_confidence} />
                             {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                           </div>
 

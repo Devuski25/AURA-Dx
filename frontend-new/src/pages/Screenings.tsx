@@ -16,7 +16,7 @@ import { getApiUrl } from "@/lib/api"
 import { useCachedData } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
-import { getResultBadge } from "@/lib/badge-helpers"
+import { renderResultBadges, ConfidenceChip } from "@/lib/badge-helpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
@@ -232,7 +232,13 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   />
                 </div>
                 <Select value={classFilter} onValueChange={setClassFilter}>
-                  <SelectTrigger className="h-10 w-full md:w-[170px]" aria-label="Filter by result class">
+                  {/* Item 10: active filters are visibly distinct from defaults */}
+                  <SelectTrigger
+                    className="h-10 w-full md:w-[170px] data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest"
+                    data-active={classFilter !== "all"}
+                    aria-label="Filter by result class"
+                  >
+                    {classFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
                     <SelectValue placeholder="Class" />
                   </SelectTrigger>
                   <SelectContent>
@@ -244,7 +250,12 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   </SelectContent>
                 </Select>
                 <Select value={genderFilter} onValueChange={setGenderFilter}>
-                  <SelectTrigger className="h-10 w-full md:w-[160px]" aria-label="Filter by gender">
+                  <SelectTrigger
+                    className="h-10 w-full md:w-[160px] data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest"
+                    data-active={genderFilter !== "all"}
+                    aria-label="Filter by gender"
+                  >
+                    {genderFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
                     <SelectValue placeholder="Gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -292,6 +303,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         Result <SortIcon field="respiratory_result" />
                       </button>
                     </TableHead>
+                    <TableHead className="hidden lg:table-cell">Confidence</TableHead>
                     <TableHead aria-sort={sortField === "status" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
                       <button type="button" onClick={() => handleSort("status")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Status <SortIcon field="status" />
@@ -309,7 +321,10 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   {filteredAndSortedScreenings.map((screening, idx) => (
                     <TableRow key={screening.id} className={cn("hover:bg-aura-surface-alt", idx % 2 === 1 && "bg-aura-table-stripe")}>
                       <TableCell>
-                        <div className="font-medium">{screening.patient_name || "Unknown patient"}</div>
+                        {/* Item 1: canonical label for unlinked screenings — matches Dashboard */}
+                        <div className={cn("font-medium", !screening.patient_name && "italic text-aura-muted")}>
+                          {screening.patient_name || "Anonymous Screening"}
+                        </div>
                         <div className="text-xs text-aura-muted">{screening.clinician_name}</div>
                       </TableCell>
                       <TableCell>
@@ -318,7 +333,18 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           <div className="text-xs capitalize text-aura-muted">{screening.gender}</div>
                         </div>
                       </TableCell>
-                      <TableCell>{getResultBadge(screening.tb_result, screening.respiratory_result)}</TableCell>
+                      {/* Item 4: TB badge always visible (first pipeline tier) +
+                          Item 13: confidence score surfaced in the list view */}
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {renderResultBadges(screening.tb_result, screening.respiratory_result)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {/* Respiratory confidence; fall back to TB confidence when the
+                            pipeline halted at the TB gate (no respiratory stage ran) */}
+                        <ConfidenceChip value={screening.respiratory_confidence ?? screening.tb_confidence} />
+                      </TableCell>
                       <TableCell>{getStatusBadge(screening.status, screening.reviewed_by_name)}</TableCell>
                       <TableCell className="whitespace-nowrap text-sm tabular-nums text-aura-muted">
                         {createdDateFormat.format(new Date(screening.created_at))}

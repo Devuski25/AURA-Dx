@@ -118,23 +118,30 @@ export function Admin() {
   const activeUsers = useMemo(() => users.filter(u => u.status === "approved").length, [users])
   const pendingApprovals = useMemo(() => users.filter(u => u.status === "pending").length, [users])
   const overviewCards = [
+    /* Item 8: rule — neutral for plain counts, colored only for status/
+       condition counts. Total Screenings is a plain count. */
     {
       title: ["Total", "Screenings"],
       value: (totalScreenings ?? 0).toLocaleString(),
       icon: Activity,
       tone: "neutral" as const,
+      zeroCleared: false,
     },
     {
       title: ["Active", "Users"],
       value: activeUsers,
       icon: Users,
       tone: "healthy" as const,
+      zeroCleared: false,
     },
     {
       title: ["Pending", "Approvals"],
       value: pendingApprovals,
       icon: Clock,
       tone: "alert" as const,
+      // Item 9: zero pending approvals = the queue was checked and is empty,
+      // a good outcome — label it so "0" never reads as "not loaded".
+      zeroCleared: true,
     },
   ]
 
@@ -412,6 +419,11 @@ export function Admin() {
                     )}>
                       {card.value}
                     </p>
+                    {card.value === 0 && card.zeroCleared && (
+                      <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+                        Checked &middot; clear
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -452,7 +464,15 @@ export function Admin() {
                   />
                 </div>
                 <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="h-10 w-full transition-shadow focus-visible:ring-2 focus-visible:ring-aura-brand md:w-[170px]" aria-label="Filter by role"><SelectValue placeholder="All Roles" /></SelectTrigger>
+                  {/* Item 10: active-filter dot + tinted trigger */}
+                  <SelectTrigger
+                    className="h-10 w-full transition-shadow focus-visible:ring-2 focus-visible:ring-aura-brand data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest md:w-[170px]"
+                    data-active={roleFilter !== "all"}
+                    aria-label="Filter by role"
+                  >
+                    {roleFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
+                    <SelectValue placeholder="All Roles" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="clinician">Clinician</SelectItem>
@@ -461,7 +481,14 @@ export function Admin() {
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="h-10 w-full transition-shadow focus-visible:ring-2 focus-visible:ring-aura-brand md:w-[170px]" aria-label="Filter by status"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectTrigger
+                    className="h-10 w-full transition-shadow focus-visible:ring-2 focus-visible:ring-aura-brand data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest md:w-[170px]"
+                    data-active={statusFilter !== "all"}
+                    aria-label="Filter by status"
+                  >
+                    {statusFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
@@ -591,7 +618,7 @@ export function Admin() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="touch-target h-8 w-8 rounded-full text-destructive transition-all hover:bg-aura-coral-soft active:scale-90"
+                                  className="touch-target h-8 w-8 rounded-full text-destructive/35 transition-all hover:bg-aura-coral-soft hover:text-destructive active:scale-90"
                                   onClick={() => confirmDelete(u)}
                                   aria-label={`Delete ${u.full_name}`}
                                 >

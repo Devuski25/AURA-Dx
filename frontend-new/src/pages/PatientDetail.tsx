@@ -25,6 +25,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
+import { ConfidenceChip } from "@/lib/badge-helpers"
 
 interface Patient {
   id: string
@@ -416,7 +417,14 @@ export function PatientDetail() {
                         <div className="text-xs text-aura-muted">{new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       </TableCell>
                       <TableCell>{getTbBadge(s.tb_result)}</TableCell>
-                      <TableCell>{getRespBadge(s.respiratory_result)}</TableCell>
+                      <TableCell>
+                        {/* Item 13: confidence travels with the badge — a 51% vs 98%
+                            classification should change how a clinician reads it */}
+                        <div className="flex flex-col items-start gap-0.5">
+                          {getRespBadge(s.respiratory_result)}
+                          <ConfidenceChip value={s.respiratory_confidence ?? s.tb_confidence} />
+                        </div>
+                      </TableCell>
                       <TableCell>{getStatusBadge(s.status, s.reviewed_by_name)}</TableCell>
                       <TableCell>
                         {s.reviewed_by_name ? (

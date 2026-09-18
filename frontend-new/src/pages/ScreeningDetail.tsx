@@ -548,7 +548,9 @@ export function ScreeningDetail() {
         <div>
           <h1 className="font-display text-2xl font-bold text-aura-ink">Screening Result</h1>
           <div className="mt-1 flex items-center gap-2 text-[13.5px] text-aura-muted">
-            <strong className="font-semibold text-aura-ink">{screening.patient_name || "Unknown patient"}</strong>
+            <strong className={cn("font-semibold", !screening.patient_name && "italic text-aura-muted")}>
+              {screening.patient_name || "Anonymous Screening"}
+            </strong>
             <span className="h-[3px] w-[3px] rounded-full bg-aura-muted" />
             {screening.clinic_name}
           </div>
@@ -577,7 +579,9 @@ export function ScreeningDetail() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
           <div>
             <FieldLabel>Name</FieldLabel>
-            <div className="text-[13.5px] font-medium text-aura-ink">{screening.patient_name || "Unknown patient"}</div>
+            <div className={cn("text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
+              {screening.patient_name || "Anonymous Screening"}
+            </div>
           </div>
           <div>
             <FieldLabel>Age / Gender</FieldLabel>

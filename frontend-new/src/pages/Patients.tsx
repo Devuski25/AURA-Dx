@@ -35,7 +35,7 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form"
-import { getResultBadge } from "@/lib/badge-helpers"
+import { renderResultBadges, ConfidenceChip } from "@/lib/badge-helpers"
 import { cn } from "@/lib/utils"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { z } from "zod"
@@ -53,7 +53,7 @@ const patientSchema = z.object({
 })
 
 // Disease type is derived from the latest screening result.
-// TB takes priority (matches getResultBadge); otherwise the respiratory result.
+// TB takes priority (matches renderResultBadges); otherwise the respiratory result.
 export const DISEASE_FILTERS = ["Healthy", "COPD", "Pneumonia", "TB"] as const
 export type DiseaseFilter = (typeof DISEASE_FILTERS)[number]
 
@@ -413,7 +413,13 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                   )}
                 </div>
                 <Select value={genderFilter} onValueChange={setGenderFilter}>
-                  <SelectTrigger className="h-10 w-full md:w-[160px]" aria-label="Filter by gender">
+                  {/* Item 10: active-filter dot + tinted trigger */}
+                  <SelectTrigger
+                    className="h-10 w-full md:w-[160px] data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest"
+                    data-active={genderFilter !== "all"}
+                    aria-label="Filter by gender"
+                  >
+                    {genderFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
                     <SelectValue placeholder="Gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -423,7 +429,12 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                   </SelectContent>
                 </Select>
                 <Select value={diseaseFilter} onValueChange={setDiseaseFilter}>
-                  <SelectTrigger className="h-10 w-full md:w-[170px]" aria-label="Filter by condition">
+                  <SelectTrigger
+                    className="h-10 w-full md:w-[170px] data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest"
+                    data-active={diseaseFilter !== "all"}
+                    aria-label="Filter by condition"
+                  >
+                    {diseaseFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
                     <SelectValue placeholder="Disease" />
                   </SelectTrigger>
                   <SelectContent>
@@ -532,10 +543,14 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                         )}
                       </TableCell>
                       <TableCell className="px-4 align-middle">
-                        {getResultBadge(
-                          patient.latest_screening?.tb_result || null,
-                          patient.latest_screening?.respiratory_result || null
-                        )}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {renderResultBadges(
+                            patient.latest_screening?.tb_result || null,
+                            patient.latest_screening?.respiratory_result || null
+                          )}
+                        </div>
+                        {/* Item 13: confidence of the latest respiratory stage */}
+                        <ConfidenceChip value={patient.latest_screening?.respiratory_confidence ?? null} className="mt-0.5 inline-block" />
                       </TableCell>
                       <TableCell className="px-4 align-middle">
                         <span className="whitespace-nowrap text-sm tabular-nums text-aura-muted">
@@ -584,7 +599,7 @@ export function Patients({ embedded = false }: { embedded?: boolean }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="touch-target h-8 w-8 rounded-full text-destructive transition-colors hover:bg-aura-coral-soft"
+                                className="touch-target h-8 w-8 rounded-full text-destructive/35 transition-colors hover:bg-aura-coral-soft hover:text-destructive"
                                 onClick={() => confirmDelete(patient)}
                                 aria-label={`Delete ${patient.full_name}`}
                               >

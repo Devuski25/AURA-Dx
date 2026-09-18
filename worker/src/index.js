@@ -11,6 +11,18 @@
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // Item 12: this app handles patient health information — plaintext HTTP is
+    // never acceptable. Browsers only omit the TLS upgrade for http:// links
+    // typed manually, so redirect them (and any stray API callers) to HTTPS.
+    // HTTPS requests (the only kind normal users ever make) skip this branch,
+    // and zone-level Always Use HTTPS covers anything that bypasses the Worker.
+    if (url.protocol === "http:") {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
+
     // Delegate to the static assets binding (configured in wrangler.jsonc).
     // If the requested path matches a static file, serve it.
     // Otherwise, fall back to index.html (SPA routing).
