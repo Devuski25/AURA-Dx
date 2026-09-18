@@ -1,16 +1,17 @@
-"""Generate the AURA-Dx favicon set from the actual hero artwork
-(webdes.png — lungs + stethoscope illustration from the Home page hero).
+"""Generate the AURA-Dx favicon set from the hero artwork (webdes.png —
+the lungs + stethoscope illustration from the Home page hero).
 
-The hero art was designed against the dark-green hero background, so it is
-composed onto a matching deep-forest rounded tile (#0E2E24) to preserve its
-native contrast in both light and dark browser chrome. The artwork itself is
-never recolored or redrawn — only cropped, scaled, and framed.
+Per request: the RAW artwork IS the icon. No tile, no background, no redraw —
+the image is only alpha-cropped (transparent margins trimmed), centered on a
+transparent square canvas, and exported.
 
 Outputs (frontend-new/public/):
   favicon.ico            16 + 32 + 48 multi-resolution
   favicon-32x32.png
   favicon-16x16.png
-  apple-touch-icon.png   180x180, full-bleed background (iOS rounds corners)
+  apple-touch-icon.png   180x180
+  favicon.svg            the artwork embedded as a data URI (modern browsers
+                         prefer the SVG link, so it must carry the real image)
 
 Run:  backend/venv/Scripts/python.exe frontend-new/scripts/gen_favicons.py
 """
@@ -19,17 +20,15 @@ from pathlib import Path
 import base64
 import io
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
-S = 4                          # supersample factor (draw tile at 4x)
+S = 4                     # supersample factor
 CANVAS = 512 * S
-TILE_RADIUS = 115 * S
-BG = (14, 46, 36, 255)         # #0E2E24 — hero dark green
+ART_FILL = 0.94           # artwork fills 94% of the (transparent) canvas
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE.parent / "public"
 ART_SRC = HERE.parent / "src" / "assets" / "public" / "webdes.png"
-ART_FILL = 0.86                # artwork fills 86% of the tile
 
 
 def load_artwork() -> Image.Image:
@@ -41,60 +40,52 @@ def load_artwork() -> Image.Image:
     return art
 
 
-def compose(full_bleed: bool) -> Image.Image:
-    img = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle(
-        [0, 0, CANVAS - 1, CANVAS - 1],
-        radius=0 if full_bleed else TILE_RADIUS,
-        fill=BG,
-    )
-
+def compose() -> Image.Image:
+    """Transparent square canvas with the raw artwork centered."""
+    canvas = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
     art = load_artwork()
-    # Fit the artwork inside a square slot at ART_FILL of the tile
     slot = int(CANVAS * ART_FILL)
     art.thumbnail((slot, slot), Image.LANCZOS)
-    x = (CANVAS - art.width) // 2
-    y = (CANVAS - art.height) // 2
-    img.alpha_composite(art, (x, y))
-    return img
+    canvas.alpha_composite(art, ((CANVAS - art.width) // 2, (CANVAS - art.height) // 2))
+    return canvas
 
 
-def write_svg(icon: Image.Image, path: Path, px: int = 144) -> None:
-    """favicon.svg that embeds the ACTUAL hero artwork as a data URI.
+def write_svg(art: Image.Image, path: Path, px: int = 144) -> None:
+    """favicon.svg embedding the ACTUAL artwork as a data URI.
 
-    Modern browsers (Chrome/Firefox/Edge) prefer the SVG link over the ICO,
-    so the SVG must carry the real lungs+stethoscope image — not a redrawn
-    vector approximation. The composed tile is rendered to `px` PNG and
-    wrapped; its own alpha supplies the rounded corners.
+    Keeps the artwork's native aspect ratio (no square padding) — browsers
+    letterbox favicons fine. Rendered to PNG then wrapped in a minimal SVG.
     """
-    small = icon.resize((px, px), Image.LANCZOS)
+    small = art.copy()
+    small.thumbnail((px, px), Image.LANCZOS)
     buf = io.BytesIO()
     small.save(buf, format="PNG", optimize=True)
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     path.write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        f'viewBox="0 0 {small.width} {small.height}">'
         '<title>AURA-Dx</title>'
-        f'<image width="512" height="512" href="data:image/png;base64,{b64}"/>'
-        '</svg>',
+        f'<image width="{small.width}" height="{small.height}" '
+        f'href="data:image/png;base64,{b64}"/>'
+        "</svg>",
         encoding="ascii",
     )
 
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
-    icon = compose(full_bleed=False)
-    apple = compose(full_bleed=True)
+    icon = compose()
+    art = load_artwork()
 
-    base512 = icon.resize((512, 512), Image.LANCZOS)
-    base512.save(OUT / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)])
-
+    icon.resize((512, 512), Image.LANCZOS).save(
+        OUT / "favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)]
+    )
     for size in (16, 32):
         icon.resize((size, size), Image.LANCZOS).save(OUT / f"favicon-{size}x{size}.png")
 
-    apple.resize((180, 180), Image.LANCZOS).save(OUT / "apple-touch-icon.png")
+    icon.resize((180, 180), Image.LANCZOS).save(OUT / "apple-touch-icon.png")
 
-    write_svg(icon, OUT / "favicon.svg")
+    write_svg(art, OUT / "favicon.svg")
 
     # Sanity report + preview strip (256/48/32/16) on light and dark ground
     ico = Image.open(OUT / "favicon.ico")
@@ -105,7 +96,7 @@ def main() -> None:
     preview = Image.new("RGB", (strip_w, 560), (250, 249, 245))
     dark_row = Image.new("RGB", (strip_w, 280), (30, 30, 30))
     preview.paste(dark_row, (0, 280))
-    for row_y, bg_row in ((0, preview), (280, None)):
+    for row_y in (0, 280):
         x = 12
         for size in (256, 48, 32, 16):
             frame = icon.resize((size, size), Image.LANCZOS)
