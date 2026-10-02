@@ -199,7 +199,7 @@ Views: `patient_list_view`, `screening_history_view`
 
 ### Critical
 - **ONNX vs PyTorch preprocessing mismatch** — different mel params and no low-pass filter. Need to test both pipelines against known diagnoses to verify outputs converge.
-- **`clinic_id` seed data missing** — local Supabase resets lose the default clinic. Must manually insert before creating patients (see SETUP.md).
+- **`clinic_id` seed data missing** — local Supabase resets lose the default clinic. Must manually insert before creating patients (seed the `clinics` row first).
 
 ### Minor
 - `FormMessage` in `NewPatientModal` didn't display errors (fixed — was missing `fieldState.error`)

@@ -21,13 +21,11 @@ Supabase :54321 → Inference :8000 → Backend :8001 → Frontend :5174
 
 ### Start
 
-**Recommended:** `.\dev.ps1 start` (brings up Supabase → Inference → Backend → Frontend in order).
-
-Manual, one service at a time:
+Start each service in its own terminal, in this order:
 
 ```bash
 # 1. Supabase (Docker must be running). NOTE: `npx supabase start` HANGS on
-#    the npx install/version prompt — use the cached CLI binary or dev.ps1:
+#    the npx install/version prompt — use the cached CLI binary:
 #    $SUPABASE_BIN = Get-ChildItem "$env:LOCALAPPDATA\npm-cache\_npx\*\node_modules\@supabase\cli-windows-x64\bin\supabase.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 #    & $SUPABASE_BIN start   # first run may need a retry (storage healthcheck race)
 
@@ -41,13 +39,17 @@ cd backend && .\venv\Scripts\Activate && uvicorn main:app --reload --port 8001
 cd frontend-new && npm run dev
 ```
 
+> Production/Mini PC: the backend + inference services are started and health-checked
+> by the deployment scripts on that machine (`start-aura-services.ps1`,
+> `verify-aura.ps1`). They live on the Mini PC only and are deliberately not
+> tracked in this repo.
+
 ### Verify
 
 | Check | Command |
 |-------|---------|
 | Frontend lint | `cd frontend-new && npm run lint` |
 | Frontend build | `cd frontend-new && npm run build` |
-| Frontend E2E | `python test_e2e.py` (dev server on :5174 required) |
 | Backend import | `cd backend && python -c "from main import app"` |
 | Inference import | `cd packages/inference && python -c "from inference_service import app"` |
 | Backend health | `curl http://localhost:8001/api/health` |
@@ -55,7 +57,7 @@ cd frontend-new && npm run dev
 
 ### Testing
 
-- **Browser/UI verification must use the chrome-devtools MCP server** (tools: `chrome_devtools_navigate_page`, `chrome_devtools_click`, `chrome_devtools_fill`, `chrome_devtools_screenshot`, `chrome_devtools_take_snapshot`). When asked to verify any frontend/UI behavior, always drive the real browser via chrome-devtools — do not assert UI works from code reading alone, and do not use Playwright/`test_e2e.py` for UI checks (that script is backend-only/secondary).
+- **Browser/UI verification must use the chrome-devtools MCP server** (tools: `chrome_devtools_navigate_page`, `chrome_devtools_click`, `chrome_devtools_fill`, `chrome_devtools_screenshot`, `chrome_devtools_take_snapshot`). When asked to verify any frontend/UI behavior, always drive the real browser via chrome-devtools — do not assert UI works from code reading alone, and do not use Playwright for UI checks.
 - Frontend dev server runs on `:5174`; it calls the backend on `:8002` (dev port workaround — not `:8001`).
 
 ### Key paths
