@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
+import { invalidate } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -498,6 +499,10 @@ export function ScreeningDetail() {
       toast.success("Review submitted")
       setReviewDialogOpen(false)
       setReviewNotes("")
+      // The list view shows review status; drop its cache so any mounted view
+      // (this tab's list, or another tab) shows the reviewed state at once
+      // instead of waiting for the TTL or a manual reload.
+      invalidate("screenings")
       fetchScreening()
     } catch (error) {
       console.error("Error submitting review:", error)
