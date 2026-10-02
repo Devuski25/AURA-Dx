@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from collections import defaultdict
 from time import time
+import traceback
 from routes.api import router as api_router
 from config import settings
 
@@ -22,13 +23,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# NOTE: CORSMiddleware is added LAST (see bottom of the middleware block).
+# Starlette inserts each newly added middleware at the HEAD of the stack, so
+# the last one added is the OUTERMOST and runs on both the request and the
+# response path.  Adding CORS first (the old order) put the rate limiter
+# outside it, which meant 429 responses — and every unhandled 500 — went out
+# without an Access-Control-Allow-Origin header, which browsers report as:
+#   "Response to preflight request doesn't pass access control check:
+#    No 'Access-Control-Allow-Origin' header is present"
 
 # --- Simple in-memory rate limiter ---
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
@@ -61,6 +63,37 @@ async def rate_limit_middleware(request: Request, call_next):
         return JSONResponse(status_code=429, content={"detail": "Too many requests. Try again later."})
     _rate_limit_store[client_ip].append(now)
     return await call_next(request)
+
+
+@app.middleware("http")
+async def exception_guard_middleware(request: Request, call_next):
+    """Turn unhandled exceptions into a JSON 500 *inside* the CORS middleware.
+
+    Starlette's ServerErrorMiddleware (which renders generic exceptions as a
+    bare "Internal Server Error") sits OUTSIDE every user middleware, so a
+    crashing endpoint used to produce a 500 with no CORS headers at all — the
+    browser then only shows the misleading CORS preflight error.  Catching
+    here keeps the response on the CORS path and logs the real traceback.
+    """
+    try:
+        return await call_next(request)
+    except Exception:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
+
+
+# Added last => OUTERMOST: every response below (200/401/403/429/500) gets the
+# CORS headers, and preflights are answered before the rate limiter counts them.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(api_router, prefix="/api")
 

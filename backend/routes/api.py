@@ -388,8 +388,14 @@ async def list_users(
     if user.get("role") != "super_admin" and clinic_id:
         query = query.eq("clinic_id", clinic_id)
     query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
-    profiles_res = query.execute()
-    profiles = profiles_res.data or []
+    try:
+        profiles_res = query.execute()
+        profiles = profiles_res.data or []
+    except Exception as e:
+        # Unhandled DB/Supabase errors escape as a bare 500 and lose the CORS
+        # headers, which the browser reports only as a preflight CORS failure.
+        print(f"[list_users] profiles query failed: {e!r}")
+        raise HTTPException(status_code=500, detail="Failed to load users")
 
     # Filter out users with unconfirmed emails (fake emails)
     # Fetch auth users to check email_confirmed_at — parallel with profiles fetch
@@ -412,7 +418,11 @@ async def list_users(
         # Fallback: return all profiles if auth check fails
         pass
 
-    return [UserResponse(**u) for u in profiles]
+    try:
+        return [UserResponse(**u) for u in profiles]
+    except Exception as e:
+        print(f"[list_users] failed to serialise users: {e!r}")
+        raise HTTPException(status_code=500, detail="Failed to load users")
 
 
 @router.post("/users", response_model=UserResponse, status_code=201)
@@ -583,10 +593,17 @@ async def list_patients(
     # (Previously .range() was called on the already-executed view response,
     # which raised AttributeError and 500'd for roles that can read the view.)
     try:
-        res = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset, limit)
-    except Exception:
-        res = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id, offset, limit)
-    return [PatientResponse(**p) for p in (res.data or [])]
+        try:
+            res = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset, limit)
+        except Exception as e:
+            print(f"[list_patients] view query failed, using table fallback: {e!r}")
+            res = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id, offset, limit)
+        return [PatientResponse(**p) for p in (res.data or [])]
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[list_patients] failed: {e!r}")
+        raise HTTPException(status_code=500, detail="Failed to load patients")
 
 
 def _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset: int, limit: int):
@@ -852,7 +869,12 @@ async def list_screenings(
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
         res = query.execute()
         return [ScreeningResponse(**s) for s in (res.data or [])]
-    except Exception:
+    except Exception as e:
+        # View missing/unreadable -> fall back to the base table.  This block is
+        # NOT allowed to raise unhandled: a 500 here would leave the response
+        # without CORS headers.
+        print(f"[list_screenings] view query failed, using table fallback: {e!r}")
+    try:
         query = supabase.table("screenings").select("*")
         if role == "clinician":
             query = query.eq("clinician_id", user_id)
@@ -867,6 +889,11 @@ async def list_screenings(
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
         res = query.execute()
         return [_enrich_screening(s) for s in (res.data or [])]
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[list_screenings] fallback failed: {e!r}")
+        raise HTTPException(status_code=500, detail="Failed to load screenings")
 
 
 @router.get("/screenings/{screening_id}", response_model=ScreeningResponse)
