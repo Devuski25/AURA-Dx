@@ -38,6 +38,31 @@ Three new migrations, in order. Supabase Dashboard → SQL Editor, or the
 
 ### About the wipe
 
+> **If migration 2 already failed on you** — an earlier version was broken and is
+> now fixed. It raised:
+>
+> ```
+> ERROR:  cannot truncate a table referenced in a foreign key constraint
+> DETAIL:  Table "screenings" references "patients".
+> ```
+>
+> `TRUNCATE` checks foreign keys against the **schema**, not the row count, so
+> emptying `screenings` in a first statement did not satisfy the dependency on
+> `patients`. That version also had a `VACUUM` inside a transaction block, which
+> PostgreSQL rejects outright.
+>
+> The fixed version truncates all three tables in **one** statement so PostgreSQL
+> resolves the dependency itself, and drops the `VACUUM`.
+>
+> **Nothing was deleted.** PostgreSQL `TRUNCATE` is transactional and the SQL
+> editor rolls the submission back on failure. Re-run the fixed file as-is.
+
+Validate before running:
+
+```powershell
+python scripts/check-migrations.py
+```
+
 Run only `20261013000000` if you actually want the empty slate. It keeps:
 
 - `auth.users` — every login, including Google accounts
