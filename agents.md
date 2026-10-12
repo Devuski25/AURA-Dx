@@ -54,6 +54,13 @@ cd frontend-new && npm run dev
 | Inference import | `cd packages/inference && python -c "from inference_service import app"` |
 | Backend health | `curl http://localhost:8001/api/health` |
 | Inference health | `curl http://localhost:8000/health` |
+| Fusion decision table | `python packages/inference/test_fusion.py` |
+| Feature layout contract | `python packages/inference/test_feature_layout.py` |
+| Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
+
+`test_fusion.py` and `test_feature_layout.py` need only numpy — they stub
+FastAPI/Pydantic/librosa, so they are safe on any machine. Run them after any
+change to thresholds, fusion order, or the Stage 1/2 preprocessing.
 
 ### Testing
 
@@ -65,7 +72,8 @@ cd frontend-new && npm run dev
 - **API endpoints**: `backend/routes/api.py` (all routes in one file)
 - **Auth logic**: `backend/auth.py` (JWT decode, role gating)
 - **DB schema**: `supabase/migrations/` (13 files, run in order)
-- **ML pipeline**: `packages/inference/inference_service.py:68-95` (preprocessing)
+- **ML pipeline**: `packages/inference/inference_service.py` — `segment_features` (Stage 1, 51-d per cycle), `build_stage1_features` (153-d aggregation), `build_stage2_tensor` (log-mel), `fuse_clips` (cross-recording)
+- **Training reference**: `final icbhi nb.ipynb` — the source of truth for every preprocessing constant
 - **Design tokens**: `frontend-new/src/index.css` + `design-system/MASTER.md`
 
 ### MCP Servers
@@ -84,9 +92,12 @@ Notes:
 ## DO NOT
 
 ### Never touch
-- `models/*.onnx` and `models/*.pth` — no retraining, no modifications
+- `model_1_5_export/` and `model_2_5_export/` — no retraining, no modifications. These are the live models.
 - Dead code: `backend/app.py`, `backend/audio_utils.py` — only when explicitly instructed AND a real fix is needed
 - `coughph-website/` — legacy static site, fully replaced
+
+> The old `models/` directory (ResNet-18 `.pth`/`.onnx`, TB gatekeeper) was deleted
+> on 2026-10-12 — it is unreferenced by the current pipeline.
 
 ### Ask first
 - `supabase/config.toml` ports — other services depend on them; only change when instructed
@@ -96,8 +107,9 @@ Notes:
 
 ### Enforce
 - **Preprocessing**: `sr=16000, bandpass 100–2000 Hz (Butterworth 4th, filtfilt), peak-normalise, N_MELS=64, n_fft=1024, hop_length=256`
-- **Per-take routing**: Stage 1 XGBoost `p_healthy >= 0.61` → Healthy, skips Stage 2. Otherwise Stage 2 EfficientNetB0, `p_copd >= 0.47` → COPD else Pneumonia (`p_pneumonia = 1 - p_copd`)
+- **Per-take routing**: Stage 1 XGBoost `p_healthy >= 0.61` → Healthy, skips Stage 2. Otherwise Stage 2 EfficientNetB0, `p_pneumonia >= 0.47` → Pneumonia else COPD (`p_copd = 1 - p_pneumonia`)
 - **Fusion**: mean across the 3–5 takes, then safety override — any single take at `>= 0.60` pneumonia confidence wins regardless of the mean
+- **Preprocessing source of truth**: `final icbhi nb.ipynb`. Both stages' constants come from it verbatim. Do not tidy them into librosa defaults — Stage 1 uses default n_fft=2048/hop=512, Stage 2 uses 1024/256, and that difference is real.
 - **Single-clinic model**: all clinicians see all patients (no per-doctor scoping)
 - **First-user rule**: first注册 user → `super_admin`, all others → `clinician` + `pending`
 - **No commits to main** — always `feature/*` branches

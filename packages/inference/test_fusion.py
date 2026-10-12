@@ -1,16 +1,20 @@
-"""Decision-table tests for the cross-recording fusion step.
+"""Tests for the fusion decision table and the notebook-derived preprocessing.
 
 Run without any ML dependency installed:
 
     python packages/inference/test_fusion.py
 
 FastAPI, Pydantic, librosa and scipy are stubbed at import time so this only
-needs numpy. The point is to pin down the safety behaviour: a single
-high-confidence pneumonia take must win over a healthy-looking mean.
+needs numpy. Two things are pinned down here:
 
-Note these tests exercise `fuse_clips` only — the pure decision logic. They do
-not run either model, so they cannot tell you whether the feature vector fed to
-Stage 1 matches the one it was trained on. See the warning in README.md.
+  1. Fusion — a single high-confidence pneumonia take must win over a
+     healthy-looking mean.
+  2. Preprocessing shapes and constants, which must match
+     `final icbhi nb.ipynb` exactly. Getting these wrong does not raise, it just
+     feeds the models numbers they were never trained on.
+
+These tests do not run either model, so they cannot tell you whether the models
+themselves are any good. See the warning in README.md.
 """
 import importlib.util
 import sys
@@ -175,13 +179,122 @@ def main() -> int:
             print(f"[PASS] {name}  -> {got_label} ({out['confidence']})")
 
     print()
-    print("thresholds: stage1_healthy=%s stage2_copd=%s override=%s" % (
+    failures += _check_preprocessing()
+    failures += _check_segmentation()
+
+    print()
+    print("thresholds: stage1_healthy=%s stage2_pneumonia=%s override=%s" % (
         svc.STAGE1_HEALTHY_THRESHOLD,
-        svc.STAGE2_COPD_THRESHOLD,
+        svc.STAGE2_PNEUMONIA_THRESHOLD,
         svc.STAGE2_OVERRIDE_THRESHOLD,
     ))
     print(f"\n{'ALL PASS' if failures == 0 else str(failures) + ' FAILURE(S)'}")
     return 1 if failures else 0
+
+
+# --------------------------------------------------------------------------
+# Preprocessing contract — must match `final icbhi nb.ipynb`
+# --------------------------------------------------------------------------
+def _report(label, problems):
+    if problems:
+        print(f"[FAIL] {label}")
+        for p in problems:
+            print(f"         - {p}")
+        return 1
+    print(f"[PASS] {label}")
+    return 0
+
+
+def _check_preprocessing() -> int:
+    """Constants and tensor shape. These are silent-failure guards: none of
+    them raise if wrong, they just feed the models out-of-distribution input.
+    """
+    failures = 0
+
+    checks = [
+        ("sample rate is 16 kHz", svc.SAMPLE_RATE, 16000),
+        ("stage 1 bandpass 100 Hz low", svc.BANDPASS_LOW_HZ, 100.0),
+        ("stage 1 bandpass 2000 Hz high", svc.BANDPASS_HIGH_HZ, 2000.0),
+        ("stage 1 bandpass order 4", svc.BANDPASS_ORDER, 4),
+        ("stage 1 n_mfcc 13", svc.N_MFCC, 13),
+        ("stage 1 vector is 153-d", svc.STAGE1_FEATURE_DIM, 153),
+        ("stage 1 window 2.5 s", svc.STAGE1_WINDOW_SEC, 2.5),
+        ("stage 1 hop 1.25 s", svc.STAGE1_HOP_SEC, 1.25),
+        ("stage 1 min segment 0.2 s", svc.STAGE1_MIN_SEGMENT_SEC, 0.2),
+        ("stage 2 n_mels 64", svc.STAGE2_N_MELS, 64),
+        ("stage 2 n_fft 1024", svc.STAGE2_N_FFT, 1024),
+        ("stage 2 hop 256", svc.STAGE2_HOP, 256),
+        ("stage 2 fmin 50 Hz", svc.STAGE2_FMIN, 50.0),
+        ("stage 2 fmax 2000 Hz", svc.STAGE2_FMAX, 2000.0),
+        ("stage 2 target 128 frames", svc.STAGE2_TARGET_FRAMES, 128),
+        ("stage 2 3 channels", svc.STAGE2_CHANNELS, 3),
+        ("stage 2 dB floor -80", svc.STAGE2_DB_FLOOR, -80.0),
+        ("stage 1 threshold 0.61", svc.STAGE1_HEALTHY_THRESHOLD, 0.61),
+        ("stage 2 threshold 0.47", svc.STAGE2_PNEUMONIA_THRESHOLD, 0.47),
+        ("override threshold 0.60", svc.STAGE2_OVERRIDE_THRESHOLD, 0.60),
+        # 128 frames * 256 hop / 16000 = one annotated respiratory cycle
+        ("stage 2 window is one cycle (2.048 s)",
+         round(svc.STAGE2_WINDOW_SEC, 3), 2.048),
+    ]
+
+    for label, got, want in checks:
+        if got != want:
+            failures += _report(label, [f"{got!r} != {want!r} (notebook value)"])
+        else:
+            print(f"[PASS] {label}")
+
+    return failures
+
+
+def _check_segmentation() -> int:
+    """Windowing arithmetic, which decides how many Stage 2 passes a take gets."""
+    failures = 0
+    sr = svc.SAMPLE_RATE
+
+    def _len(seconds):
+        return int(round(seconds * sr))
+
+    cases = [
+        # 2.048 s window, 50% overlap -> 1.024 s hop.
+        # (label, audio seconds, expected window count)
+        ("2.0 s take -> 1 window", 2.0, 1),
+        ("one cycle (2.048 s) -> 1 window", svc.STAGE2_WINDOW_SEC, 1),
+        ("5 s take -> 4 windows", 5.0, 4),
+        ("12 s take -> 11 windows", 12.0, 11),
+    ]
+
+    for label, seconds, expected in cases:
+        audio = np.zeros(_len(seconds))
+        got = len(svc.stage2_windows(audio))
+        # A very short take still yields exactly one padded window.
+        if got != expected:
+            failures += _report(label, [f"{got} windows, expected {expected}"])
+        else:
+            print(f"[PASS] {label} ({got})")
+
+    # A pathologically long take must still be bounded, or one upload can pin
+    # the inference worker through hundreds of EfficientNet passes.
+    long_take = np.zeros(_len(300.0))
+    got = len(svc.stage2_windows(long_take))
+    if got > svc.STAGE2_MAX_WINDOWS:
+        failures += _report(
+            "300 s take stays under the window cap",
+            [f"{got} windows, cap is {svc.STAGE2_MAX_WINDOWS}"],
+        )
+    else:
+        print(f"[PASS] 300 s take stays under the window cap ({got})")
+
+    # Windows must never exceed the training length, or the padding branch is
+    # being fed a distribution the model never saw.
+    audio = np.zeros(_len(20.0))
+    for w in svc.stage2_windows(audio):
+        if len(w) > _len(svc.STAGE2_WINDOW_SEC):
+            failures += _report("windows never exceed one cycle", [f"got {len(w)} samples"])
+            break
+    else:
+        print("[PASS] windows never exceed one cycle")
+
+    return failures
 
 
 if __name__ == "__main__":

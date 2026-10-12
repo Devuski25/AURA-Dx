@@ -3,27 +3,28 @@
 Inference Service — multi-recording respiratory screening with safety-first fusion.
 
 Pipeline (two stages, per recording):
-  Stage 1 "1.5"  XGBoost binary classifier on a 153-d aggregated acoustic feature
-                 vector -> p_healthy. Threshold 0.61 (see STAGE1_HEALTHY_THRESHOLD).
+  Stage 1 "1.5"  XGBoost binary classifier on a 153-d cycle-aggregated acoustic
+                 feature vector -> p_healthy. Threshold 0.61.
   Stage 2 "2.5"  EfficientNetB0 binary classifier on a 64x128x3 log-mel tensor
-                 -> p_copd (sigmoid output unit). Threshold 0.47 (see STAGE2_COPD_THRESHOLD).
+                 -> p_pneumonia (the sigmoid head was trained with
+                 y_stage2 = 1 for Pneumonia, 0 for COPD). Threshold 0.47.
+                 p_copd = 1 - p_pneumonia.
 
 Each recording is scored independently, then fused with a SAFETY-FIRST rule:
-  * a clip that Stage 1 calls Healthy contributes (p_healthy=1.0, p_pneumonia=0.0)
-    and is NOT sent to Stage 2;
-  * the headline verdict is the MEAN of the per-clip probabilities, which smooths
-    out single-site background artifact;
-  * BUT if ANY single clip reaches STAGE2_OVERRIDE_THRESHOLD confidence for
-    pathology, that clip wins regardless of the mean. Lung pathology that is
+  * a recording that Stage 1 calls Healthy contributes (p_healthy=1.0,
+    p_pneumonia=0.0) and is NOT sent to Stage 2;
+  * the headline verdict is the MEAN of the per-recording probabilities, which
+    smooths out single-site background artifact;
+  * BUT if ANY single recording reaches STAGE2_OVERRIDE_THRESHOLD confidence for
+    pneumonia, that recording wins regardless of the mean. Lung pathology that is
     audible at one auscultation site can be inaudible at another, so we refuse to
     let averaging bury a high-confidence finding. This trades specificity for
     sensitivity on purpose: a missed pneumonia is far worse than a false alarm.
 
-Preprocessing (shared, must match training):
-  - librosa.load(sr=16000, mono=True)
-  - 4th-order Butterworth bandpass, 100-2000 Hz, applied forward+backward
-    (filtfilt) so the signal has no phase distortion
-  - peak-amplitude normalisation before feature extraction
+Preprocessing mirrors `final icbhi nb.ipynb` exactly — see TRAINING REFERENCE
+notes on build_stage1_features and build_stage2_tensor for the cell-by-cell
+mapping. Every constant below is taken from that notebook; do not "tidy" them
+into librosa defaults, the models were fitted on these exact values.
 """
 import io
 import logging
@@ -60,35 +61,72 @@ STAGE1_JSON = REPO_ROOT / "model_1_5_export" / "model_1_5_xgboost.json"
 STAGE2_KERAS = REPO_ROOT / "model_2_5_export" / "stage2_model_2_5_efficientnet.keras"
 
 # --------------------------------------------------------------------------
-# Preprocessing constants (must match training exactly)
+# Preprocessing constants.
+#
+# Every value here is lifted from `final icbhi nb.ipynb`. Two of them are
+# deliberate departures from what you would reach for by default:
+#
+#   * Stage 2 uses n_fft=1024 / hop=256 / fmin=50 / fmax=2000, but Stage 1 uses
+#     librosa's DEFAULT n_fft=2048 / hop=512 with mfcc fmin=100 / fmax=2000.
+#     The notebook really does use two different analyses for the two stages.
+#   * Stage 2's log-mel is rescaled to [0, 1] by (dB + 80) / 80 and clipped.
+#     Without that the EfficientNet input range would not match training.
 # --------------------------------------------------------------------------
 SAMPLE_RATE = 16000
+
+# Stage 1 bandpass, applied to the whole recording before it is split.
 BANDPASS_LOW_HZ = 100.0
 BANDPASS_HIGH_HZ = 2000.0
 BANDPASS_ORDER = 4
 
-N_MELS = 64
-N_FFT = 1024
-HOP_LENGTH = 256
-# Stage 2 takes the raw 64x128x3 tensor; the EfficientNetB0 backbone resizes
-# internally to 224x224, so we must NOT resize here.
-STAGE2_MEL_ROWS = 64
-STAGE2_MEL_COLS = 128
-STAGE2_CHANNELS = 3
+# Stage 1 segmentation. The notebook prefers a `.txt` sidecar of annotated
+# respiratory-cycle bounds; stethoscope takes have no sidecar, so the fixed
+# window below is what always runs in production. 2.5 s window, 1.25 s hop.
+STAGE1_WINDOW_SEC = 2.5
+STAGE1_HOP_SEC = 1.25
+STAGE1_MIN_SEGMENT_SEC = 0.2
 
-# Stage 1 feature layout
+# Stage 1 descriptor layout. 51 per cycle x 3 statistics = 153.
 N_MFCC = 13
+STAGE1_CYCLE_FLOOR = 0.2   # STAGE1_MIN_SEGMENT_SEC, in seconds, as in the notebook
 STAGE1_FEATURE_DIM = 153
 
-# --------------------------------------------------------------------------
-# Decision thresholds (from the model performance reports)
-# --------------------------------------------------------------------------
-STAGE1_HEALTHY_THRESHOLD = 0.61   # p_healthy >= 0.61 -> Healthy for that clip
-STAGE2_COPD_THRESHOLD = 0.47      # p_copd  >= 0.47 -> COPD, else Pneumonia
+# Stage 2 log-mel analysis.
+STAGE2_N_MELS = 64
+STAGE2_N_FFT = 1024
+STAGE2_HOP = 256
+STAGE2_FMIN = 50.0
+STAGE2_FMAX = 2000.0
+STAGE2_TARGET_FRAMES = 128
+STAGE2_CHANNELS = 3
+STAGE2_DB_FLOOR = -80.0    # dB. Also the pad value for short windows.
 
-# Safety-first override. A single clip this confident in pathology overrides the
-# averaged verdict. Set comfortably above STAGE2_COPD_THRESHOLD so the override
-# only fires on a genuinely high-confidence finding, not on borderline noise.
+# Stage 2 scores the recording in ~2.05 s windows (128 frames x 256 hop / 16 kHz)
+# with 50% overlap, because that is the length of a single training example
+# (one annotated respiratory cycle). The per-window pneumonia probability is
+# max-pooled, which is the safety-first choice.
+STAGE2_WINDOW_SEC = STAGE2_TARGET_FRAMES * STAGE2_HOP / SAMPLE_RATE   # 2.048
+STAGE2_WINDOW_OVERLAP = 0.5
+# Backstop on request latency. A 12 s take needs 11 passes, which is fine; an
+# accidental 5-minute upload would need ~290. Past this cap the hop widens
+# instead, so coverage degrades gracefully rather than stalling the worker.
+STAGE2_MAX_WINDOWS = 24
+
+# --------------------------------------------------------------------------
+# Decision thresholds
+#
+# Both come from the notebook's end-to-end evaluation (cell 12), which is the
+# only place they are actually applied:
+#   p_healthy   >= 0.61 -> Healthy
+#   p_pneumonia >= 0.47 -> Pneumonia, else COPD
+# --------------------------------------------------------------------------
+STAGE1_HEALTHY_THRESHOLD = 0.61
+STAGE2_PNEUMONIA_THRESHOLD = 0.47
+
+# Safety-first override. A single recording this confident in pneumonia wins
+# regardless of the averaged verdict. Set comfortably above
+# STAGE2_PNEUMONIA_THRESHOLD so the override only fires on a genuinely
+# high-confidence finding rather than on borderline noise.
 STAGE2_OVERRIDE_THRESHOLD = 0.60
 
 MAX_RECORDINGS = 5
@@ -143,114 +181,146 @@ def load_audio(audio_bytes: bytes) -> np.ndarray:
 def peak_normalise(audio: np.ndarray) -> np.ndarray:
     """Scale to unit peak so absolute recording gain cannot move the features."""
     peak = np.max(np.abs(audio))
-    if peak > 1e-8:
+    if peak > 0:
         return audio / peak
     return audio
 
 
-def segment_cycles(audio: np.ndarray, min_cycle_sec: float = 0.25,
-                   max_cycle_sec: float = 8.0) -> List[np.ndarray]:
-    """Split a recording into respiratory-cycle-sized segments.
+def segment_cycles(audio: np.ndarray) -> List[np.ndarray]:
+    """Split a recording into cycle-sized segments.
 
-    Onset-strength peaks mark inhalation/exhalation boundaries. If detection
-    finds nothing usable we fall back to fixed windows so a steady or noisy
-    recording still produces a usable feature vector instead of failing.
+    TRAINING REFERENCE — notebook cell 6 / cell 12, `extract_cycle_aggregated_features`:
+    the notebook reads annotated respiratory-cycle bounds from a `.txt` sidecar
+    next to the wav, and falls back to fixed 2.5 s windows at a 1.25 s hop when
+    there is no sidecar.
+
+    Stethoscope takes recorded by the app never have a sidecar, so the fixed
+    window is the only path that runs in production. The sidecar branch is kept
+    so offline evaluation against the ICBHI dataset reproduces notebook numbers.
     """
-    min_len = int(min_cycle_sec * SAMPLE_RATE)
-    max_len = int(max_cycle_sec * SAMPLE_RATE)
+    win_samples = int(STAGE1_WINDOW_SEC * SAMPLE_RATE)
+    hop_samples = int(STAGE1_HOP_SEC * SAMPLE_RATE)
+    min_samples = int(STAGE1_MIN_SEGMENT_SEC * SAMPLE_RATE)
 
     segments: List[np.ndarray] = []
-    try:
-        onset = librosa.onset.onset_strength(y=audio, sr=SAMPLE_RATE, hop_length=HOP_LENGTH)
-        peaks = librosa.util.peak_pick(
-            onset, pre_max=3, post_max=3, pre_avg=6, post_avg=6, delta=0.5, wait=8
-        )
-        times = librosa.frames_to_time(peaks, sr=SAMPLE_RATE, hop_length=HOP_LENGTH)
-        bounds = [0.0] + [t for t in times if t > 0] + [len(audio) / SAMPLE_RATE]
-        for start, end in zip(bounds[:-1], bounds[1:]):
-            seg = audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)]
-            if min_len <= seg.size <= max_len:
-                segments.append(seg)
-    except Exception as exc:  # onset detection is best-effort
-        logger.debug("Cycle segmentation fell back to fixed windows: %s", exc)
+    for start in range(0, max(len(audio) - win_samples, 1), hop_samples):
+        segments.append(audio[start:start + win_samples])
 
-    if not segments:
-        step = max_len
-        for start in range(0, max(len(audio), 1), step):
-            seg = audio[start:start + step]
-            if seg.size >= min_len:
-                segments.append(seg)
+    # A recording shorter than one window still has to produce a usable vector.
+    if not segments or all(s.size < min_samples for s in segments):
+        segments = [audio]
+
     return segments
 
 
-def build_stage1_features(audio: np.ndarray) -> np.ndarray:
-    """Build the 153-dim aggregated acoustic feature vector.
+def segment_features(y_segment: np.ndarray) -> np.ndarray:
+    """One cycle -> 51 descriptors.
 
-    Layout (51 base descriptors x 3 cycle statistics = 153):
-        indices   0- 12  MFCC mean over cycles
-        indices  13- 25  delta-MFCC mean
-        indices  26- 38  delta-delta-MFCC mean
-        indices  39- 50  spectral descriptors (contrast x7, centroid,
-                          bandwidth, rolloff, flatness, zcr)
-        indices  51-103 base descriptors, std over cycles
-        indices 104-156 base descriptors, max over cycles
+    TRAINING REFERENCE — notebook cell 6 / cell 12, `extract_segment_features`.
+    The 51 slots, in order:
 
-    NOTE: the per-descriptor ordering inside each 51-slot block must match the
-    training feature builder exactly. This is the single assumption in the whole
-    pipeline that cannot be verified from the model file alone; it must be
-    checked against the training notebook before results are trusted.
+        0-12   MFCC mean over time          (n_mfcc=13, fmin=100, fmax=2000)
+        13-25  delta-MFCC mean              (width per the rule below)
+        26-38  delta-delta-MFCC mean
+        39     spectral centroid mean
+        40     spectral bandwidth mean
+        41-47  spectral contrast mean       (fmin=100, default fmax -> 7 bands)
+        48     spectral flatness mean
+        49     zero-crossing rate mean
+        50     RMS mean
+
+    Note this deliberately uses librosa's DEFAULT n_fft=2048 / hop_length=512,
+    because the notebook never overrides them for these descriptors. Stage 2
+    uses different values; do not unify them.
+
+    Returns None for a segment shorter than 0.2 s, exactly as the notebook does.
     """
-    audio = peak_normalise(audio)
+    if len(y_segment) < int(SAMPLE_RATE * STAGE1_CYCLE_FLOOR):
+        return None
+
+    y_segment = peak_normalise(y_segment)
+
+    mfcc = librosa.feature.mfcc(
+        y=y_segment, sr=SAMPLE_RATE, n_mfcc=N_MFCC,
+        fmin=BANDPASS_LOW_HZ, fmax=BANDPASS_HIGH_HZ,
+    )
+
+    # The notebook narrows the delta width for short segments and zeroes the
+    # deltas entirely when the window is too narrow to support them.
+    n_frames = mfcc.shape[1]
+    width = 9 if n_frames >= 9 else (n_frames if n_frames % 2 != 0 else n_frames - 1)
+    if width >= 3:
+        mfcc_delta = librosa.feature.delta(mfcc, width=width)
+        mfcc_delta2 = librosa.feature.delta(mfcc, order=2, width=width)
+    else:
+        mfcc_delta = np.zeros_like(mfcc)
+        mfcc_delta2 = np.zeros_like(mfcc)
+
+    spec_cent = librosa.feature.spectral_centroid(y=y_segment, sr=SAMPLE_RATE)
+    spec_bw = librosa.feature.spectral_bandwidth(y=y_segment, sr=SAMPLE_RATE)
+    spec_contrast = librosa.feature.spectral_contrast(
+        y=y_segment, sr=SAMPLE_RATE, fmin=BANDPASS_LOW_HZ
+    )
+    spec_flat = librosa.feature.spectral_flatness(y=y_segment)
+    zcr = librosa.feature.zero_crossing_rate(y=y_segment)
+    rms = librosa.feature.rms(y=y_segment)
+
+    feats: List[float] = []
+    for mat in [mfcc, mfcc_delta, mfcc_delta2,
+                spec_cent, spec_bw, spec_contrast, spec_flat, zcr, rms]:
+        feats.extend(np.mean(mat, axis=1))
+    return np.array(feats, dtype=np.float32)
+
+
+def build_stage1_features(audio: np.ndarray) -> np.ndarray:
+    """Build the 153-dim cycle-aggregated acoustic feature vector.
+
+    TRAINING REFERENCE — notebook cell 6 / cell 12, `extract_cycle_aggregated_features`:
+        153 = 51 descriptors x 3 statistics, concatenated as
+        ``hstack([mean, max, std])``
+
+    That ORDER IS LOAD-BEARING. XGBoost indexes features positionally, so
+    swapping max and std would feed every tree scrambled values and the model
+    would still return confident nonsense:
+
+        indices   0- 50  the 51 descriptors, MEAN over cycles
+        indices  51-101  the 51 descriptors, MAX  over cycles
+        indices 102-152  the 51 descriptors, STD  over cycles
+
+    `audio` must already be bandpassed — the notebook filters the whole
+    recording once and only then slices it into cycles.
+    """
     cycles = segment_cycles(audio)
-    if not cycles:
-        cycles = [audio]
 
-    per_cycle = []
+    cycle_feats = []
     for cycle in cycles:
-        mfcc = librosa.feature.mfcc(y=cycle, sr=SAMPLE_RATE, n_mfcc=N_MFCC,
-                                    n_fft=N_FFT, hop_length=HOP_LENGTH)
-        delta = librosa.feature.delta(mfcc)
-        delta2 = librosa.feature.delta(mfcc, order=2)
+        feat = segment_features(cycle)
+        if feat is not None:
+            cycle_feats.append(feat)
 
-        contrast = librosa.feature.spectral_contrast(
-            y=cycle, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH
-        )
-        centroid = librosa.feature.spectral_centroid(
-            y=cycle, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH
-        )
-        bandwidth = librosa.feature.spectral_bandwidth(
-            y=cycle, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH
-        )
-        rolloff = librosa.feature.spectral_rolloff(
-            y=cycle, sr=SAMPLE_RATE, n_fft=N_FFT, hop_length=HOP_LENGTH, roll_percent=0.85
-        )
-        flatness = librosa.feature.spectral_flatness(
-            y=cycle, n_fft=N_FFT, hop_length=HOP_LENGTH
-        )
-        zcr = librosa.feature.zero_crossing_rate(
-            cycle, frame_length=N_FFT, hop_length=HOP_LENGTH
+    if not cycle_feats:
+        raise ValueError(
+            "recording is too short to produce a feature vector "
+            f"(needs at least {STAGE1_MIN_SEGMENT_SEC}s of usable audio)"
         )
 
-        spectral = np.vstack([
-            contrast,
-            centroid, bandwidth, rolloff, flatness, zcr,
-        ])
-        # contrast is (7, T); the scalars are (1, T) -> 7 + 5 = 12 rows.
-        spectral = spectral.reshape(spectral.shape[0], -1).mean(axis=1)
-        if spectral.size < 12:
-            spectral = np.pad(spectral, (0, 12 - spectral.size))
+    cycle_mat = np.array(cycle_feats)
+    if cycle_mat.shape[1] != 51:
+        raise ValueError(
+            f"cycle descriptor block is {cycle_mat.shape[1]} wide, expected 51"
+        )
 
-        base = np.concatenate([
-            mfcc.mean(axis=1),          # 13
-            delta.mean(axis=1),         # 13
-            delta2.mean(axis=1),        # 13
-            spectral[:12],              # 12
-        ])
-        per_cycle.append(base[:51])
+    features = np.hstack([
+        np.mean(cycle_mat, axis=0),
+        np.max(cycle_mat, axis=0),
+        np.std(cycle_mat, axis=0),
+    ]).astype(np.float32)
 
-    if not per_cycle:
-        per_cycle = [np.zeros(51)]
-    matrix = np.vstack(per_cycle)
+    if features.size != STAGE1_FEATURE_DIM:
+        raise ValueError(
+            f"Stage 1 feature vector is {features.size} dims, expected {STAGE1_FEATURE_DIM}"
+        )
+    return features
 
     features = np.concatenate([
         matrix.mean(axis=0),
@@ -265,50 +335,112 @@ def build_stage1_features(audio: np.ndarray) -> np.ndarray:
     return features
 
 
-def build_stage2_tensor(audio: np.ndarray) -> np.ndarray:
-    """Build the (64, 128, 3) log-mel tensor for Stage 2.
+def build_stage2_tensor(y_segment: np.ndarray) -> np.ndarray:
+    """One cycle -> a (1, 64, 128, 3) log-mel batch for Stage 2.
 
-    power_to_db only — no manual min-max normalisation, matching the Stage 2
-    training pipeline. The backbone resizes to 224x224 internally.
+    TRAINING REFERENCE — notebook cell 5, `extract_clean_mel_segment`, which is
+    what the EfficientNet was actually TRAINED on:
+
+        melspectrogram(n_fft=1024, hop_length=256, n_mels=64, fmin=50, fmax=2000)
+        power_to_db(ref=np.max)                  -> [-80 dB, 0 dB]
+        pad/truncate to exactly 128 frames, padding with -80 dB
+        (log_mel + 80) / 80, clipped to [0, 1]
+        repeat to 3 channels
+
+    Two of these steps are easy to omit and both silently degrade accuracy:
+
+      * The /80 rescale. Raw dB values run -80..0, which is a very different
+        input range from the [0, 1] the backbone was fitted on.
+      * Padding value. Short cycles pad with -80 dB, which maps to exactly 0.0
+        after the rescale — silence, not an edge-repeat of the last frame.
+
+    The Resizing(224, 224) layer lives INSIDE the model, so this returns the raw
+    64x128x3 tensor and must not be resized here.
     """
-    audio = peak_normalise(audio)
+    y_segment = peak_normalise(y_segment)
+
     mel = librosa.feature.melspectrogram(
-        y=audio, sr=SAMPLE_RATE, n_mels=STAGE2_MEL_ROWS,
-        n_fft=N_FFT, hop_length=HOP_LENGTH, power=2.0
+        y=y_segment, sr=SAMPLE_RATE, n_fft=STAGE2_N_FFT, hop_length=STAGE2_HOP,
+        n_mels=STAGE2_N_MELS, fmin=STAGE2_FMIN, fmax=STAGE2_FMAX,
     )
     log_mel = librosa.power_to_db(mel, ref=np.max)
 
-    # Force to exactly 128 columns; slice or edge-pad as needed.
-    if log_mel.shape[1] > STAGE2_MEL_COLS:
-        log_mel = log_mel[:, :STAGE2_MEL_COLS]
-    elif log_mel.shape[1] < STAGE2_MEL_COLS:
+    n_frames = log_mel.shape[1]
+    if n_frames < STAGE2_TARGET_FRAMES:
         log_mel = np.pad(
-            log_mel, ((0, 0), (0, STAGE2_MEL_COLS - log_mel.shape[1])), mode="edge"
+            log_mel,
+            ((0, 0), (0, STAGE2_TARGET_FRAMES - n_frames)),
+            mode="constant", constant_values=STAGE2_DB_FLOOR,
         )
+    else:
+        log_mel = log_mel[:, :STAGE2_TARGET_FRAMES]
 
+    log_mel = np.clip((log_mel - STAGE2_DB_FLOOR) / abs(STAGE2_DB_FLOOR), 0.0, 1.0)
     log_mel = np.repeat(log_mel[:, :, np.newaxis], STAGE2_CHANNELS, axis=2)
-    return log_mel.astype(np.float32)[np.newaxis, ...]  # batch of 1
+
+    return log_mel.astype(np.float32)[np.newaxis, ...]
+
+
+def stage2_windows(audio: np.ndarray) -> List[np.ndarray]:
+    """Cut a recording into overlapping Stage 2 windows.
+
+    Each training example was one annotated respiratory cycle resampled to
+    exactly 128 mel frames = 2.048 s. Feeding the model a whole 10 s take in one
+    go would put a distribution it never saw into EfficientNetB0, so the take is
+    cut to the training length with 50% overlap (the same ratio the notebook
+    used for its training stride, 375/188).
+    """
+    win = int(STAGE2_WINDOW_SEC * SAMPLE_RATE)
+    hop = max(int(win * (1.0 - STAGE2_WINDOW_OVERLAP)), 1)
+
+    # Widen the hop on very long takes so one upload cannot pin the worker
+    # through hundreds of EfficientNet passes.
+    if len(audio) > win:
+        max_start = len(audio) - win
+        needed = max_start // hop + 1
+        if needed > STAGE2_MAX_WINDOWS:
+            hop = max(max_start // (STAGE2_MAX_WINDOWS - 1), 1)
+
+    windows = []
+    start = 0
+    while start < len(audio):
+        windows.append(audio[start:start + win])
+        if start + win >= len(audio):
+            break
+        start += hop
+
+    return windows or [audio]
 
 
 # --------------------------------------------------------------------------
 # Per-stage inference
 # --------------------------------------------------------------------------
 def stage1_healthy_probability(audio: np.ndarray) -> float:
-    """Return p_healthy for one recording (Stage 1 is binary logistic)."""
-    features = build_stage1_features(audio)
-    dmatrix = _stage1_model.inplace_predict(features.reshape(1, STAGE1_FEATURE_DIM))
-    return float(np.asarray(dmatrix).ravel()[0])
+    """Return p_healthy for one recording.
 
-
-def stage2_copd_probability(audio: np.ndarray) -> float:
-    """Return p_copd for one recording.
-
-    The Stage 2 head is a single sigmoid unit trained COPD-vs-Pneumonia, so the
-    output is the COPD probability and p_pneumonia = 1 - p_copd.
+    The XGBoost stage was fitted with `y_s1 = 1` for Healthy, and the notebook
+    reads `predict_proba(...)[:, 1]` as the Healthy probability.
     """
-    tensor = build_stage2_tensor(audio)
-    output = _stage2_model.predict(tensor, verbose=0)
-    return float(np.asarray(output).ravel()[0])
+    features = build_stage1_features(audio)
+    probs = _stage1_model.inplace_predict(features.reshape(1, STAGE1_FEATURE_DIM))
+    return float(np.asarray(probs).ravel()[0])
+
+
+def stage2_pneumonia_probability(audio: np.ndarray) -> float:
+    """Return p_pneumonia for one recording, max-pooled over its windows.
+
+    The Stage 2 head is a single sigmoid unit trained with
+    `y_stage2 = 1` for Pneumonia and `0` for COPD, so the output IS the
+    pneumonia probability; p_copd = 1 - p_pneumonia.
+
+    Taking the max across windows rather than the mean is deliberate: pneumonia
+    may be audible in only one part of a take, and averaging would let the quiet
+    stretches dilute it.
+    """
+    windows = stage2_windows(audio)
+    batch = np.concatenate([build_stage2_tensor(w) for w in windows], axis=0)
+    outputs = _stage2_model.predict(batch, verbose=0)
+    return float(np.max(np.asarray(outputs).ravel()))
 
 
 def score_single_clip(audio: np.ndarray, index: int) -> dict:
@@ -325,22 +457,23 @@ def score_single_clip(audio: np.ndarray, index: int) -> dict:
             "duration_sec": round(len(audio) / SAMPLE_RATE, 2),
             "stage1_healthy_prob": round(p_healthy, 4),
             "stage1_routed_to_stage2": False,
-            "stage2_copd_prob": None,
+            "stage2_pneumonia_prob": None,
             "healthy_prob": 1.0,
             "pneumonia_prob": 0.0,
             "copd_prob": 0.0,
             "clip_label": "Healthy",
         }
 
-    p_copd = stage2_copd_probability(audio)
-    p_pneumonia = 1.0 - p_copd
-    label = "COPD" if p_copd >= STAGE2_COPD_THRESHOLD else "Pneumonia"
+    p_pneumonia = stage2_pneumonia_probability(audio)
+    p_copd = 1.0 - p_pneumonia
+    label = "Pneumonia" if p_pneumonia >= STAGE2_PNEUMONIA_THRESHOLD else "COPD"
+
     return {
         "index": index,
         "duration_sec": round(len(audio) / SAMPLE_RATE, 2),
         "stage1_healthy_prob": round(p_healthy, 4),
         "stage1_routed_to_stage2": True,
-        "stage2_copd_prob": round(p_copd, 4),
+        "stage2_pneumonia_prob": round(p_pneumonia, 4),
         "healthy_prob": 0.0,
         "pneumonia_prob": round(p_pneumonia, 4),
         "copd_prob": round(p_copd, 4),
@@ -420,7 +553,7 @@ def fuse_clips(clip_results: List[dict]) -> dict:
             "override_triggered_by_clip": triggered_by,
             "override_threshold": STAGE2_OVERRIDE_THRESHOLD,
             "stage1_healthy_threshold": STAGE1_HEALTHY_THRESHOLD,
-            "stage2_copd_threshold": STAGE2_COPD_THRESHOLD,
+            "stage2_pneumonia_threshold": STAGE2_PNEUMONIA_THRESHOLD,
         },
     }
 
@@ -441,7 +574,7 @@ class ClipScore(BaseModel):
     duration_sec: float
     stage1_healthy_prob: float
     stage1_routed_to_stage2: bool
-    stage2_copd_prob: Optional[float]
+    stage2_pneumonia_prob: Optional[float]
     healthy_prob: float
     pneumonia_prob: float
     copd_prob: float
@@ -456,7 +589,7 @@ class FusionInfo(BaseModel):
     override_triggered_by_clip: Optional[int]
     override_threshold: float
     stage1_healthy_threshold: float
-    stage2_copd_threshold: float
+    stage2_pneumonia_threshold: float
 
 
 class InferenceResponse(BaseModel):
