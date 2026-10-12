@@ -14,8 +14,6 @@ import {
   Mail,
   ShieldAlert,
   ShieldCheck,
-  Stethoscope,
-  UserCog,
   UserRound,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -322,43 +320,6 @@ export function Login() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Development-only role preview. `import.meta.env.DEV` compiles to
-            `false` in a production build, so this block is not rendered and its
-            handlers are dead code in dist. It seeds a local profile only —
-            no password is checked and nothing reaches Supabase — so it exists
-            to look at the two role-gated sides of the UI, not to get in. */}
-        {import.meta.env.DEV && (
-          <div className="mt-6 rounded-xl border border-dashed border-aura-border bg-aura-mint-wash/50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-aura-muted">
-              Dev preview — no account needed
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  auth.devPreviewSignIn("super_admin")
-                  navigate("/dashboard/admin")
-                }}
-                className="flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-4 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
-              >
-                <UserCog className="h-4 w-4 shrink-0 text-aura-forest" aria-hidden="true" />
-                Sign in as admin
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  auth.devPreviewSignIn("clinician")
-                  navigate("/dashboard")
-                }}
-                className="flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-4 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
-              >
-                <Stethoscope className="h-4 w-4 shrink-0 text-aura-forest" aria-hidden="true" />
-                Sign in as clinician
-              </button>
-            </div>
-          </div>
-        )}
       </AuthShell>
 
       <Dialog open={statusDialog?.type === "pending"} onOpenChange={() => setStatusDialog(null)}>

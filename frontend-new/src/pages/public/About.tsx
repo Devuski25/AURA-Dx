@@ -15,10 +15,10 @@ const CONDITIONS: { icon: LucideIcon; name: string; desc: string }[] = [
 ]
 
 const PREP_STEPS = [
-  ["Resampling", "16,000 Hz, mono"],
-  ["Low-pass filter", "5th-order Butterworth, 3,000 Hz cutoff"],
-  ["Spectrogram", "64 Mel bins, resized for ResNet18"],
-  ["Analysis window", "2.0 s, peak-centered"],
+  ["Resampling", "16,000 Hz, mono, from every take"],
+  ["Band-pass filter", "100–2,000 Hz, 4th-order Butterworth, zero phase shift"],
+  ["Cycle segmentation", "2.5 s windows stepping 1.25 s"],
+  ["Level normalisation", "Peak amplitude, per cycle"],
 ]
 
 const SMOOTH = "ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -55,14 +55,14 @@ export function About() {
       <section className="bg-white px-6 py-16 md:py-24">
         <div className="mx-auto max-w-6xl">
           <SectionHeading>How the system works</SectionHeading>
-          <Reveal as="p" delay={0.1} className="mt-3 max-w-[60ch] text-aura-muted">One audio clip moves through a single classification stage before it becomes a screening result.</Reveal>
+          <Reveal as="p" delay={0.1} className="mt-3 max-w-[60ch] text-aura-muted">Three to five separate auscultation takes move through two classification stages, then a fusion step, before they become a single screening result.</Reveal>
 
           <Stagger className="mt-10 grid items-stretch gap-3 sm:grid-cols-[1fr_auto_1.15fr_auto_1fr]">
-            <StaggerItem><FlowNode icon={Mic} title="Audio clip" sub="Breathing recording" /></StaggerItem>
+            <StaggerItem><FlowNode icon={Mic} title="Audio clips" sub="3–5 breathing takes" /></StaggerItem>
             <StaggerItem><FlowArrow /></StaggerItem>
-            <StaggerItem><FlowNode icon={Stethoscope} title="Respiratory classifier" sub="COPD, pneumonia, or healthy" /></StaggerItem>
+            <StaggerItem><FlowNode icon={Stethoscope} title="Two-stage analysis" sub="Healthy screen, then COPD vs pneumonia" /></StaggerItem>
             <StaggerItem><FlowArrow /></StaggerItem>
-            <StaggerItem><FlowNode icon={Activity} title="Screening result" sub="Confidence score and suggested next step" /></StaggerItem>
+            <StaggerItem><FlowNode icon={Activity} title="Screening result" sub="Fused confidence and suggested next step" /></StaggerItem>
           </Stagger>
 
           <Stagger className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -111,7 +111,7 @@ export function About() {
               <Reveal>
                 <h3 className="font-display text-lg font-bold text-aura-text">Preparing the audio</h3>
                 <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
-                  Each recording is standardized, filtered to reduce high-frequency noise, converted to a Log-Mel Spectrogram, and sliced to the time window the classifier expects.
+                  Every take is resampled to a common rate, band-limited to the range that carries respiratory acoustics, split into overlapping breath cycles, and level-normalised so recording volume cannot move the result.
                 </p>
               </Reveal>
               <Stagger as="ol" className="m-0 mt-6 list-none border-b border-aura-border p-0">
@@ -130,15 +130,27 @@ export function About() {
 
             <div className="flex flex-col gap-10">
               <Reveal delay={0.1}>
-                <h3 className="font-display text-lg font-bold text-aura-text">One classifier</h3>
+                <h3 className="font-display text-lg font-bold text-aura-text">Stage 1 — the healthy screen</h3>
                 <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
-                  Rather than a series of narrow screens chained together, a single purpose-built model analyzes a 2.0 s peak-centered window of the recording and classifies it as COPD, Healthy, or Pneumonia.
+                  A gradient-boosted model reads a 153-value summary of each breath cycle — 13 MFCCs and their first and second derivatives, plus spectral centroid, bandwidth, contrast, flatness, zero-crossing rate and energy — collapsed across cycles by mean, maximum and spread. Confidently normal breathing stops here and never reaches the second stage.
                 </p>
               </Reveal>
               <Reveal delay={0.2}>
+                <h3 className="font-display text-lg font-bold text-aura-text">Stage 2 — COPD against pneumonia</h3>
+                <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
+                  Anything Stage 1 flags as abnormal is converted to a 64-band log-Mel spectrogram and handed to a convolutional network, which scores the likelihood of pneumonia. A single breath cycle is one training example, so longer takes are scored in overlapping windows and the highest reading is kept.
+                </p>
+              </Reveal>
+              <Reveal delay={0.3}>
+                <h3 className="font-display text-lg font-bold text-aura-text">Fusing the takes</h3>
+                <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
+                  The per-take scores are averaged so a single noisy recording cannot swing the verdict. One deliberate exception: if any single take is strongly positive for pneumonia, that finding wins. Pathology audible at one auscultation site can be inaudible at another, and a missed pneumonia matters more than a false alarm.
+                </p>
+              </Reveal>
+              <Reveal delay={0.4}>
                 <h3 className="font-display text-lg font-bold text-aura-text">A result with its confidence</h3>
                 <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
-                  Every classification returns a per-class probability. Low-confidence results are flagged for manual clinician review rather than presented as a firm finding.
+                  Every screening returns a per-class probability. Low-confidence results are flagged for manual clinician review rather than presented as a firm finding.
                 </p>
               </Reveal>
             </div>

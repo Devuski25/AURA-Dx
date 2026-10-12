@@ -1,0 +1,108 @@
+-- AURA-Dx v2.5 — multi-recording fusion, TB class retired
+--
+-- 1. Adds `recording_paths` so one screening row remembers all 3-5 stethoscope
+--    takes that were fused into its verdict. `audio_file_path` stays as the
+--    canonical (first) take for existing consumers.
+-- 2. Adds `recording_scores` holding the per-take scores and the fusion
+--    metadata, so the PDF report and the detail view can show how the headline
+--    verdict was reached rather than just the verdict.
+-- 3. Retires the TB gatekeeper columns by RENAMING them, not dropping them.
+--    The 1.5/2.5 pipeline classifies Healthy / COPD / Pneumonia only.
+-- 4. Rebuilds screening_history_view without the TB columns.
+--
+-- camera_data is intentionally LEFT IN PLACE. The facial cough-detection feature
+-- is gone, so the column is simply never written to any more. Dropping it is
+-- deferred to a separate cleanup migration so this one carries no destructive
+-- change to existing rows.
+
+ALTER TABLE screenings
+    ADD COLUMN IF NOT EXISTS recording_paths TEXT[];
+ALTER TABLE screenings
+    ADD COLUMN IF NOT EXISTS recording_scores JSONB;
+
+-- ---------------------------------------------------------------------------
+-- Retire the TB columns by renaming, not dropping.
+--
+-- These hold historical screening results, and they are the only record that a
+-- past TB classification was ever made. Dropping the column destroys that
+-- permanently and there is no backup of it anywhere else. Renaming achieves
+-- exactly the same thing for the application — nothing reads or writes the
+-- columns any more, and the rebuilt view below excludes them — while leaving
+-- the data recoverable.
+--
+-- The `_archived` suffix makes the state self-documenting: anyone querying the
+-- table later can see these are historical and not part of the live schema.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'screenings' AND column_name = 'tb_result'
+    ) THEN
+        ALTER TABLE screenings RENAME COLUMN tb_result TO tb_result_archived;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'screenings' AND column_name = 'tb_confidence'
+    ) THEN
+        ALTER TABLE screenings RENAME COLUMN tb_confidence TO tb_confidence_archived;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'screenings' AND column_name = 'tb_probabilities'
+    ) THEN
+        ALTER TABLE screenings RENAME COLUMN tb_probabilities TO tb_probabilities_archived;
+    END IF;
+END $$;
+
+-- The renamed columns are no longer part of the live schema, so the index that
+-- was built on tb_result has to go with it.
+DROP INDEX IF EXISTS idx_screenings_tb_result;
+
+-- ---------------------------------------------------------------------------
+-- Rebuild the view.
+--
+-- The view is also repaired here. The 20260801 camera_data migration recreated
+-- it and in the process dropped `updated_at` and `smoking_history`. Both are
+-- needed: ScreeningResponse requires `updated_at`, and GET /screenings selects
+-- `smoking_history`. Either omission silently pushed list/detail reads onto the
+-- base-table fallback.
+-- ---------------------------------------------------------------------------
+DROP VIEW IF EXISTS screening_history_view;
+CREATE VIEW screening_history_view AS
+SELECT
+    s.id,
+    s.patient_id,
+    s.clinic_id,
+    s.clinician_id,
+    s.audio_file_path,
+    s.recording_paths,
+    s.recording_scores,
+    s.audio_duration_sec,
+    s.respiratory_result,
+    s.respiratory_confidence,
+    s.respiratory_probabilities,
+    s.camera_data,
+    s.cascade_path,
+    s.model_version,
+    s.status,
+    s.reviewed_by,
+    s.reviewed_at,
+    s.review_notes,
+    s.created_at,
+    s.updated_at,
+    pat.full_name AS patient_name,
+    pat.date_of_birth,
+    age_bracket(pat.date_of_birth) AS age_bracket,
+    pat.gender,
+    pat.smoking_history,
+    c.name AS clinic_name,
+    clin.full_name AS clinician_name,
+    rev.full_name AS reviewed_by_name
+FROM screenings s
+JOIN patients pat ON s.patient_id = pat.id
+JOIN clinics c ON s.clinic_id = c.id
+JOIN profiles clin ON s.clinician_id = clin.id
+LEFT JOIN profiles rev ON s.reviewed_by = rev.id;

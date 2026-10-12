@@ -30,6 +30,19 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
+/** One recorded take, as scored independently by the inference service. */
+interface ClipScore {
+  index: number
+  duration_sec: number
+  stage1_healthy_prob: number
+  stage1_routed_to_stage2: boolean
+  stage2_pneumonia_prob: number | null
+  healthy_prob: number
+  pneumonia_prob: number
+  copd_prob: number
+  clip_label: string
+}
+
 interface ScreeningDetail {
   id: string
   patient_id: string
@@ -42,6 +55,7 @@ interface ScreeningDetail {
   respiratory_probabilities: Record<string, number> | null
   cascade_path: string | null
   recording_paths: string[] | null
+  recording_scores: { per_clip?: ClipScore[]; fusion?: Record<string, unknown> } | null
   model_version: string
   status: string
   reviewed_by: string | null
@@ -501,6 +515,14 @@ export function ScreeningDetail() {
   /* Tier flagging */
   const respFlagged = screening.respiratory_result !== null && screening.respiratory_result !== "Healthy"
 
+  /* Per-take evidence. Older rows predate per-take scoring and have no
+     recording_scores, so the whole section is simply omitted for them. */
+  const perTakeRows = screening.recording_scores?.per_clip ?? []
+  const overrideTakeIndex =
+    typeof screening.recording_scores?.fusion?.override_triggered_by_clip === "number"
+      ? screening.recording_scores.fusion.override_triggered_by_clip
+      : null
+
   return (
     <div className="mx-auto w-full max-w-4xl pb-10">
       {/* Prompt status banner above the title */}
@@ -665,6 +687,84 @@ export function ScreeningDetail() {
         </TierCard>
       )}
       </motion.div>
+
+      {/* Per-take scores — the evidence behind the headline verdict */}
+      {perTakeRows.length > 0 && (
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, ...sectionSpring }}
+          className="aura-panel mt-6 rounded-[14px] py-5 px-6"
+        >
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
+              Per-take scores
+            </h2>
+            {overrideTakeIndex !== null && (
+              <span className="rounded-full border border-aura-coral/30 bg-aura-coral-soft px-3 py-1 text-xs font-semibold text-aura-coral">
+                Safety override — take {overrideTakeIndex + 1} decided the result
+              </span>
+            )}
+          </div>
+
+          <p className="mb-4 max-w-[70ch] text-sm leading-relaxed text-aura-muted">
+            Every take is scored on its own and then averaged. A take that Stage 1
+            calls healthy never reaches Stage 2, which is why its Stage 2 column is
+            blank.
+          </p>
+
+          {/* Horizontal scroll rather than a squeezed table on 375px. */}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-aura-border-soft text-left">
+                  <th scope="col" className="py-2 pr-4 font-semibold text-aura-ink">Take</th>
+                  <th scope="col" className="py-2 pr-4 font-semibold text-aura-ink">Duration</th>
+                  <th scope="col" className="py-2 pr-4 text-right font-semibold text-aura-ink">Stage 1 healthy</th>
+                  <th scope="col" className="py-2 pr-4 text-right font-semibold text-aura-ink">Stage 2 pneumonia</th>
+                  <th scope="col" className="py-2 font-semibold text-aura-ink">Read</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perTakeRows.map((c) => (
+                  <tr
+                    key={c.index}
+                    className={cn(
+                      "border-b border-aura-border-soft last:border-0",
+                      c.index === overrideTakeIndex && "bg-aura-coral-soft/40"
+                    )}
+                  >
+                    <td className="py-2.5 pr-4 font-medium text-aura-ink">{c.index + 1}</td>
+                    <td className="py-2.5 pr-4 tabular-nums text-aura-muted">
+                      {c.duration_sec.toFixed(1)}s
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-aura-ink">
+                      {c.stage1_healthy_prob.toFixed(2)}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums text-aura-ink">
+                      {c.stage2_pneumonia_prob === null
+                        ? "—"
+                        : c.stage2_pneumonia_prob.toFixed(2)}
+                    </td>
+                    <td className="py-2.5">
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                          c.clip_label === "Healthy" && "bg-aura-mint-soft text-aura-pine",
+                          c.clip_label === "COPD" && "bg-amber-100 text-amber-800",
+                          c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral"
+                        )}
+                      >
+                        {c.clip_label}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      )}
 
       {/* Review Status */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, ...sectionSpring }} className="aura-panel mt-6 rounded-[14px] py-5 px-6">

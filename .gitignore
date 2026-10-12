@@ -22,11 +22,10 @@ pip-delete-this-directory.txt
 *.pkl
 *.joblib
 *.onnx
-!models/*.onnx
 *.bin
-CoughPH-Backend - Copy/models/*.pth
-CoughPH-Backend - Copy/uploads/
-CoughPH-Backend - Copy/instance/
+
+# Live model weights live in model_1_5_export/ and model_2_5_export/ and ARE
+# tracked — the inference service loads them from the repo.
 
 # Database
 *.db

@@ -1,8 +1,9 @@
 # Inference service dependencies.
 #
-# The ONNX/ResNet-18 runtime (onnx, onnxruntime, torch, torchvision) is gone —
-# the pipeline is XGBoost + TensorFlow/Keras now. Dropping torch alone cuts
-# roughly 2 GB from the install.
+# Two-stage pipeline: XGBoost (Stage 1, healthy screen) over a 153-d tabular
+# feature vector, then EfficientNetB0 (Stage 2, COPD vs pneumonia) over a
+# 64x128x3 log-mel tensor. The earlier torch/onnxruntime pair is no longer used
+# and dropping torch alone cuts roughly 2 GB from the install.
 #
 # TensorFlow is left as a range rather than an exact pin: TF's numpy ceiling has
 # moved several times (2.17 caps numpy below 2.0, 2.18+ allows 2.x), and pinning

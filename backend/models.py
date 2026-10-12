@@ -175,6 +175,7 @@ class ScreeningResponse(BaseModel):
     clinician_id: str
     audio_file_path: Optional[str]
     recording_paths: Optional[List[str]] = None
+    recording_scores: Optional[Dict[str, Any]] = None
     audio_duration_sec: Optional[float]
     respiratory_result: Optional[RespiratoryResult]
     respiratory_confidence: Optional[float]

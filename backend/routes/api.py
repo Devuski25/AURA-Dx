@@ -804,6 +804,12 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
         "audio_file_path": screening.audio_file_paths[0],
         "audio_duration_sec": screening.audio_duration_sec,
         "recording_paths": screening.audio_file_paths,
+        # Per-take scores + fusion metadata, so the PDF and the detail view can
+        # show how the headline verdict was reached rather than just the verdict.
+        "recording_scores": {
+            "per_clip": inference_res.get("per_clip", []),
+            "fusion": fusion,
+        },
         "respiratory_result": fused.get("label"),
         "respiratory_confidence": fused.get("confidence"),
         "respiratory_probabilities": fused.get("probabilities"),
@@ -961,7 +967,7 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
     try:
         query = supabase.table("screening_history_view").select(
             "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,recording_paths,"
+            "clinic_name,clinician_name,recording_paths,recording_scores,"
             "respiratory_result,respiratory_confidence,cascade_path,"
             "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
             "audio_duration_sec,created_at"
@@ -1071,7 +1077,7 @@ async def download_screening_pdf(
             "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
             "clinic_name,clinician_name,"
             "respiratory_result,respiratory_confidence,respiratory_probabilities,"
-            "recording_paths,"
+            "recording_paths,recording_scores,"
             "cascade_path,model_version,status,reviewed_by_name,reviewed_at,review_notes,"
             "audio_duration_sec,created_at,clinic_id,clinician_id"
         ).eq("id", screening_id).single().execute()
@@ -1162,14 +1168,78 @@ async def download_screening_pdf(
     
     cascade = data.get("cascade_path", "")
     recording_paths = data.get("recording_paths") or []
+    scores = data.get("recording_scores") or {}
+    per_clip = scores.get("per_clip") or []
+    fusion = scores.get("fusion") or {}
+
+    # "mean_then_safety_override" means nothing to a clinician reading a report.
+    fusion_label = {
+        "mean_then_safety_override": "Mean of takes, with single-take safety override",
+    }.get(cascade, cascade or "not recorded")
 
     story.append(Paragraph("Acquisition", heading_style))
-    story.append(Paragraph(
-        f"Stethoscope takes recorded and fused: {len(recording_paths) if recording_paths else 'n/a'}. "
-        f"Fusion method: {cascade or 'mean_then_safety_override'}.",
-        normal_style,
-    ))
-    story.append(Spacer(1, 6))
+    take_count = len(recording_paths) or len(per_clip)
+    acq_rows = [
+        ["Takes recorded", str(take_count) if take_count else "not recorded"],
+        ["Fusion method", fusion_label],
+        ["Safety override",
+         f"Applied (take {(fusion.get('override_triggered_by_clip') or 0) + 1})"
+         if fusion.get("override_applied")
+         else "Not applied"],
+    ]
+    acq_table = Table(acq_rows, colWidths=[1.5*inch, 4.5*inch])
+    acq_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(acq_table)
+    story.append(Spacer(1, 8))
+
+    # Per-take breakdown. This is the evidence behind the headline verdict, so
+    # it belongs in the report rather than only in the database.
+    if per_clip:
+        story.append(Paragraph("Per-take scores", subheading_style))
+        clip_rows = [["Take", "Duration", "Stage 1 healthy", "Stage 2 pneumonia", "Read"]]
+        for c in per_clip:
+            s2 = c.get("stage2_pneumonia_prob")
+            clip_rows.append([
+                str((c.get("index", 0) or 0) + 1),
+                f"{c.get('duration_sec', 0):.1f}s",
+                f"{c.get('stage1_healthy_prob', 0):.2f}",
+                "—" if s2 is None else f"{s2:.2f}",
+                c.get("clip_label", "—"),
+            ])
+        clip_table = Table(clip_rows, colWidths=[0.6*inch, 1*inch, 1.5*inch, 1.7*inch, 1.2*inch])
+        clip_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('ALIGN', (2, 1), (3, -1), 'RIGHT'),
+        ]))
+        story.append(clip_table)
+        if fusion.get("override_applied"):
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(
+                f"<i>Safety override applied: take {(fusion.get('override_triggered_by_clip') or 0) + 1} "
+                f"reached {fusion.get('override_threshold', 0.60):.2f} pneumonia confidence and "
+                "determined the reported result, overriding the averaged score.</i>",
+                ParagraphStyle('OverrideNote', parent=small_style,
+                               textColor=colors.HexColor('#b91c1c'))
+            ))
+        story.append(Spacer(1, 8))
 
     resp_result = data.get("respiratory_result")
     resp_conf = data.get("respiratory_confidence")
@@ -1269,7 +1339,8 @@ async def download_screening_pdf(
         ParagraphStyle('Disclaimer', parent=small_style, alignment=TA_CENTER, spaceBefore=10)
     ))
     story.append(Paragraph(
-        f"<i>Report generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC | AURA-Dx v1.0</i>",
+        f"<i>Report generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC | "
+        f"AURA-Dx v2.5 | models: {data.get('model_version', 'n/a')}</i>",
         ParagraphStyle('Footer', parent=small_style, alignment=TA_CENTER)
     ))
     

@@ -1,148 +1,118 @@
-# Scope and Limitations
+# SCOPE AND LIMITATIONS — AURA-Dx v2.5
 
-## System Overview
-
-AURA-Dx is a web-based AI screening system for early detection of respiratory diseases via cough sound analysis. The system implements a two-stage cascade classification pipeline deployed on a local mini-computer in clinical settings.
+What this system does, what it does not do, and where it should not be relied on.
 
 ---
 
-## Classification Pipeline
+## What it is
 
-### Stage 1: TB Gatekeeper (Binary Classifier)
-- **Task**: Distinguish TB vs Non-TB cough sounds
-- **Classes**: `Non-TB`, `TB`
-- **Input**: 0.45-second audio slice centered on peak amplitude
-- **Features**: Log-Mel spectrogram (64 mel bands, 16kHz, n_fft=1024, hop_length=256) → min-max normalized → 3-channel 224×224 RGB tensor
-- **Architecture**: ResNet-18 (ImageNet pretrained, fine-tuned)
-- **Training Data**: TB Gatekeeper dataset (~2,344 samples, 50/50 split)
-- **Validation Performance**: 96.6% accuracy, 96.7% macro F1
+An AI-assisted **screening** tool. A clinician records three to five
+stethoscope takes, and the system returns a probability distribution over three
+classes plus a suggested next step. A qualified clinician makes the diagnosis.
+The system does not.
 
-### Stage 2: Respiratory Classifier (3-Class Classifier)
-- **Task**: Classify non-TB respiratory conditions
-- **Classes**: `Healthy`, `Pneumonia`, `COPD`
-- **Trigger**: Only executes when Stage 1 predicts `Non-TB`
-- **Input**: 2.0-second audio slice centered on peak amplitude
-- **Features**: Identical preprocessing pipeline (Log-Mel → 224×224×3)
-- **Architecture**: ResNet-18 (ImageNet pretrained, fine-tuned)
-- **Training Data**: Respiratory dataset (~1,165 samples, 3-class)
-- **Validation Performance**: 90.6% accuracy, 90.5% macro F1
+Classes screened: **Healthy, COPD, Pneumonia**.
 
-### Cascade Logic
-```
-Audio Input → TB Gatekeeper
-    ├─ TB → STOP (Result: TB, High Priority)
-    └─ Non-TB → Respiratory Classifier → Result: Healthy / Pneumonia / COPD
-```
+TB was screened through v1.0 and is retired. The current models never produce
+it, the schema no longer stores it, and the UI no longer displays it.
 
 ---
 
-## Hardware Configuration
+## Accuracy
 
-| Component | Specification | Role |
-|-----------|---------------|------|
-| **Mini Computer** | Raspberry Pi 5 (8GB) or Intel NUC (i3/i5 8th gen+) | Hosts inference service (FastAPI + ONNX Runtime), web dashboard, database |
-| **Microphone** | USB condenser (Blue Snowball iCE / Fifine K669B / ReSpeaker 4-Mic Array) | Captures cough audio at 16kHz mono |
-| **Webcam** | Logitech C920 / C922 (1080p UVC) | Captures patient video for clinical context (optional) |
-| **Network** | Local LAN / Wi-Fi | Communication between dashboard and inference service |
+| Stage | Task | Balanced accuracy |
+|---|---|---|
+| 1.5 (XGBoost) | Healthy vs pathological | 74.67% |
+| 2.5 (EfficientNetB0) | Pneumonia vs COPD | 69.92% |
 
-**No ESP32-S3 / INMP441** — Audio capture and inference run entirely on the mini-computer.
+Both measured on a patient-isolated test split, each stage on its own.
 
----
-
-## Software Stack
-
-- **Inference Service**: FastAPI + ONNX Runtime (CPUExecutionProvider)
-- **Backend API**: FastAPI + Supabase (PostgreSQL + Auth + Realtime)
-- **Frontend Dashboard**: React + TypeScript + Tailwind CSS
-- **Model Format**: ONNX (exported from PyTorch ResNet-18)
-- **Audio Processing**: librosa (Mel-spectrogram extraction matching training pipeline)
-
----
-
-## Scope
-
-### Included
-1. **Automated cough screening** via two-stage cascade AI model
-2. **Clinical workflow integration**: Patient registry, screening history, clinician review/override
-3. **PDF report generation** with probability distributions and clinical recommendations
-4. **Role-based access** (Super Admin, Admin, Clinician) with clinic scoping
-5. **Audit logging** for all clinical actions
-6. **Real-time dashboard** for screening management
-7. **Clinician second-read workflow** — clinicians review AI results and confirm/disagree
-
-### Excluded
-1. **No vital signs integration** — temperature, SpO₂, blood pressure, labs, imaging
-2. **No diagnostic certainty** — system outputs screening probabilities only
-3. **No pediatric-specific models** — trained on adult cough data
-4. **No real-time streaming inference** — processes uploaded audio files
-5. **No cloud dependency for inference** — runs fully offline on local hardware
+**These do not compose into an end-to-end figure.** See the train/serve skew
+section of `MODEL_CARD.md` — the notebook's own end-to-end run scores 32.7% with
+0.9% pneumonia recall, because its evaluation path feeds Stage 2 a differently
+preprocessed tensor than it was trained on. The service implements the correct
+path, but **no end-to-end accuracy measurement exists yet for the deployed
+configuration.** That should be measured before any accuracy claim is made.
 
 ---
 
 ## Limitations
 
-### 1. Clinical Scope
-- **Screening tool only** — Does not replace professional medical diagnosis. All results require clinician review.
-- **Limited disease coverage** — Detects TB, Pneumonia, COPD, Healthy. Does not cover: Asthma, Bronchitis, COVID-19, Cold, Lung Cancer, Interstitial Lung Disease, etc.
-- **No comorbidity modeling** — Single-label classification; patients with multiple conditions may be misclassified.
+### Domain gap
+Trained on ICBHI respiratory recordings — ambient and lab-captured. Deployed on
+stethoscope audio through a phone or tablet microphone. The gap is real,
+unmeasured, and is the single largest risk to accuracy in this system.
 
-### 2. Data & Model Limitations
-- **Training dataset bias** — Models trained on specific datasets (TB Gatekeeper + Respiratory) which may not represent local population demographics, recording conditions, or disease prevalence.
-- **Class imbalance** — Respiratory classifier has fewer COPD samples (recall 80.8% vs 93-97% for other classes).
-- **No cough-vs-background separation stage** — Assumes uploaded audio contains cough. Non-cough sounds (speech, ambient noise) may produce unreliable predictions.
-- **Fixed slice durations** (0.45s / 2.0s) — May truncate relevant audio or include irrelevant segments.
+### Low-confidence results are not surfaced as such
+Every screening returns a probability. A near-even distribution is reported the
+same way as a confident one. There is no "inconclusive" band, and no automatic
+re-test prompt.
 
-### 3. Environmental Factors
-- **Acoustic variability** — Room acoustics, background noise (HVAC, conversations, equipment), microphone placement, and patient-mic distance affect spectral quality.
-- **Microphone dependency** — Frequency response and SNR vary across USB mic models; system calibrated for cardioid condensers ~30-50cm from mouth.
-- **No real-time noise suppression** — Relies on model robustness; heavy noise degrades performance.
+### No longitudinal comparison
+Screenings are independent. Nothing compares a new result against a patient's
+previous ones, and nothing detects deterioration over time.
 
-### 4. Deployment Constraints
-- **Laboratory/clinical prototype** — Not validated for home use, outdoor environments, or telehealth without controlled recording setup.
-- **Single-site validation** — Clinical validation planned at one hospital/clinic; generalizability unproven.
-- **Regulatory status** — Not cleared by FDA, CE, or Philippine FDA. Research-use only.
-- **Hardware coupling** — Inference service expects specific ONNX model paths and preprocessing parameters; model updates require service restart.
+### Threshold sensitivity
+The 0.61 and 0.47 thresholds were chosen on one test split. Small shifts move
+false negatives and false positives in opposite directions. The 0.60 safety
+override was chosen as a safety-first default and has not been tuned against
+clinical outcomes, because there are none yet.
 
-### 5. Evaluation Scope
-- **Metrics**: Latency (inference time), Classification accuracy (per-class + macro), Clinician agreement rate (AI vs clinician diagnosis)
-- **ISO/IEC 25010** — Evaluated on: Functional Suitability, Performance Efficiency, Usability, Reliability. Not evaluated: Security, Maintainability, Portability.
-- **No longitudinal study** — No data on model drift, seasonal variation, or long-term clinician adoption.
+### Unweighted fusion
+Take probabilities are averaged with equal weight. A take recorded with a worse
+stethoscope placement counts the same as a clean one. There is no quality gate
+rejecting a silent or saturated take.
 
----
-
-## Definition of Terms
-
-| Term | Definition |
-|------|------------|
-| **Artificial Intelligence (AI)** | Computer technology enabling systems to analyze data, recognize patterns, and make predictions analogous to human decision-making. |
-| **Cough Sound Analysis** | Process of recording and examining cough audio signals to identify acoustic patterns associated with respiratory pathology. |
-| **Edge AI** | Running AI models locally on embedded or edge devices (e.g., mini-computer) without cloud connectivity. |
-| **Log-Mel Spectrogram** | Time-frequency representation of audio where frequencies are mapped to the Mel scale (perceptually linear) and amplitude converted to decibels (log). |
-| **Mel-Frequency Cepstral Coefficients (MFCC)** | Compact representation of spectral envelope derived from Mel-spectrogram via DCT; not used in this system (raw Log-Mel used instead). |
-| **ONNX (Open Neural Network Exchange)** | Open format for representing ML models; enables inference across frameworks (PyTorch → ONNX Runtime). |
-| **ResNet-18** | 18-layer residual convolutional neural network; pretrained on ImageNet, fine-tuned on spectrogram images. |
-| **Cascade Classifier** | Multi-stage pipeline where early-stage output gates later-stage execution (here: TB gate → respiratory classifier). |
-| **Screening Tool** | Clinical test designed to identify individuals who may have a condition, requiring confirmatory diagnostic testing. |
-| **Clinician Second-Read** | Workflow where a qualified clinician reviews AI output and provides independent diagnosis for comparison/validation. |
-| **ISO/IEC 25010** | International standard for software product quality evaluation across eight characteristics. |
+### Clinical scope
+Three classes only. Not detected: asthma, bronchiectasis, pulmonary fibrosis,
+pulmonary embolism, heart failure, upper-airway disease, TB. A Healthy result
+excludes none of these.
 
 ---
 
-## Hardware Recommendations (Student-Friendly)
+## Hardware
 
-| Item | Recommended | Budget Option | Notes |
-|------|-------------|---------------|-------|
-| **Mini PC** | Raspberry Pi 5 (8GB) — ~$80 | Used Intel NUC i3 8th gen — ~$100 | Pi 5 runs ONNX Runtime CPU ~200ms/inference |
-| **USB Mic** | Blue Snowball iCE — $50 | Fifine K669B — $35 | Cardioid pattern rejects room noise |
-| **Mic (Alt)** | ReSpeaker 4-Mic Array for Pi — $35 | — | Mounts on Pi, hardware beamforming + noise suppression |
-| **Webcam** | Logitech C920/C922 — $60-80 used | Any 1080p UVC cam — $25+ | UVC = driverless on Linux |
+| | |
+|---|---|
+| Inference | CPU only, no GPU |
+| Stage 1 | XGBoost, 400 trees, negligible |
+| Stage 2 | EfficientNetB0, ~24 passes worst case per screening |
+| Both models loaded in memory at startup | ~25 MB combined |
 
-**Recommended Student Kit**: Pi 5 (8GB) + ReSpeaker 4-Mic Array + C920 = ~$175 total. Runs fully offline, no laptop tether.
+Runs on the Mini PC. Model loading is the slow part of startup, which is why
+`scripts/aura.ps1 start` health-checks before reporting success.
 
 ---
 
-## Version History
+## Preprocessing coupling
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2026-08-11 | Initial scope based on two-model cascade (TB Gatekeeper + Respiratory), mini-PC deployment, clinician second-read workflow |
+Stage 1 and Stage 2 use **different** FFT settings and different frequency
+bands. This is not an oversight — it is what the training notebook does.
+
+Stage 1: default `n_fft=2048` / `hop=512`, MFCC `fmin=100` / `fmax=2000`,
+2.5 s cycles, aggregated to a 153-d vector.
+Stage 2: `n_fft=1024` / `hop=256`, mel `fmin=50` / `fmax=2000`, 2.048 s windows.
+
+"Cleaning these up" to use one consistent set of parameters would silently break
+both models. See `MODEL_CARD.md`.
+
+---
+
+## Audio handling limits
+
+- `.wav` only on the inference endpoint
+- Recordings under 0.2 s of usable audio are rejected as too short
+- No noise suppression, echo cancellation, or heartbeat removal
+- No check for clipping, silence, or a stethoscope detached from the chest
+- Files are stored on the backend host's disk, unencrypted at rest
+
+---
+
+## Deployment
+
+- Frontend auto-deploys to Cloudflare on push to `main`
+- Backend and inference run on the Mini PC and are **not** always-on. Use
+  `scripts/aura.ps1 start` / `stop` / `status`.
+- Database migrations must be applied before a backend that references new
+  columns is started. Starting them out of order produces a 500 on screening
+  creation, not a startup failure.

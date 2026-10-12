@@ -1,5 +1,19 @@
 # AURA-Dx Project Brief
 
+> **⚠️ HISTORICAL — superseded as of 2026-10-12.**
+>
+> This is the **original brief as submitted**, kept for reference. It describes the
+> v1.0 system: ResNet-18 models on ONNX, a TB gatekeeper, single-file cough
+> uploads and peak-centred slicing. **None of that is the current build.**
+>
+> What changed: the models are now XGBoost + EfficientNetB0, TB is retired
+> (three classes: Healthy / COPD / Pneumonia), recordings are 3–5 separate
+> stethoscope takes fused together rather than one peak-centred window, and
+> inference runs on XGBoost + TensorFlow rather than ONNX Runtime.
+>
+> For the system as it actually is, see **`MODEL_CARD.md`** (models and
+> preprocessing) and **`DESIGN.md`** (architecture, schema, routes).
+
 ## 1. Project Overview
 
 **What is this product?** (1-2 sentences)
