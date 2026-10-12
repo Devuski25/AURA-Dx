@@ -160,6 +160,22 @@ function Start-Inference {
 
     New-StateDir
     Write-Host '  Starting inference... ' -NoNewline
+
+    # inference_service.py reads INFERENCE_API_KEY from os.environ, not from a
+    # file. scripts/make-backend-env.py writes it to a machine-local env file;
+    # inject it here so the child process inherits it. Without this the service
+    # starts with an empty key and enforces no X-API-Key at all, leaving the
+    # inference endpoint open to anyone who can reach the host.
+    $inferEnvFile = Join-Path $InferDir '.env.local'
+    if (Test-Path $inferEnvFile) {
+        foreach ($line in Get-Content $inferEnvFile -ErrorAction SilentlyContinue) {
+            $line = $line.Trim()
+            if ($line -and -not $line.StartsWith('#') -and $line -match '^([^=]+)=(.*)$') {
+                [Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2], 'Process')
+            }
+        }
+    }
+
     $p = Start-Process -FilePath $python `
          -ArgumentList '-m', 'uvicorn', 'inference_service:app', '--host', '0.0.0.0', '--port', "$InferPort" `
          -WorkingDirectory $InferDir `

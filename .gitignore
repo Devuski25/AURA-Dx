@@ -101,6 +101,11 @@ SERVICE_CONFIGURATION.md
 # repository has to stay private.
 backend/uploads_audio/
 
+# Machine-local service credentials. `git pull` never transfers these, so each
+# machine that runs a service needs its own. Generate them with:
+#   python scripts/make-backend-env.py
+packages/inference/.env.local
+
 # Audio fixtures must be synthesised, not copied from a patient upload. The
 # committed test_cough.wav was a copy of a real screening recording, so it is
 # gone for the same reason. Generate a synthetic fixture instead if one is ever

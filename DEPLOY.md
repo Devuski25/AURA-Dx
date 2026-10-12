@@ -86,10 +86,49 @@ Remove-Item .\backend\uploads_audio\* -Force -ErrorAction SilentlyContinue
 
 ---
 
-## Step 2 — update and install on the Mini PC
+## Step 2 — machine-local credentials
+
+`backend/.env.local` is gitignored, so `git pull` never transfers it. Without it
+the backend exits at startup with `supabase_key is required`.
+
+Generate it from the reference document rather than copying keys by hand — the
+generator never prints a secret value, only key names and lengths:
 
 ```powershell
-cd C:\path\to\AURA-Dx
+python scripts\make-backend-env.py
+```
+
+This writes two gitignored files:
+
+- `backend/.env.local` — read by `backend/config.py`
+- `packages\inference/.env.local` — read by `scripts/aura.ps1`, which injects
+  `INFERENCE_API_KEY` into the inference process
+
+Check without writing anything:
+
+```powershell
+python scripts\make-backend-env.py --check
+```
+
+Two things the generator fixes on its own, because the reference document had
+both wrong:
+
+- **CORS was missing `https://www.auradx.xyz`.** That domain is a live Cloudflare
+  route, so anyone on the www version would have failed preflight on every API
+  call. Production origins are now read from `wrangler.jsonc`, so adding a route
+  there can no longer leave the backend silently rejecting it.
+- **`INFERENCE_API_KEY` was never set**, which meant the inference endpoint
+  enforced no authentication at all. A key is generated and both sides now
+  present the same secret.
+
+Delete `INFERENCE_API_KEY` from `SERVICE_CONFIGURATION.md` afterwards — it is
+machine-local and has no business being in a shared reference document.
+
+---
+
+## Step 3 — update and install on the Mini PC
+
+```powershell
 git pull
 ```
 
@@ -107,18 +146,26 @@ Expect this to take a while and to download roughly 600 MB.
 If the venv does not exist yet:
 
 ```powershell
-cd packages\inference
 python -m venv venv
 .\venv\Scripts\Activate
 pip install -r requirements.txt
 ```
 
----
-
-## Step 3 — start the services on demand
+The backend has its own venv, installed the same way:
 
 ```powershell
-cd C:\path\to\AURA-Dx
+cd ..\..\backend
+python -m venv venv
+.\venv\Scripts\Activate
+pip install -r requirements.txt
+cd ..\
+```
+
+---
+
+## Step 4 — start the services on demand
+
+```powershell
 .\scripts\aura.ps1 start
 ```
 
@@ -151,7 +198,7 @@ Logs and PID files: `%LOCALAPPDATA%\AURA-Dx\`
 
 ---
 
-## Step 4 — the frontend
+## Step 5 — the frontend
 
 Already done. Pushing to `main` auto-deploys to Cloudflare; there is nothing to
 run and nothing to re-trigger.
