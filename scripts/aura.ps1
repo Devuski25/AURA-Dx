@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Start, stop, restart or check the AURA-Dx backend and inference services.
 
@@ -47,16 +47,48 @@ $BackendPort = 8001
 $InferPort   = 8000
 
 # PID files are kept out of the repo so they are never committed.
+#
+# stdout and stderr MUST go to separate files. Windows PowerShell 5.1 rejects
+# Start-Process outright when both are pointed at the same path:
+#
+#     Start-Process : This command cannot be run because
+#     "RedirectStandardOutput" and "RedirectStandardError" are same.
+#
+# PowerShell 7 allows it, but this script has to run on 5.1 because that is
+# what ships with Windows. Separate files are better anyway - uvicorn writes
+# model-load progress to stderr and tracebacks to stderr too, and merging the
+# two streams loses the distinction when you come to debug a failed start.
 $StateDir = Join-Path $env:LOCALAPPDATA 'AURA-Dx'
 $BackendPidFile = Join-Path $StateDir 'backend.pid'
 $InferPidFile   = Join-Path $StateDir 'inference.pid'
-$BackendLog     = Join-Path $StateDir 'backend.log'
-$InferLog       = Join-Path $StateDir 'inference.log'
+$BackendOutLog  = Join-Path $StateDir 'backend.out.log'
+$BackendErrLog  = Join-Path $StateDir 'backend.err.log'
+$InferOutLog    = Join-Path $StateDir 'inference.out.log'
+$InferErrLog    = Join-Path $StateDir 'inference.err.log'
 
 function New-StateDir {
     if (-not (Test-Path $StateDir)) {
         New-Item -ItemType Directory -Path $StateDir -Force | Out-Null
     }
+}
+
+function Show-ErrorTail([string]$Name, [string]$Path) {
+    # When a service dies during startup the only useful thing is the reason, and
+    # reading it out of a log file is exactly what nobody does under pressure.
+    # Print the last few lines straight into the console.
+    Write-Host ''
+    Write-Host "  --- $Name error log (last 15 lines) ---" -ForegroundColor Red
+    if (Test-Path $Path) {
+        $lines = Get-Content $Path -Tail 15 -ErrorAction SilentlyContinue
+        if ($lines) {
+            $lines | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+        } else {
+            Write-Host '  (log is empty)' -ForegroundColor Red
+        }
+    } else {
+        Write-Host "  (no log at $Path)" -ForegroundColor Red
+    }
+    Write-Host "  --- full log: $Path ---" -ForegroundColor Red
 }
 
 function Get-ListeningPid([int]$Port) {
@@ -131,8 +163,8 @@ function Start-Inference {
     $p = Start-Process -FilePath $python `
          -ArgumentList '-m', 'uvicorn', 'inference_service:app', '--host', '0.0.0.0', '--port', "$InferPort" `
          -WorkingDirectory $InferDir `
-         -RedirectStandardOutput $InferLog `
-         -RedirectStandardError $InferLog `
+         -RedirectStandardOutput $InferOutLog `
+         -RedirectStandardError $InferErrLog `
          -WindowStyle Hidden -PassThru
     $p.Id | Out-File -FilePath $InferPidFile -Encoding ascii
 
@@ -143,14 +175,14 @@ function Start-Inference {
         if ($null -ne (Get-ListeningPid $InferPort)) { break }
         if ($p.HasExited) {
             Write-Host 'FAILED' -ForegroundColor Red
-            Write-Host "  See $InferLog" -ForegroundColor Red
+            Show-ErrorTail 'inference' $InferErrLog
             throw 'Inference exited during startup. Check the log above.'
         }
     }
 
     if ($null -eq (Get-ListeningPid $InferPort)) {
         Write-Host 'TIMED OUT' -ForegroundColor Red
-        Write-Host "  See $InferLog" -ForegroundColor Red
+        Show-ErrorTail 'inference' $InferErrLog
         return
     }
     Write-Host 'up (port 8000)' -ForegroundColor Green
@@ -171,8 +203,8 @@ function Start-Backend {
     $p = Start-Process -FilePath $python `
          -ArgumentList '-m', 'uvicorn', 'main:app', '--host', '0.0.0.0', '--port', "$BackendPort" `
          -WorkingDirectory $BackendDir `
-         -RedirectStandardOutput $BackendLog `
-         -RedirectStandardError $BackendLog `
+         -RedirectStandardOutput $BackendOutLog `
+         -RedirectStandardError $BackendErrLog `
          -WindowStyle Hidden -PassThru
     $p.Id | Out-File -FilePath $BackendPidFile -Encoding ascii
 
@@ -181,42 +213,74 @@ function Start-Backend {
         if ($null -ne (Get-ListeningPid $BackendPort)) { break }
         if ($p.HasExited) {
             Write-Host 'FAILED' -ForegroundColor Red
-            Write-Host "  See $BackendLog" -ForegroundColor Red
+            Show-ErrorTail 'backend' $BackendErrLog
             throw 'Backend exited during startup. Check the log above.'
         }
     }
 
     if ($null -eq (Get-ListeningPid $BackendPort)) {
         Write-Host 'TIMED OUT' -ForegroundColor Red
+        Show-ErrorTail 'backend' $BackendErrLog
         return
     }
     Write-Host 'up (port 8001)' -ForegroundColor Green
 }
 
 function Stop-One([int]$Port, [string]$Name, [string]$PidFile) {
-    # Prefer the PID file, but fall back to whatever owns the port so a service
-    # started another way is still stoppable.
-    $targetPid = $null
+    # A venv's python.exe is a shim: it launches the real interpreter as a
+    # CHILD process. The PID we recorded at start time is the shim, but the
+    # process that owns the port is the child. Stop-Process on the shim kills the
+    # shim only and leaves uvicorn listening, which means `stop` reports success
+    # while the service is still up - precisely the failure this script exists
+    # to prevent. taskkill /T kills the whole tree, so both PIDs are targeted.
+    $pids = @()
+
     if (Test-Path $PidFile) {
-        $targetPid = Get-Content $PidFile -ErrorAction SilentlyContinue
+        $recorded = Get-Content $PidFile -ErrorAction SilentlyContinue
+        if ($recorded) { $pids += $recorded.Trim() }
         Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
     }
 
     $owner = Get-ListeningPid $Port
-    if ($null -ne $owner -and $owner -ne $targetPid) {
-        $targetPid = $owner
-    }
+    if ($null -ne $owner) { $pids += [string]$owner }
 
-    if ($null -eq $targetPid) {
+    $pids = $pids | Where-Object { $_ -and (Get-Process -Id $_ -ErrorAction SilentlyContinue) } | Select-Object -Unique
+    if ($pids.Count -eq 0) {
         Write-Host "  $Name is already stopped." -ForegroundColor DarkGray
         return
     }
 
+    # Killing the shim takes its child with it, so by the time the loop reaches
+    # the child PID the process is already gone and taskkill writes
+    # "ERROR: The process N not found." to stderr. Under $ErrorActionPreference
+    # 'Stop', PowerShell 5.1 promotes native stderr to a terminating error, which
+    # used to abort stop halfway and leave the services running - the exact thing
+    # this script must never do. Silence stderr for this call only.
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
     try {
-        Stop-Process -Id $targetPid -Force -ErrorAction Stop
-        Write-Host "  $Name stopped (pid $targetPid)." -ForegroundColor Green
-    } catch {
-        Write-Host "  Could not stop ${Name}: $($_.Exception.Message)" -ForegroundColor Yellow
+        foreach ($p in $pids) {
+            # /T kills the process tree, /F skips the confirmation prompt.
+            & taskkill /PID $p /T /F 2>&1 | Out-Null
+        }
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+
+    # Confirm rather than assume. A service that is still listening is worse than
+    # one that failed to start, because nothing will tell you it is there.
+    for ($i = 0; $i -lt 10; $i++) {
+        if ($null -eq (Get-ListeningPid $Port)) { break }
+        Start-Sleep -Milliseconds 500
+    }
+
+    if ($null -eq (Get-ListeningPid $Port)) {
+        Write-Host "  $Name stopped (port $Port free)." -ForegroundColor Green
+    } else {
+        $still = Get-ListeningPid $Port
+        Write-Host "  ${Name}: WARNING - port $Port is STILL LISTENING (pid $still)." -ForegroundColor Red
+        Write-Host '  Something else has the port, or the process survived the kill.' -ForegroundColor Red
+        Write-Host "  Try:  Get-Process -Id $still | Stop-Process -Force" -ForegroundColor Red
     }
 }
 
@@ -224,8 +288,20 @@ switch ($Action) {
     'start' {
         Write-Host ''
         Write-Host '  Starting AURA-Dx...' -ForegroundColor Cyan
-        Start-Inference
-        Start-Backend
+        try {
+            Start-Inference
+            Start-Backend
+        } catch {
+            # Do not leave a half-started pair behind. Backend without inference
+            # looks "up" in status but fails every screening with a 502, which is
+            # a confusing state to debug later.
+            Write-Host ''
+            Write-Host '  Start failed - rolling back so nothing is left half-running.' -ForegroundColor Yellow
+            Stop-One $BackendPort 'Backend'   $BackendPidFile
+            Stop-One $InferPort   'Inference' $InferPidFile
+            Write-Host ''
+            throw
+        }
         Get-Status
         Write-Host '  Frontend: npm run dev   (run from frontend-new)' -ForegroundColor DarkGray
         Write-Host ''
@@ -241,9 +317,12 @@ switch ($Action) {
         Write-Host ''
     }
     'restart' {
-        & $PSScriptRoot 'aura.ps1' stop
+        # Re-invoke as a child process rather than calling the functions directly.
+        # A failed stop must not prevent the start from being attempted.
+        $self = Join-Path $PSScriptRoot 'aura.ps1'
+        & $self stop
         Start-Sleep -Seconds 1
-        & $PSScriptRoot 'aura.ps1' start
+        & $self start
     }
     'status' {
         Get-Status

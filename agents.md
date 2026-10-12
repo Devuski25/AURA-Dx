@@ -56,6 +56,8 @@ cd frontend-new && npm run dev
 | Inference health | `curl http://localhost:8000/health` |
 | Fusion decision table | `python packages/inference/test_fusion.py` |
 | Feature layout contract | `python packages/inference/test_feature_layout.py` |
+| Service script regression | `powershell -ExecutionPolicy Bypass -File scripts/test-aura-start.ps1` |
+| Migration safety checks | `python scripts/check-migrations.py` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 
 `test_fusion.py` and `test_feature_layout.py` need only numpy — they stub
