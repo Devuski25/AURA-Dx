@@ -11,6 +11,7 @@ import { Home } from "@/pages/public/Home"
 import { About } from "@/pages/public/About"
 import { Team } from "@/pages/public/Team"
 import { Legal } from "@/pages/public/Legal"
+import { PublicHelpSupport } from "@/pages/public/HelpSupport"
 import { AuthProvider } from "@/context/AuthContext"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
@@ -21,7 +22,6 @@ const PatientRecords = lazy(() => import("@/pages/PatientRecords").then(m => ({ 
 const PatientDetail = lazy(() => import("@/pages/PatientDetail").then(m => ({ default: m.PatientDetail })))
 const ScreeningDetail = lazy(() => import("@/pages/ScreeningDetail").then(m => ({ default: m.ScreeningDetail })))
 const Admin = lazy(() => import("@/pages/Admin").then(m => ({ default: m.Admin })))
-const HelpSupport = lazy(() => import("@/pages/HelpSupport").then(m => ({ default: m.HelpSupport })))
 
 function SuspenseLoader() {
   return (
@@ -82,6 +82,7 @@ function AppRoutes() {
         <Route path="/about" element={<About />} />
         <Route path="/team" element={<Team />} />
         <Route path="/legal" element={<Legal />} />
+        <Route path="/help-support" element={<PublicHelpSupport />} />
       </Route>
 
       {/* Auth pages */}
@@ -102,8 +103,7 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="screening" element={<Suspense fallback={<SuspenseLoader />}><Screening /></Suspense>} />
         <Route path="patient-records" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords /></Suspense>} />
-        <Route path="screenings" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords defaultTab="screenings" /></Suspense>} />
-        <Route path="patients" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords defaultTab="patients" /></Suspense>} />
+        <Route path="screenings" element={<Suspense fallback={<SuspenseLoader />}><PatientRecords /></Suspense>} />
         <Route path="patients/:id" element={<Suspense fallback={<SuspenseLoader />}><PatientDetail /></Suspense>} />
         <Route path="screenings/:id" element={<Suspense fallback={<SuspenseLoader />}><ScreeningDetail /></Suspense>} />
         <Route
@@ -116,18 +116,6 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
-      </Route>
-
-      {/* Standalone help & support (authenticated, role-aware) */}
-      <Route
-        path="/help-support"
-        element={
-          <PrivateRoute>
-            <Layout />
-          </PrivateRoute>
-        }
-      >
-        <Route index element={<Suspense fallback={<SuspenseLoader />}><HelpSupport /></Suspense>} />
       </Route>
 
       {/* Fallback: redirect unknown routes to home */}

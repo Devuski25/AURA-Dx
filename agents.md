@@ -2,17 +2,17 @@
 
 ## What
 
-AI cough screening web app. Analyzes cough audio for **TB, COPD, Pneumonia, Healthy** using a two-stage cascade (ResNet-18 → ONNX).
+AI cough screening web app. Analyzes stethoscope recordings for **COPD, Pneumonia, Healthy** using a two-stage cascade (XGBoost → EfficientNetB0) fused across 3–5 separate takes.
 
 ```
 Supabase :54321 → Inference :8000 → Backend :8001 → Frontend :5174
- PostgreSQL       ONNX Runtime       FastAPI           React 19 + Vite
+ PostgreSQL       XGBoost + TF      FastAPI           React 19 + Vite
  Auth + RLS       librosa + scipy    JWT + roles       Tailwind v4 + shadcn
 ```
 
 | Service | Entry | Stack |
 |---------|-------|-------|
-| Inference | `packages/inference/inference_service.py` | FastAPI, ONNX Runtime, librosa |
+| Inference | `packages/inference/inference_service.py` | FastAPI, XGBoost, TensorFlow/Keras, librosa |
 | Backend | `backend/main.py` | FastAPI, supabase-py, python-jose, ReportLab |
 | Frontend | `frontend-new/src/App.tsx` | React 19, Vite 8, TS 6, Tailwind v4, shadcn/ui |
 | Database | `supabase/config.toml` | PostgreSQL 17, GoTrue Auth, RLS |
@@ -64,7 +64,7 @@ cd frontend-new && npm run dev
 
 - **API endpoints**: `backend/routes/api.py` (all routes in one file)
 - **Auth logic**: `backend/auth.py` (JWT decode, role gating)
-- **DB schema**: `supabase/migrations/` (9 files, run in order)
+- **DB schema**: `supabase/migrations/` (13 files, run in order)
 - **ML pipeline**: `packages/inference/inference_service.py:68-95` (preprocessing)
 - **Design tokens**: `frontend-new/src/index.css` + `design-system/MASTER.md`
 
@@ -95,12 +95,14 @@ Notes:
 - Inference preprocessing params — MODEL_CARD.md is the source of truth
 
 ### Enforce
-- **Preprocessing**: `N_MELS=64, n_fft=1024, hop_length=256, TB_SLICE=0.45s, RESP_SLICE=2.0s`
+- **Preprocessing**: `sr=16000, bandpass 100–2000 Hz (Butterworth 4th, filtfilt), peak-normalise, N_MELS=64, n_fft=1024, hop_length=256`
+- **Per-take routing**: Stage 1 XGBoost `p_healthy >= 0.61` → Healthy, skips Stage 2. Otherwise Stage 2 EfficientNetB0, `p_copd >= 0.47` → COPD else Pneumonia (`p_pneumonia = 1 - p_copd`)
+- **Fusion**: mean across the 3–5 takes, then safety override — any single take at `>= 0.60` pneumonia confidence wins regardless of the mean
 - **Single-clinic model**: all clinicians see all patients (no per-doctor scoping)
 - **First-user rule**: first注册 user → `super_admin`, all others → `clinician` + `pending`
 - **No commits to main** — always `feature/*` branches
 - **Port consistency**: Inference `:8000`, Backend `:8001`, Frontend `:5174`, Supabase `:54321`
-- **Branding**: AURA-Dx (Acoustic Unit for Respiratory Analysis), green `#3cb87a`. No `cough`-era naming in new UI.
+- **Branding**: AURA-Dx (Acoustic Unit for Respiratory Assessment), green `#3cb87a`. No `cough`-era naming in new UI.
 - **A11y**: all icon-only buttons ≥44×44px hit area + `aria-label`; dialogs use `w-[95vw] max-w-lg` + `max-h-[90vh] overflow-y-auto`; tables wrap in `overflow-x-auto`
 - **Layout**: left-side sidebar — `lg:` desktop toggle (collapsed ↔ expanded, persisted `aura-dx:sidebar-collapsed`) + left slide-over drawer `<lg` (Escape / backdrop / nav click closes; `inert`+`aria-hidden` while closed)
 - **Mobile-first**: zero horizontal scroll on 375px; keep `overflow-x: clip` on `html, body`
@@ -111,4 +113,4 @@ Notes:
 - Gray Tailwind tokens (`bg-gray-*`) — use aura-surface tokens
 - Purple/pink gradients — brand is green (`#3cb87a`)
 - Inline SVG — use `lucide-react`
-- Raw hex colors in components — use `aura-*` tokens (exceptions: GoogleIcon.tsx brand colors, CameraCoughDetection.tsx `#3cb87a` theme fallback)
+- Raw hex colors in components — use `aura-*` tokens (exception: GoogleIcon.tsx brand colors)

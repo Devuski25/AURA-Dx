@@ -7,7 +7,6 @@ import {
   AudioLines,
   ClipboardList,
   LayoutDashboard,
-  LifeBuoy,
   LogOut,
   PanelLeftClose,
   UserCog,
@@ -56,7 +55,10 @@ type SidebarProps = {
 }
 
 const COLLAPSED_WIDTH = 72
-const EXPANDED_WIDTH = 256
+/* Wide enough for the full "Acoustic Unit for Respiratory Assessment"
+   tagline to wrap onto two lines without clipping. Matches DRAWER_WIDTH so the
+   rail and the mobile drawer present the same measure. */
+const EXPANDED_WIDTH = 288
 const DRAWER_WIDTH = 288
 
 export function Sidebar({
@@ -154,13 +156,13 @@ export function Sidebar({
             : { x: drawerSpring, width: sidebarSpring }
         }
         className={cn(
-          "flex flex-col border-r border-[#16382b] bg-gradient-to-b from-[#2f6b54] to-[#1b4535] text-white print:hidden",
+          "flex flex-col border-r border-[#16382b] bg-gradient-to-b from-[#2f6b54] via-[#255c46] to-[#1b4535] text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.07)] print:hidden",
           isMobile
             ? "fixed inset-y-0 left-0 z-50 shadow-[12px_0_40px_rgba(0,0,0,0.15)]"
             : "sticky top-0 h-screen shrink-0"
         )}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-white/15 px-3 pb-1 pt-2">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/15 px-3 pb-2 pt-2">
           {/* Logo badge doubles as the sidebar collapse/expand toggle (desktop).
               Geometry mirrors the nav links below: same px-3 gutter, h-11 row,
               so the badge shares the exact vertical center-axis of the icons. */}
@@ -183,8 +185,16 @@ export function Sidebar({
                   aria-controls="sidebar"
                   title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                   className={cn(
-                    "flex h-11 w-full cursor-pointer items-center rounded-lg px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-                    showLabels ? "justify-start" : "justify-center"
+                    /* min-h-11, not h-11: the expanded lockup carries a
+                       two-line tagline and is taller than 44px. A fixed height
+                       overflowed and items-center pushed the tagline into the
+                       middle, half-clipped by the divider below. min-h keeps the
+                       44px row for the collapsed mark while letting the full
+                       wordmark + tagline stack grow and align to the top.
+                       Padding only applies when labels show, so the collapsed
+                       rail stays at exactly 44px. */
+                    "flex min-h-11 w-full cursor-pointer items-start rounded-lg px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                    showLabels ? "justify-start py-2" : "justify-center items-center py-0"
                   )}
                 >
                   {showLabels ? (
@@ -251,7 +261,7 @@ export function Sidebar({
                     showLabels ? "justify-start" : "justify-center",
                     isActive
                       ? "text-[#14382a]"
-                      : "text-[#dff0e7] hover:bg-black/10 hover:text-white"
+                      : "text-[#dff0e7] hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <motion.span
@@ -260,7 +270,17 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     className="flex min-w-0 items-center gap-3"
                   >
-                    <item.icon className={cn("h-5 w-5 shrink-0 transition-transform duration-150", !showLabels && "group-hover:scale-110")} aria-hidden="true" />
+                    <item.icon
+                      className={cn(
+                        "h-5 w-5 shrink-0 transition-transform duration-150",
+                        // Collapsed rail leans on the scale nudge; expanded gets
+                        // a 2px slide so every nav item nudges the same way.
+                        !showLabels
+                          ? "group-hover:scale-110"
+                          : "motion-safe:group-hover:translate-x-0.5"
+                      )}
+                      aria-hidden="true"
+                    />
                     {/* Label stays mounted and fades/collapses with the panel
                         width so text never clips or shifts layout mid-toggle */}
                     <motion.span
@@ -298,35 +318,10 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="shrink-0 border-t border-white/15 p-3">
+          <div className="shrink-0 border-t border-white/15 p-3">
           {showLabels ? (
-            <Link
-              to="/help-support"
-              onClick={onClose}
-              className="mb-2 flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium text-[#dff0e7] transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-            >
-              <LifeBuoy className="h-5 w-5 shrink-0" aria-hidden="true" />
-              Help &amp; Support
-            </Link>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  to="/help-support"
-                  onClick={onClose}
-                  aria-label="Help and support"
-                  title="Help and support"
-                  className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-lg text-[#dff0e7] transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                >
-                  <LifeBuoy className="h-5 w-5" aria-hidden="true" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Help &amp; Support</TooltipContent>
-            </Tooltip>
-          )}
-          {showLabels ? (
-            <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 p-3">
-              <Avatar className="h-9 w-9">
+            <div className="flex items-start gap-3 rounded-xl border border-white/20 bg-white/10 p-3 transition-[background-color,transform] duration-200 hover:bg-white/15 motion-safe:hover:-translate-y-px">
+              <Avatar className="h-9 w-9 shrink-0">
                 <AvatarImage
                   src={avatarSrc}
                   alt={user?.full_name || ""}
@@ -337,9 +332,9 @@ export function Sidebar({
                 <p className="truncate text-sm font-medium text-white">
                   {user?.full_name || "Clinician"}
                 </p>
-                <p className="mt-0.5 flex items-center">
+                <p className="mt-1.5 flex items-center">
                   <span
-                    className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-aura-accent/40 bg-aura-accent/20 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-white"
+                    className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border border-aura-accent/40 bg-aura-accent/20 px-2.5 py-0.5 text-[0.75rem] font-semibold uppercase tracking-wider text-white"
                     title={`Signed in as ${user?.role?.replace("_", " ") || "Clinician"}`}
                   >
                     <span className="relative flex h-1.5 w-1.5 shrink-0" aria-hidden="true">
@@ -360,7 +355,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 shrink-0"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>
@@ -378,7 +373,7 @@ export function Sidebar({
                 <span
                   aria-hidden="true"
                   title={user?.role?.replace("_", " ") || "Clinician"}
-                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white/60 bg-aura-accent text-[8px] font-bold uppercase text-white"
+                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white/60 bg-aura-accent text-[13.5px] font-bold uppercase text-white"
                 >
                   {(user?.role || "c").charAt(0).toUpperCase()}
                 </span>
@@ -391,7 +386,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-black/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>

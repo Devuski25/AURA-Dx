@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState, useMemo } from "react"
 import { motion, useReducedMotion } from "framer-motion"
@@ -37,13 +37,11 @@ interface ScreeningDetail {
   clinician_id: string
   audio_file_path: string | null
   audio_duration_sec: number | null
-  tb_result: string
-  tb_confidence: number | null
-  tb_probabilities: Record<string, number> | null
   respiratory_result: string | null
   respiratory_confidence: number | null
   respiratory_probabilities: Record<string, number> | null
   cascade_path: string | null
+  recording_paths: string[] | null
   model_version: string
   status: string
   reviewed_by: string | null
@@ -61,8 +59,10 @@ interface ScreeningDetail {
 }
 
 /* ---------- Theme colors ---------- */
-const MINT = "#1E9E73"
-const CORAL = "#E2543A"
+/* Token values, resolved from CSS custom properties so the SVG strokes track
+   the design tokens instead of duplicating hex literals. */
+const MINT = "var(--color-aura-mint)"
+const CORAL = "var(--color-aura-coral)"
 
 /* ---------- Shared date/time formatting (locale-aware) ---------- */
 const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
@@ -70,7 +70,7 @@ const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium",
 /* ---------- Field label ---------- */
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">{children}</div>
+    <div className="mb-1.5 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">{children}</div>
   )
 }
 
@@ -105,7 +105,7 @@ function ConfidenceRing({ value, flagged }: { value: number; flagged: boolean })
         <div className={cn("font-display text-[26px] font-bold leading-none tabular-nums", flagged ? "text-aura-coral" : "text-aura-mint")}>
           {shownPct}%
         </div>
-        <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">Confidence</div>
+        <div className="mt-1 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">Confidence</div>
       </div>
     </div>
   )
@@ -116,7 +116,7 @@ function TierStatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-mono text-[11px] font-semibold",
+        "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-mono text-[13px] font-semibold",
         ok ? "bg-aura-mint-soft text-aura-pine" : "bg-aura-coral-soft text-aura-coral-strong"
       )}
     >
@@ -126,39 +126,13 @@ function TierStatusPill({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
-/* ---------- Cascade stepper ---------- */
-function CascadeStepper({ path }: { path?: string | null }) {
-  const steps = (path ?? "")
-    .split("→")
-    .map(s => s.trim())
-    .filter(Boolean)
-  const labels: Record<string, string> = {
-    "Tier 1": "TIER 1 · TB GATEKEEPER",
-    "Tier 2": "TIER 2 · RESPIRATORY CLASSIFIER",
-  }
-  return (
-    <div className="mt-1.5 flex flex-wrap items-center">
-      {steps.map((step, i) => (
-        <div key={i} className="flex items-center">
-          {i > 0 && (
-            <div className="relative mx-1 h-px w-[34px] bg-[repeating-linear-gradient(90deg,#E1E7E2_0_5px,transparent_5px_9px)]">
-              <span className="absolute -right-px -top-[3px] border-l-[5px] border-t-[3.5px] border-b-[3.5px] border-l-aura-border-soft border-t-transparent border-b-transparent" />
-            </div>
-          )}
-          <div className="flex items-center gap-2 rounded-full bg-aura-mint-soft px-3 py-1.5 font-mono text-[11px] font-medium uppercase tracking-wide text-aura-forest">
-            {labels[step] ?? step.toUpperCase()}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 /* ---------- Probability bar ---------- */
 function ProbabilityBar({ label, prob, color }: { label: string; prob: number; color: string }) {
   const pct = Math.min(Math.max(prob * 100, 0), 100)
   const gradient =
-    color === CORAL ? "linear-gradient(90deg,#F0725C,#E2543A)" : "linear-gradient(90deg,#4CC490,#1E9E73)"
+    color === CORAL
+      ? "linear-gradient(90deg, var(--color-aura-coral), var(--color-aura-coral-strong))"
+      : "linear-gradient(90deg, var(--color-aura-mint), var(--color-aura-pine))"
   return (
     <div className="mb-4 last:mb-0">
       <div className="mb-2 flex items-center justify-between">
@@ -204,7 +178,9 @@ function Waveform() {
 /* ---------- Info card ---------- */
 function InfoCard({ title, className, children }: { title: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className={cn("rounded-[14px] border border-aura-border-soft/60 bg-aura-sage/40 py-5 px-6", className)}>
+    /* Sits directly on the canvas, not inside a white card, so it takes the
+   full panel treatment. Were it nested, it would revert to a light tile. */
+  <div className={cn("aura-panel rounded-2xl py-5 px-6", className)}>
       <h2 className="mb-4 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
         {title}
       </h2>
@@ -214,24 +190,16 @@ function InfoCard({ title, className, children }: { title: string; className?: s
 }
 
 /* ---------- Result banner ---------- */
-type Severity = "critical" | "high" | "moderate" | "clear"
+  type Severity = "high" | "moderate" | "clear"
 
-const BANNER_CONFIG: Record<
-  Severity,
-  { label: string; detail: string; container: string; icon: React.ReactNode; title: string; sub: string }
-> = {
-  critical: {
-    label: "ACTIVE TB SUSPECTED",
-    detail: "Flagged · refer for confirmatory testing immediately",
-    container: "border-aura-coral bg-aura-coral-soft",
-    icon: <AlertTriangle className="h-6 w-6 text-aura-coral" />,
-    title: "text-aura-coral-strong",
-    sub: "text-aura-coral-strong",
-  },
-  high: {
+  const BANNER_CONFIG: Record<
+    Severity,
+    { label: string; detail: string; container: string; icon: React.ReactNode; title: string; sub: string }
+  > = {
+    high: {
     label: "PNEUMONIA SUSPECTED",
     detail: "Flagged · urgent clinical evaluation recommended",
-    container: "border-aura-coral bg-aura-coral-soft",
+    container: "border-aura-coral/40 border-t-aura-coral bg-aura-coral-soft",
     icon: <AlertTriangle className="h-6 w-6 text-aura-coral" />,
     title: "text-aura-coral-strong",
     sub: "text-aura-coral-strong",
@@ -247,7 +215,7 @@ const BANNER_CONFIG: Record<
   clear: {
     label: "NO ACUTE RESPIRATORY PATHOLOGY",
     detail: "No urgent pathology detected · routine follow-up",
-    container: "border-aura-mint/60 bg-aura-mint-soft",
+    container: "border-aura-mint/50 border-t-aura-pine bg-aura-mint-soft",
     icon: <CheckCircle className="h-6 w-6 text-aura-mint" />,
     title: "text-aura-forest",
     sub: "text-aura-forest",
@@ -255,11 +223,9 @@ const BANNER_CONFIG: Record<
 }
 
 function ResultBanner({ screening }: { screening: ScreeningDetail }) {
-  // Banner must reflect the MOST SEVERE finding: TB > Pneumonia > COPD > no findings
-  const severity: Severity =
-    screening.tb_result === "TB"
-      ? "critical"
-      : screening.respiratory_result === "Pneumonia"
+  // Banner must reflect the MOST SEVERE finding: Pneumonia > COPD > no findings
+    const severity: Severity =
+      screening.respiratory_result === "Pneumonia"
       ? "high"
       : screening.respiratory_result === "COPD"
       ? "moderate"
@@ -273,7 +239,7 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
       initial={reduceMotion ? false : { opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className={cn("mb-6 flex items-center gap-4 rounded-2xl border p-5 shadow-sm", cfg.container)}
+      className={cn("mb-6 flex items-center gap-4 rounded-2xl border border-t-[3px] p-5 shadow-[0_2px_4px_rgba(15,61,51,0.08),0_16px_32px_-12px_rgba(15,61,51,0.30)]", cfg.container)}
     >
       <div className={cn("relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm")}>
         {/* Severity pulse — only for flagged results */}
@@ -290,7 +256,7 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
       </div>
       <div>
         <p className={cn("aura-pop-in font-display text-xl font-bold leading-tight tracking-wide", cfg.title)}>{cfg.label}</p>
-        <p className={cn("mt-1 font-mono text-[11px] uppercase tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
+        <p className={cn("mt-1 font-mono text-[13px] uppercase tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
       </div>
     </motion.div>
   )
@@ -301,7 +267,7 @@ function ScreeningSkeleton() {
   return (
     <div className="space-y-6">
       <div className="h-24 animate-pulse rounded-2xl bg-aura-sage" />
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
         {[0, 1, 2, 3].map(i => (
           <div key={i} className="h-32 animate-pulse rounded-[14px] bg-aura-sage" />
         ))}
@@ -359,7 +325,7 @@ function TierCard({
       <div className="flex items-center justify-between gap-4 border-b border-aura-border-soft px-6 py-5">
         <div className="flex items-center gap-2.5">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">{eyebrow}</div>
+            <div className="font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">{eyebrow}</div>
             <div className="font-display text-[17px] font-semibold text-aura-ink">{name}</div>
           </div>
         </div>
@@ -388,8 +354,7 @@ function TierCard({
 }
 
 /* ---------- Probability color helper ---------- */
-function tierColor(tier: "tb" | "resp", cls: string): string {
-  if (tier === "tb") return cls === "TB" ? CORAL : MINT
+function tierColor(cls: string): string {
   return cls === "Healthy" ? MINT : CORAL
 }
 
@@ -405,16 +370,10 @@ export function ScreeningDetail() {
      early return. Calling useMemo inside conditional JSX changed the hook
      count between renders and crashed the page with React error #310
      whenever probabilities were null. */
-  const tbProbabilityBars = useMemo(() => {
-    if (!screening?.tb_probabilities) return null
-    return Object.entries(screening.tb_probabilities).map(([cls, prob]) => (
-      <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("tb", cls)} />
-    ))
-  }, [screening?.tb_probabilities])
   const respProbabilityBars = useMemo(() => {
     if (!screening?.respiratory_probabilities) return null
     return Object.entries(screening.respiratory_probabilities).map(([cls, prob]) => (
-      <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor("resp", cls)} />
+      <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor(cls)} />
     ))
   }, [screening?.respiratory_probabilities])
 
@@ -540,7 +499,6 @@ export function ScreeningDetail() {
   })()
 
   /* Tier flagging */
-  const tbFlagged = screening.tb_result === "TB"
   const respFlagged = screening.respiratory_result !== null && screening.respiratory_result !== "Healthy"
 
   return (
@@ -581,7 +539,7 @@ export function ScreeningDetail() {
       {/* Patient Information */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, ...sectionSpring }}>
       <InfoCard title="Patient Information">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
           <div>
             <FieldLabel>Name</FieldLabel>
             <div className={cn("text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
@@ -610,14 +568,14 @@ export function ScreeningDetail() {
       {/* Screening Details */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, ...sectionSpring }} className="mt-6">
       <InfoCard title="Screening Details">
-        <div className="mb-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
+        <div className="mb-5 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <FieldLabel>Screening Date</FieldLabel>
             <div className="text-[13.5px] font-medium tabular-nums text-aura-ink">{dateTimeFormat.format(new Date(screening.created_at))}</div>
           </div>
           <div>
             <FieldLabel>Model Version</FieldLabel>
-            <div className="font-mono text-[12px] font-medium text-aura-ink">{screening.model_version}</div>
+            <div className="font-mono text-[13.5px] font-medium text-aura-ink">{screening.model_version}</div>
           </div>
           <div>
             <FieldLabel>Audio Duration</FieldLabel>
@@ -629,63 +587,46 @@ export function ScreeningDetail() {
             <Waveform />
           </div>
         </div>
-        <FieldLabel>Cascade Path</FieldLabel>
-        <CascadeStepper path={screening.cascade_path} />
       </InfoCard>
       </motion.div>
 
-      {/* Tier 1: TB Gatekeeper */}
+      {/* Respiratory classifier */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, ...sectionSpring }}>
-      <TierCard
-        className="mt-6"
-        eyebrow="Tier 1"
-        name="TB Gatekeeper"
-        flagged={tbFlagged}
-        statusLabel={tbFlagged ? "TB Detected" : "Non-TB"}
-        confidence={screening.tb_confidence ?? 0}
-        modelVersion={screening.model_version}
-        decisions={[
-          { label: "Cascade Decision", value: (screening.cascade_path ?? "").includes("Tier 2") ? "Continued to Tier 2" : "Stopped at Tier 1" },
-        ]}
-      >
-        {screening.tb_probabilities && (
-          <div>
-            <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">
-              Probability Distribution
-            </div>
-            {tbProbabilityBars}
-          </div>
-        )}
-        {tbFlagged && (
-          <div className="mt-5 rounded-lg border border-aura-coral/20 bg-aura-coral-soft p-4">
-            <h3 className="flex items-center gap-2 font-semibold text-aura-coral">
-              <AlertTriangle className="h-5 w-5" />
-              High Priority: TB Detected
-            </h3>
-            <p className="mt-2 text-sm text-aura-ink">Immediate referral for confirmatory TB testing recommended. Follow local TB protocols.</p>
-          </div>
-        )}
-      </TierCard>
-      </motion.div>
-
-      {/* Tier 2: Respiratory Classifier */}
-      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.30, ...sectionSpring }}>
       {screening.respiratory_result && (
         <TierCard
           className="mt-6"
-          eyebrow="Tier 2"
+          eyebrow="Classification"
           name="Respiratory Classifier"
           flagged={respFlagged}
           statusLabel={screening.respiratory_result || "Healthy"}
           confidence={screening.respiratory_confidence ?? 0}
           modelVersion={screening.model_version}
           decisions={[
-            { label: "Cascade Decision", value: "Final Classification" },
+            { label: "Outcome", value: "Final Classification" },
+            ...(screening.recording_paths?.length
+              ? [
+                  {
+                    label: "Takes fused",
+                    value: `${screening.recording_paths.length}`,
+                  },
+                ]
+              : []),
+            ...(screening.cascade_path
+              ? [
+                  {
+                    label: "Fusion",
+                    value:
+                      screening.cascade_path === "mean_then_safety_override"
+                        ? "Mean of takes, safety override"
+                        : screening.cascade_path,
+                  },
+                ]
+              : []),
           ]}
         >
           {screening.respiratory_probabilities && (
             <div>
-              <div className="mb-4 font-mono text-[10px] uppercase tracking-[0.08em] text-aura-muted">
+              <div className="mb-4 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">
                 Probability Distribution
               </div>
               {respProbabilityBars}
@@ -703,7 +644,7 @@ export function ScreeningDetail() {
           )}
 
           {screening.respiratory_result === "COPD" && (
-            <div className="mt-5 rounded-lg bg-aura-sage p-4">
+            <div className="bg-aura-surface rounded-lg p-4 mt-5">
               <h3 className="flex items-center gap-2 font-semibold text-aura-forest">
                 <AlertCircle className="h-5 w-5" />
                 Moderate Priority: COPD Suspected
@@ -713,7 +654,7 @@ export function ScreeningDetail() {
           )}
 
           {screening.respiratory_result === "Healthy" && (
-            <div className="mt-5 rounded-lg bg-aura-sage p-4">
+            <div className="bg-aura-surface rounded-lg p-4 mt-5">
                 <h3 className="flex items-center gap-2 font-semibold text-aura-mint">
                   <CheckCircle className="h-5 w-5" />
                   Low Priority: No Acute Findings
@@ -726,16 +667,16 @@ export function ScreeningDetail() {
       </motion.div>
 
       {/* Review Status */}
-      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, ...sectionSpring }} className="mt-6 rounded-[14px] border border-aura-border-soft bg-aura-elevated py-5 px-6">
+      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, ...sectionSpring }} className="aura-panel mt-6 rounded-[14px] py-5 px-6">
         <h2 className="mb-4 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
           Review Status
         </h2>
-        <div className="grid grid-cols-1 gap-5">
+        <div className="grid grid-cols-1 gap-8 lg:gap-6">
           <div>
             <FieldLabel>Status</FieldLabel>
             <div
               className={cn(
-                "inline-flex items-center rounded-full px-3 py-1 font-mono text-[11px] font-semibold",
+                "inline-flex items-center rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
                 screening.status === "pending_review"
                   ? "bg-aura-coral-soft text-aura-coral-strong"
                   : screening.reviewed_by
@@ -756,9 +697,9 @@ export function ScreeningDetail() {
       </motion.div>
       {/* Actions */}
       <div className="mt-6 print:hidden">
-        <Button variant="outline" onClick={() => navigate("/dashboard")}>
+        <Button variant="outline" onClick={() => navigate("/dashboard/patient-records")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
+          Back to Patient Records
         </Button>
       </div>
 
@@ -781,7 +722,7 @@ export function ScreeningDetail() {
               Cancel
             </Button>
             <Button onClick={handleReview} disabled={reviewSubmitting}>
-              {reviewSubmitting ? "Submitting…" : "Submit Review"}
+              {reviewSubmitting ? "Submitting→·" : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -789,3 +730,4 @@ export function ScreeningDetail() {
     </div>
   )
 }
+

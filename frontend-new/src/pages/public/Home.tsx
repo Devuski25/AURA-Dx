@@ -1,56 +1,33 @@
-import { useRef, useState, type ReactNode } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-  useScroll,
-  useTransform,
-  type Variants,
-} from "framer-motion"
-import {
-  ArrowRight,
-  ChevronRight,
-  ClipboardCheck,
-  FileAudio,
-  Mic,
-  ShieldCheck,
-  Stethoscope,
-  Zap,
-  type LucideIcon,
-} from "lucide-react"
-import { fadeUp, fastStagger, spring, staggerItem } from "@/lib/motion"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { ArrowRight, FileAudio, Mic, ShieldCheck, Stethoscope, type LucideIcon } from "lucide-react"
+import { spring } from "@/lib/motion"
+import { EASE_OUT, VIEWPORT } from "@/lib/fine-motion"
+import { useHeroParallax } from "@/lib/useHeroParallax"
+import { BreathWave } from "@/components/BreathWave"
+import { PageShell } from "@/components/PageShell"
+import { Reveal, Stagger, StaggerItem, DrawRule } from "@/components/Reveal"
+import { Logo } from "@/components/layout/Logo"
+import { SectionHeading } from "@/components/SectionHeading"
+import { SplitHeading } from "@/components/SplitHeading"
 import WebdesHero from "@/assets/public/webdes.png"
 
-/* ---------- Local interactive helpers ---------- */
+const STEPS = [
+  { title: "Give consent", desc: "Nothing records until explicit, informed consent is given." },
+  { title: "Capture with stethoscope", desc: "Use the provided digital stethoscope to record patient breathing sounds across standard auscultation sites." },
+  { title: "Get guidance", desc: "A clinician reviews the result and the suggested next step with you." },
+]
 
-function SectionHeading({ children, centered }: { children: ReactNode; centered?: boolean }) {
-  return (
-    <div className={centered ? "text-center" : ""}>
-      <h2 className="m-0 font-display text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">{children}</h2>
-      <motion.span
-        aria-hidden="true"
-        initial={{ scaleX: 0 }}
-        whileInView={{ scaleX: 1 }}
-        viewport={{ once: true }}
-        transition={{ ...spring.gentle, delay: 0.15 }}
-        className={`mt-3 block h-[3px] w-14 origin-left rounded-full bg-gradient-to-r from-aura-accent to-aura-mint ${centered ? "mx-auto" : ""}`}
-      />
-    </div>
-  )
-}
-
-/* ---------- Content data ---------- */
-
-const STEPS: { icon: LucideIcon; title: string; desc: string }[] = [
-  { icon: ClipboardCheck, title: "Give consent", desc: "Nothing records until explicit, informed consent is given." },
-  { icon: Mic, title: "Record or upload", desc: "Cough into your device microphone, or upload an existing WAV file." },
-  { icon: Stethoscope, title: "Get guidance", desc: "A clinician reviews the result and the suggested next step with you." },
+const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
+  { icon: Stethoscope, title: "Digital stethoscope", desc: "Capture high-fidelity breathing sounds from standard auscultation points - posterior, anterior, and lateral." },
+  { icon: FileAudio, title: "WAV upload", desc: "Analyze an existing recording from any compatible digital stethoscope." },
+  { icon: ShieldCheck, title: "Clinician portal", desc: "Review the spectrogram, confidence score, and a suggested next step for every session." },
 ]
 
 const FAQS = [
   {
-    q: "Is an AURA-Dx result a medical diagnosis?",
+    q: "Does an AURA-Dx test result constitute a medical diagnosis?",
     a: "No. AURA-Dx is a screening-support tool, not a certified diagnostic device. A result is a suggested next step, not a diagnosis, and should not replace evaluation by a licensed physician.",
   },
   {
@@ -63,281 +40,205 @@ const FAQS = [
   },
   {
     q: "What conditions does AURA-Dx screen for?",
-    a: "Four classes: Healthy, COPD, Pneumonia, and Tuberculosis, using the two-tier gated pipeline described above.",
+    a: "Three classes: Healthy, COPD, and Pneumonia, using the acoustic analysis pipeline described above.",
   },
 ]
 
-/* ---------- Page ---------- */
+/* Buttons: a colour sweeps in from the left on hover, and the button presses in on click. */
+const SMOOTH = "ease-[cubic-bezier(0.22,1,0.36,1)]"
 
 export function Home() {
   const reduceMotion = useReducedMotion()
-  const heroRef = useRef<HTMLDivElement | null>(null)
+  const { ref, style } = useHeroParallax()
   const [openFaq, setOpenFaq] = useState<number | null>(0)
 
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] })
-  const heroImgY = useTransform(scrollYProgress, [0, 1], [0, 50])
-  const heroFade = useTransform(scrollYProgress, [0, 0.85], [1, 0.15])
-  const parallaxEnabled = !reduceMotion
-
   return (
-    <div>
-      {/* ─── Hero ─── */}
-      <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-[#0a352e] via-[#0d4a3f] to-aura-forest">
-        {/* Decorative grid dots */}
-        <div aria-hidden="true" className="absolute inset-0 aura-dots opacity-40" />
-        {/* Decorative glow orbs — slow ambient drift, compositor-only */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="aura-orb-drift absolute -left-32 top-1/4 h-96 w-96 rounded-full bg-aura-accent/10 blur-[100px]" />
-          <div className="aura-orb-drift absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-aura-mint/10 blur-[80px]" style={{ animationDelay: "-5s" }} />
-        </div>
+    <PageShell>
+      {/* Hero */}
+      <section ref={ref} className="relative overflow-hidden bg-gradient-to-br from-aura-hero-from via-aura-hero-via to-aura-hero-to">
+        <div aria-hidden="true" className="absolute inset-0 aura-dots opacity-20" />
+        <motion.div style={style} className="relative mx-auto grid max-w-7xl items-center gap-10 px-6 pb-36 pt-14 md:grid-cols-[1.15fr_0.85fr] md:pb-44 md:pt-20">
+          <div className="relative z-10">
+            {/* The wordmark replaces the old eyebrow line, so the brand and its
+                tagline read as one unit ahead of the headline. `withSubtitle`
+                carries the brand string from AGENTS.md, unchanged. `xl` is the
+                hero-only scale. */}
+            <Reveal delay={0.05} y={12} className="mb-7">
+              <Logo inverse size="xl" withSubtitle />
+            </Reveal>
+            <SplitHeading
+              text="Screen breathing sounds for COPD and pneumonia"
+              delay={0.25}
+              className="max-w-[22ch] font-display text-[1.85rem] font-bold leading-[1.04] tracking-[-0.02em] text-white md:text-[3rem]"
+            />
+            <Reveal as="p" delay={0.9} className="mt-5 max-w-[48ch] text-[0.95rem] leading-relaxed text-white/75 md:text-base">
+              Capture breathing sounds with a digital stethoscope and AURA-Dx flags possible findings for a clinician to review. Nothing is recorded without your consent.
+            </Reveal>
+            {/* The two hero CTAs are gone — sign-in already lives in the nav,
+                and "See how it works" only led to /about. That leaves the
+                disclosure as the tail of the block rather than the tail of a
+                button row, so it takes the same 48ch measure as the paragraph
+                above and a left rule to read as a footnote instead of a third
+                paragraph of marketing copy. */}
+            <Reveal as="p" delay={1.05} y={8} className="mt-7 max-w-[48ch] border-l-2 border-white/25 pl-3.5 text-[0.9375rem] leading-relaxed text-white/75">
+              Screening support only. Not a medical diagnosis.
+            </Reveal>
+          </div>
 
-        <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-6 md:grid-cols-[1.2fr_0.8fr] md:py-0">
-          {/* Text */}
           <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...spring.gentle, delay: 0.1 }}
-            className="relative z-10 py-14 md:py-24"
+            initial={reduceMotion ? false : { opacity: 0, y: 48, scale: 0.94, filter: "blur(10px)" }}
+            animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
+            transition={{ duration: 1.4, ease: EASE_OUT, delay: 0.5 }}
+            className="hidden md:block"
           >
-            <motion.span
-              initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ ...spring.gentle, delay: 0.05 }}
-              className="mb-6 inline-flex items-center gap-2.5 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-xs font-semibold tracking-wide text-white/75 backdrop-blur-sm"
+            {/* slow idle float once it has landed */}
+            <motion.div
+              animate={reduceMotion ? undefined : { y: [0, -9, 0] }}
+              transition={{ duration: 7, ease: "easeInOut", repeat: Infinity, delay: 2.2 }}
             >
-              <span aria-hidden="true" className="inline-block h-2 w-2 animate-pulse rounded-full bg-aura-accent" />
-              Acoustic Unit for Respiratory Analysis
-            </motion.span>
-            <h1 className="m-0 max-w-[18ch] break-words font-display text-[2.1rem] font-bold leading-[1.1] tracking-tight text-white md:max-w-[20ch] md:text-[3.2rem] md:leading-[1.06]">
-              For a Better State of Respiratory Health.
-            </h1>
-            <p className="mt-6 max-w-[44ch] text-[1.05rem] leading-relaxed text-white/70 md:text-lg">
-              Clinical cough screening for tuberculosis, COPD, and pneumonia — a two-tier AI pipeline that flags findings for clinician review, built around patient consent.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-4">
-              <motion.div whileHover={reduceMotion ? undefined : { scale: 1.04 }} whileTap={reduceMotion ? undefined : { scale: 0.97 }} transition={spring.snappy}>
-                <Link
-                  to="/login"
-                  className="group inline-flex items-center gap-2.5 rounded-full bg-white px-8 py-4 text-sm font-bold text-aura-forest shadow-xl shadow-black/10 transition-all duration-200 hover:bg-white/95 hover:shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
-                >
-                  Login to System
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-                </Link>
-              </motion.div>
-              <Link
-                to="/about"
-                className="group inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-4 text-sm font-semibold text-white/90 no-underline backdrop-blur-sm transition-all duration-200 hover:border-white/35 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
-              >
-                See how it works
-                <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
-              </Link>
-            </div>
-          </motion.div>
-
-          {/* Image */}
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, x: 40, scale: 0.96 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ ...spring.gentle, delay: 0.3 }}
-            className="relative hidden md:block"
-          >
-            <motion.div style={parallaxEnabled ? { y: heroImgY, opacity: heroFade } : undefined}>
-              <div className="relative">
-                <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-aura-accent/15 to-aura-mint/10 blur-2xl" />
-                <img
-                  src={WebdesHero}
-                  alt="AURA-Dx respiratory screening"
-                  className="relative block w-full rounded-2xl object-contain"
-                  loading="lazy"
-                  decoding="async"
-                  width={640}
-                  height={480}
-                />
-              </div>
+              <img src={WebdesHero} alt="AURA-Dx respiratory screening" className="block w-full rounded-2xl object-contain" loading="eager" decoding="async" width={640} height={480} />
             </motion.div>
           </motion.div>
-        </div>
+        </motion.div>
+        <BreathWave className="absolute inset-x-0 bottom-0 h-24 w-full md:h-32" />
       </section>
 
-      {/* ─── Mission Statement ─── */}
-      <section className="bg-aura-cream px-6 py-16 md:py-20">
-        <div className="mx-auto max-w-4xl text-center">
-          <motion.div
-            variants={fadeUp}
-            initial={reduceMotion ? false : "hidden"}
-            whileInView="visible"
-            viewport={{ once: true }}
-            transition={spring.gentle}
-          >
-            <span className="mb-5 inline-flex items-center gap-2 rounded-full bg-aura-mint-soft px-4 py-1.5 text-xs font-bold tracking-wider text-aura-forest uppercase">
-              Our Mission
-            </span>
-            <p className="m-0 font-display text-[clamp(1.25rem,2.8vw,1.75rem)] font-semibold leading-snug tracking-tight text-aura-text">
-              Early detection changes outcomes. AURA-Dx gives clinics a fast, standardized cough-screening workflow — AI-assisted analysis under clinician review, with patient consent at every step.
-            </p>
-            <Link
-              to="/about"
-              className="group mt-5 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
-            >
-              Explore Our Technology
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ─── How It Works ─── */}
-      <section className="bg-aura-mint-wash px-6 py-16 md:py-20">
+      {/* Steps */}
+      <section className="bg-white px-6 py-16 md:py-24">
         <div className="mx-auto max-w-6xl">
-          <SectionHeading centered>Getting Screened Is Simple</SectionHeading>
-          <p className="mt-3 text-center text-aura-muted">Three steps, under a minute of your time.</p>
-
-          {/* Step connector line (desktop) */}
-          <div className="relative mt-8">
-            <div aria-hidden="true" className="absolute left-[16.67%] right-[16.67%] top-6 hidden h-[2px] bg-gradient-to-r from-aura-accent/20 via-aura-accent/40 to-aura-accent/20 md:block" />
-
-            <motion.ol variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="relative grid list-none gap-6 p-0 md:grid-cols-3">
-              {STEPS.map((step, i) => (
-                <motion.li
-                  key={step.title}
-                  variants={staggerItem}
-                  className="group relative text-center"
-                >
-                  {/* Step number circle */}
-                  <motion.div
-                    initial={reduceMotion ? false : { scale: 0 }}
-                    whileInView={{ scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ ...spring.bouncy, delay: 0.12 + i * 0.04 }}
-                    className="relative z-10 mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-sm font-bold text-white shadow-lg shadow-aura-forest/25 tabular-nums"
-                  >
-                    {i + 1}
-                  </motion.div>
-
-                  <div className="aura-sheen rounded-2xl border border-aura-border-soft bg-aura-bg-card p-6 shadow-aura-card transition-all duration-300 hover:-translate-y-1 hover:shadow-aura-card-hover">
-                    <span aria-hidden="true" className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-aura-mint-soft text-aura-forest transition-transform duration-300 group-hover:scale-110">
-                      <step.icon className="h-6 w-6" />
-                    </span>
-                    <h3 className="m-0 text-base font-bold text-aura-text">{step.title}</h3>
-                    <p className="mt-2 m-0 text-sm leading-relaxed text-aura-muted">{step.desc}</p>
-                  </div>
-                </motion.li>
-              ))}
-            </motion.ol>
-          </div>
+          <SectionHeading>How screening works</SectionHeading>
+          <Reveal as="p" delay={0.1} className="mt-3 text-aura-muted">Three steps, under a minute of your time.</Reveal>
+          <Stagger as="ol" className="m-0 mt-10 grid list-none gap-8 p-0 md:grid-cols-3 md:gap-10">
+            {STEPS.map((step, i) => (
+              <StaggerItem as="li" key={step.title} className="group">
+                <DrawRule className="h-0.5 bg-aura-forest" delay={0.2 + i * 0.12} />
+                <span aria-hidden="true" className={`mt-5 inline-block font-display text-4xl font-bold tabular-nums text-aura-accent-dark transition-transform duration-500 ${SMOOTH} group-hover:translate-x-2`}>{i + 1}</span>
+                <h3 className="mt-3 text-base font-bold text-aura-text">{step.title}</h3>
+                <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-aura-muted">{step.desc}</p>
+              </StaggerItem>
+            ))}
+          </Stagger>
         </div>
       </section>
 
-      {/* ─── Built for the Clinic ─── */}
-      <section className="bg-aura-mint-wash-deep px-6 py-16 md:py-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid items-center gap-14 md:grid-cols-2">
-            <div>
-              <SectionHeading>Built for the Clinic</SectionHeading>
-              <p className="mt-5 max-w-[42ch] text-[1.05rem] leading-relaxed text-aura-muted">
-                No special hardware needed — AURA-Dx runs in any modern browser. Clinicians capture a cough sample and get structured, reviewable results in seconds.
-              </p>
-              <Link
-                to="/login"
-                className="group mt-8 inline-flex items-center gap-2.5 rounded-full bg-aura-forest px-7 py-3.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
-              >
-                Try It Now
-                <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-              </Link>
-            </div>
-            <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.25 }} className="flex flex-col gap-4">
-              {[
-                { icon: Mic, title: "Browser Microphone", desc: "Record cough audio directly in the portal — no extra hardware needed." },
-                { icon: FileAudio, title: "WAV Upload", desc: "Analyze an existing recording from any device." },
-                { icon: Stethoscope, title: "Doctor / Nurse Portal", desc: "Review the spectrogram, confidence score, and a suggested next step for every session." },
-              ].map((feature) => (
-                <motion.div
-                  key={feature.title}
-                  variants={staggerItem}
-                  className="aura-sheen group flex items-start gap-4 rounded-xl border border-aura-border-soft bg-aura-bg-card p-5 shadow-aura-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-aura-card-hover"
-                >
-                  <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-aura-mint-soft text-aura-forest transition-all duration-300 group-hover:scale-110 group-hover:bg-aura-accent/15">
-                    <feature.icon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <h3 className="m-0 text-sm font-bold text-aura-text">{feature.title}</h3>
-                    <p className="mt-1 m-0 text-sm leading-relaxed text-aura-muted">{feature.desc}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
+      {/* Clinic — the only scroll-tinted section. Its own background stays
+          static white; the mint lives on a layer behind the content, so nothing
+          animates the section's background-color. */}
+      <section className="relative isolate bg-white px-6 py-16 md:py-24">
+        <motion.div
+          aria-hidden="true"
+          style={reduceMotion ? { opacity: 1 } : undefined}
+          initial={reduceMotion ? false : { opacity: 0 }}
+          whileInView={reduceMotion ? undefined : { opacity: 1 }}
+          /* Extends the shared VIEWPORT rather than replacing it: `once: true`
+             would leave the tint stuck on permanently, but the section needs to
+             fade back out as the next white one arrives and to reverse on the
+             way back up. `amount` rises from 0.2 to 0.35 so the fade begins
+             when roughly a third of the section is on screen. */
+          viewport={{ ...VIEWPORT, amount: 0.35, once: false }}
+          transition={{ duration: 0.7, ease: EASE_OUT }}
+          className="pointer-events-none absolute inset-0 -z-10 bg-aura-mint-wash"
+        />
+        {/* `items-center` balances the two columns: with the CTA gone the left
+            column is shorter than the feature list, so it centres against it
+            instead of hanging off the top of the row. */}
+        <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-2 md:gap-16">
+          <div>
+            <SectionHeading>Built for the clinic</SectionHeading>
+            <Reveal as="p" delay={0.1} className="mt-5 max-w-[42ch] text-justify text-[1.05rem] leading-relaxed text-aura-muted">
+              No special hardware needed — AURA-Dx runs in any modern browser. Clinicians capture a breathing sample and get structured, reviewable results in seconds.
+            </Reveal>
           </div>
+          <Stagger as="ul" className="m-0 list-none divide-y divide-aura-border border-y border-aura-border p-0">
+            {FEATURES.map((f) => (
+              <StaggerItem as="li" key={f.title} className="group flex items-start gap-4 py-5">
+                <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-aura-forest transition-all duration-500 ${SMOOTH} group-hover:scale-110 group-hover:bg-aura-forest group-hover:text-white`}>
+                  <f.icon className="h-5 w-5" />
+                </span>
+                <div className={`transition-transform duration-500 ${SMOOTH} group-hover:translate-x-1`}>
+                  <h3 className="text-sm font-bold text-aura-text">{f.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-aura-muted">{f.desc}</p>
+                </div>
+              </StaggerItem>
+            ))}
+          </Stagger>
         </div>
       </section>
 
-      {/* ─── FAQ ─── */}
-      <section className="bg-white px-6 py-16 md:py-20">
+      {/* FAQ */}
+      <section className="bg-white px-6 py-16 md:py-24">
         <div className="mx-auto max-w-3xl">
-          <SectionHeading centered>Frequently Asked Questions</SectionHeading>
-          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} className="mt-10 flex flex-col gap-3">
+          <SectionHeading>Common questions</SectionHeading>
+          <Stagger as="ul" className="m-0 mt-8 list-none divide-y divide-aura-border border-y border-aura-border p-0">
             {FAQS.map((faq, i) => {
               const open = openFaq === i
               return (
-                <motion.div key={faq.q} variants={staggerItem} className="overflow-hidden rounded-2xl border border-aura-border-soft bg-aura-bg-card shadow-aura-card transition-all duration-300 hover:shadow-aura-md">
-                  <button
-                    type="button"
-                    onClick={() => setOpenFaq(open ? null : i)}
-                    aria-expanded={open}
-                    aria-controls={`faq-panel-${i}`}
-                    className="flex w-full cursor-pointer items-center justify-between gap-4 px-6 py-5 text-left text-sm font-semibold text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent-dark focus-visible:ring-offset-2"
-                  >
-                    {faq.q}
-                    <motion.span
-                      animate={{ rotate: open ? 45 : 0 }}
-                      transition={spring.snappy}
-                      className="ml-4 shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-aura-mint-soft text-sm font-bold text-aura-accent-dark transition-colors duration-200"
-                      aria-hidden="true"
+                <StaggerItem as="li" key={faq.q}>
+                  <h3>
+                    <button
+                      type="button"
+                      id={`faq-button-${i}`}
+                      onClick={() => setOpenFaq(open ? null : i)}
+                      aria-expanded={open}
+                      aria-controls={`faq-panel-${i}`}
+                      className={`group flex w-full cursor-pointer items-center justify-between gap-4 py-5 text-left text-base font-semibold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent-dark focus-visible:ring-offset-2 ${open ? "text-aura-forest" : "text-aura-text hover:text-aura-forest"}`}
                     >
-                      +
-                    </motion.span>
-                  </button>
+                      {faq.q}
+                      <motion.span
+                        animate={{ rotate: open ? 135 : 0, backgroundColor: open ? "var(--color-aura-forest)" : "var(--color-aura-mint-soft)", color: open ? "#ffffff" : "var(--color-aura-accent-dark)" }}
+                        transition={reduceMotion ? { duration: 0 } : { duration: 0.5, ease: EASE_OUT }}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base font-bold"
+                        aria-hidden="true"
+                      >
+                        +
+                      </motion.span>
+                    </button>
+                  </h3>
                   <AnimatePresence initial={false}>
                     {open && (
                       <motion.div
                         key="panel"
                         id={`faq-panel-${i}`}
+                        role="region"
+                        aria-labelledby={`faq-button-${i}`}
                         initial={reduceMotion ? { height: "auto", opacity: 1 } : { height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={reduceMotion ? { height: "auto", opacity: 0 } : { height: 0, opacity: 0 }}
-                        transition={reduceMotion ? { duration: 0 } : { duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
+                        transition={reduceMotion ? { duration: 0 } : { height: { duration: 0.55, ease: EASE_OUT }, opacity: { duration: 0.4, delay: open ? 0.1 : 0 } }}
                         className="overflow-hidden"
                       >
-                        <p className="m-0 px-6 pb-6 pr-7 text-sm leading-relaxed text-aura-legal-text">{faq.a}</p>
+                        <p className="max-w-[62ch] pb-6 pr-11 text-sm leading-relaxed text-aura-legal-text">{faq.a}</p>
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
+                </StaggerItem>
               )
             })}
-          </motion.div>
+          </Stagger>
         </div>
       </section>
 
-      {/* ─── Consent notice ─── */}
-      <section className="bg-aura-cream px-6 pb-16 pt-12 md:pb-20 md:pt-14">
-        <div className="mx-auto max-w-4xl">
-          <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="rounded-2xl border border-aura-border bg-gradient-to-br from-aura-bg-alt to-aura-surface-alt p-8 shadow-aura-card md:p-10">
-            <div className="flex flex-col gap-5 md:flex-row md:items-start md:gap-6">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-aura-mint-soft shadow-aura-xs">
-                <ShieldCheck className="h-7 w-7 text-aura-forest" />
-              </div>
-              <div>
-                <h3 className="m-0 text-lg font-bold text-aura-text">Consent-First, and Compliant with Philippine Law</h3>
-                <p className="mt-2 m-0 text-sm leading-relaxed text-aura-muted">No audio is captured without explicit, informed consent. AURA-Dx follows the Data Privacy Act of 2012 (R.A. 10173) and the Cybercrime Prevention Act of 2012 (R.A. 10175).</p>
-                <Link to="/legal" className="group mt-4 inline-flex items-center gap-1.5 font-semibold text-aura-accent-dark no-underline transition-colors hover:text-aura-accent focus-visible:outline-none focus-visible:underline">
-                  Read the full Legal &amp; Privacy page
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-                </Link>
-              </div>
+      {/* Consent */}
+      <section className="bg-aura-mint-wash px-6 py-14 md:py-20">
+        <Reveal className="mx-auto max-w-3xl">
+          <aside className="flex items-start gap-5 rounded-r-xl border-l-4 border-aura-accent bg-white p-6 md:p-8">
+            <ShieldCheck className="mt-1 h-6 w-6 shrink-0 text-aura-forest" aria-hidden="true" />
+            <div>
+              <h2 className="font-display text-lg font-bold text-aura-text">Consent first, in line with Philippine law</h2>
+              <p className="mt-2 text-sm leading-relaxed text-aura-muted">
+                No audio is captured without explicit, informed consent. AURA-Dx follows the Data Privacy Act of 2012 (R.A. 10173) and the Cybercrime Prevention Act of 2012 (R.A. 10175).
+              </p>
+              <Link
+                to="/legal"
+                className="group mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-aura-accent-dark underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline"
+              >
+                Read the Legal &amp; Privacy page
+                <ArrowRight className={`h-4 w-4 transition-transform duration-500 ${SMOOTH} group-hover:translate-x-1.5`} aria-hidden="true" />
+              </Link>
             </div>
-          </motion.div>
-        </div>
+          </aside>
+        </Reveal>
       </section>
-    </div>
+    </PageShell>
   )
 }

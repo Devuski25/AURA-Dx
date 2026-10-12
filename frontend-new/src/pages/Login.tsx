@@ -1,14 +1,26 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { motion } from "framer-motion"
-import { pageVariants } from "@/lib/motion"
-import { Loader2, AlertCircle, Eye, EyeOff, ShieldCheck, ShieldAlert, Clock, Key, ArrowLeft, CheckCircle2, ArrowRight } from "lucide-react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { useEffect, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Key,
+  Loader2,
+  Lock,
+  Mail,
+  ShieldAlert,
+  ShieldCheck,
+  Stethoscope,
+  UserCog,
+  UserRound,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -17,12 +29,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { AuthShell } from "@/components/auth/AuthShell"
+import { AuthSwitchLink } from "@/components/auth/AuthSwitchLink"
+import { AUTH_SECONDARY_BUTTON, AuthField, PasswordStrengthMeter } from "@/components/auth/AuthField"
+import { PasswordToggle } from "@/components/auth/PasswordToggle"
+import { authCardVariants, authFieldGroupVariants, authFieldVariants } from "@/components/auth/auth-motion"
 import { useAuth } from "@/hooks/useAuth"
 import { GoogleIcon } from "@/components/GoogleIcon"
+import { scorePassword, type PasswordStrengthLevel } from "@/lib/password-strength"
 import { supabase } from "@/lib/supabase"
 
 export function Login() {
-  const { signIn, confirmLogin, signInWithOAuth, signOut, user, loading: authLoading } = useAuth()
+  /* Kept as a single object rather than destructured, so the dev-only property
+   name is referenced solely inside the `import.meta.env.DEV` branch below.
+   Destructuring it here would run in every build and leave the name in dist. */
+  const auth = useAuth()
+  const { signIn, confirmLogin, signInWithOAuth, signOut, user, loading: authLoading } = auth
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -44,53 +66,52 @@ export function Login() {
   const [forgotEmail, setForgotEmail] = useState("")
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotMessage, setForgotMessage] = useState<string | null>(null)
-  const [passwordStrength, setPasswordStrength] = useState<0 | 1 | 2 | 3 | 4>(0)
+  const [passwordStrength, setPasswordStrength] = useState<PasswordStrengthLevel>(0)
+
+  /* Framer Motion is JS-driven, so the project's global reduced-motion CSS
+     reset does not reach it — the hook is the only thing gating these. */
+  const reduced = useReducedMotion() ?? false
 
   // Handle already authenticated users
   if (user && !authLoading) {
     return (
-      <motion.div
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        className="relative min-h-screen overflow-hidden flex items-center justify-center bg-[radial-gradient(ellipse_at_center,#9edfc1_0%,#b5e7d0_40%,#dcf2e8_74%,#effaf4_100%)] px-4 py-12">
-        <div className="w-full max-w-md">
-          <Card className="w-full">
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2 text-gray-900">
-                <CheckCircle2 className="h-6 w-6 text-aura-accent" />
-                Already Signed In
-              </CardTitle>
-              <CardDescription>Welcome back, {user.full_name?.split(" ")[0] || "Clinician"}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center text-aura-muted">
-                <p>You are already logged in to your AURA-Dx account.</p>
-                <p className="text-sm mt-1">Role: {(user.role || "").replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1 gap-2"
-                  onClick={() => navigate("/dashboard")}
-                >
-                  <ArrowRight className="h-4 w-4" />
-                  Go to Dashboard
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={async () => {
-                    await signOut()
-                    navigate("/login")
-                  }}
-                >
-                  Sign Out
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </motion.div>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,#9edfc1_0%,#b5e7d0_40%,#dcf2e8_74%,#effaf4_100%)] px-4 py-12">
+        <motion.div
+          variants={authCardVariants}
+          initial={reduced ? false : "hidden"}
+          animate="visible"
+          className="w-full max-w-md rounded-2xl border border-aura-border bg-white p-8 shadow-aura-xl"
+        >
+          <div className="flex flex-col items-center gap-3 text-center">
+            <CheckCircle2 className="h-8 w-8 text-aura-accent" aria-hidden="true" />
+            <h1 className="font-display text-2xl font-bold text-aura-text">Already Signed In</h1>
+            <p className="text-aura-muted">Welcome back, {user.full_name?.split(" ")[0] || "Clinician"}</p>
+          </div>
+          <div className="mt-6 space-y-1 text-center text-aura-muted">
+            <p>You are already logged in to your AURA-Dx account.</p>
+            <p className="text-sm">Role: {(user.role || "").replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
+          </div>
+          <div className="mt-7 flex gap-2">
+            <Button
+              className="flex-1 gap-2"
+              onClick={() => navigate("/dashboard")}
+            >
+              <ArrowRight className="h-4 w-4" />
+              Go to Dashboard
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={async () => {
+                await signOut()
+                navigate("/login")
+              }}
+            >
+              Sign Out
+            </Button>
+          </div>
+        </motion.div>
+      </div>
     )
   }
 
@@ -135,172 +156,210 @@ export function Login() {
   }
 
   return (
-    <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      className="relative min-h-screen overflow-hidden flex items-center justify-center bg-[radial-gradient(ellipse_at_center,#9edfc1_0%,#b5e7d0_40%,#dcf2e8_74%,#effaf4_100%)] px-4 py-12">
-      <div className="relative z-10 w-full max-w-md">
-        <Link
-          to="/"
-          aria-label="Back to Website"
-          title="Back to Website"
-          className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-aura-border bg-white text-aura-accent shadow-aura-sm transition-all duration-200 hover:border-aura-accent-light hover:bg-white hover:text-aura-accent-dark hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2 focus-visible:ring-offset-aura-bg"
+    <>
+      <AuthShell
+        brand={
+          <>
+            <h1 className="font-display text-xl font-bold tracking-tight text-white md:text-4xl md:leading-[1.08]">
+              Welcome back
+            </h1>
+            {/* `md:text-lg` rather than an arbitrary rem: the hardcoded value
+                bypassed the app-wide type scale, so this line stayed small while
+                everything around it grew. max-w widened to use the brand
+                column's actual measure instead of wrapping at 26ch. */}
+            <p className="hidden max-w-[34ch] text-base leading-relaxed text-white/90 md:block md:text-lg">
+              Acoustic unit for respiratory assessment
+            </p>
+          </>
+        }
+      >
+        {/* The form owns the shake transform, so the field stagger lives on an
+            inner wrapper — two transform sources on one element fight. */}
+        <motion.form
+          onSubmit={handleSubmit}
+          animate={reduced || !error ? undefined : { x: [0, -7, 7, -4, 4, 0] }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
         >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <Card className="w-full rounded-xl border-aura-border bg-white/70 shadow-lg backdrop-blur-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-gray-900">Welcome back</CardTitle>
-          <CardDescription className="text-gray-700">Sign in to your AURA-Dx account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div role="alert" className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                {error}
-              </div>
-            )}
+          <motion.div
+            variants={authFieldGroupVariants}
+            initial={reduced ? false : "hidden"}
+            animate="visible"
+            className="flex flex-col gap-5"
+          >
+            <motion.div variants={authFieldVariants}>
+              <AuthField
+                id="email"
+                name="email"
+                label="Email"
+                icon={Mail}
+                type="email"
+                autoComplete="email"
+                placeholder="you@clinic.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </motion.div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@clinic.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="h-10 bg-white/90"
-                />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-700">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    // Password strength calculation
-                    const value = e.target.value
-                    let strength = 0
-                    if (value.length >= 8) strength++
-                    if (/[A-Z]/.test(value)) strength++
-                    if (/[a-z]/.test(value)) strength++
-                    if (/[0-9]/.test(value)) strength++
-                    if (/[!@#$%^&*(),.?"':{}|<>]/.test(value)) strength++
-                    setPasswordStrength(strength as 0 | 1 | 2 | 3 | 4)
-                  }}
-                  required
-                  disabled={loading}
-                  className="h-10 bg-white/90 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                </button>
-              </div>
-              {password && (
-                <div className="space-y-1" role="progressbar" aria-valuenow={passwordStrength} aria-valuemin={0} aria-valuemax={4} aria-label="Password strength">
-                  <div className="h-1.5 rounded-full overflow-hidden bg-aura-border-soft">
-                    <div
-                      className="h-full transition-all duration-300"
-                      style={{
-                        width: `${(passwordStrength / 4) * 100}%`,
-                        backgroundColor:
-                          passwordStrength <= 1 ? "var(--destructive)" :
-                          passwordStrength === 2 ? "var(--color-aura-warning)" :
-                          passwordStrength === 3 ? "var(--color-aura-warning)" :
-                          "var(--color-aura-accent)",
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-700">
-                    {passwordStrength === 0 ? "Very weak" :
-                     passwordStrength === 1 ? "Weak" :
-                     passwordStrength === 2 ? "Fair" :
-                     passwordStrength === 3 ? "Good" :
-                     "Strong"}
-                  </p>
-                </div>
-              )}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(true)}
-                  className="text-sm font-medium text-emerald-700 hover:text-emerald-800 hover:underline focus-visible:outline-none focus-visible:underline"
-                >
-                  Forgot password?
-                </button>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full h-10 bg-emerald-700 text-white shadow-sm transition-colors duration-200 hover:bg-emerald-800 focus-visible:ring-emerald-600"
-              disabled={loading}
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" role="status" aria-live="polite" />}
-              {loading ? "Signing in…" : "Sign In"}
-            </Button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-aura-border-soft" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-white/70 px-2 text-gray-700">Or continue with</span>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-10 gap-2"
-              disabled={loading}
-              onClick={async () => {
-                setError(null)
-                setLoading(true)
-                try {
-                  const { error } = await signInWithOAuth("google")
-                  if (error) {
-                    setError(error.message)
-                  }
-                } finally {
-                  setLoading(false)
+            <motion.div variants={authFieldVariants} className="flex flex-col gap-2">
+              <AuthField
+                id="password"
+                name="password"
+                label="Password"
+                icon={Lock}
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordStrength(scorePassword(e.target.value))
+                }}
+                required
+                disabled={loading}
+                trailing={<PasswordToggle visible={showPassword} onToggle={() => setShowPassword(!showPassword)} />}
+                footer={
+                  <>
+                    {password && <PasswordStrengthMeter strength={passwordStrength} />}
+                    <div className="flex justify-end pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)}
+                        className="rounded-sm text-sm font-medium text-aura-forest underline-offset-4 transition-colors duration-200 hover:text-aura-forest-light hover:underline focus-visible:outline-none focus-visible:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  </>
                 }
-              }}
+              />
+            </motion.div>
+
+            <motion.div variants={authFieldVariants}>
+              {/* `aura-sheen` supplies the single diagonal sweep on hover,
+                  guarded to hover-capable pointers so touch never sticks. */}
+              <motion.button
+                type="submit"
+                disabled={loading}
+                whileHover={reduced ? undefined : { y: -1 }}
+                whileTap={reduced ? undefined : { scale: 0.98 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+                className="aura-sheen relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white shadow-aura-md transition-shadow duration-200 hover:shadow-aura-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" role="status" aria-live="polite" />
+                      <span>Signing in…</span>
+                    </>
+                  ) : (
+                    <span>Sign In</span>
+                  )}
+                </span>
+              </motion.button>
+            </motion.div>
+
+            <motion.div variants={authFieldVariants} className="flex items-center gap-3">
+              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-aura-muted">
+                Or continue with
+              </span>
+              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
+            </motion.div>
+
+            <motion.div variants={authFieldVariants}>
+              <motion.button
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  setError(null)
+                  setLoading(true)
+                  try {
+                    const { error } = await signInWithOAuth("google")
+                    if (error) {
+                      setError(error.message)
+                    }
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+                whileHover={reduced ? undefined : { y: -1 }}
+                whileTap={reduced ? undefined : { scale: 0.99 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+                className={AUTH_SECONDARY_BUTTON + " w-full"}
+              >
+                <GoogleIcon className="h-4 w-4" />
+                Continue with Google
+              </motion.button>
+            </motion.div>
+
+            <motion.div variants={authFieldVariants}>
+              <AuthSwitchLink
+                icon={UserRound}
+                prompt="Don't have an account?"
+                action="Register an Account"
+                to="/register"
+              />
+            </motion.div>
+          </motion.div>
+        </motion.form>
+
+        {/* Error sits below the form, announced as soon as it appears. */}
+        <AnimatePresence initial={false}>
+          {error && (
+            <motion.div
+              key="login-error"
+              role="alert"
+              initial={reduced ? { opacity: 0 } : { opacity: 0, y: -6 }}
+              animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={reduced ? { opacity: 0 } : { opacity: 0, y: -6 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="mt-5 flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/10 p-3.5 text-sm text-destructive"
             >
-              <GoogleIcon className="h-4 w-4" />
-              Continue with Google
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-700">
-            Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline focus-visible:outline-none focus-visible:underline"
-            >
-              Register an Account
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-      </div>
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{error}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Development-only role preview. `import.meta.env.DEV` compiles to
+            `false` in a production build, so this block is not rendered and its
+            handlers are dead code in dist. It seeds a local profile only —
+            no password is checked and nothing reaches Supabase — so it exists
+            to look at the two role-gated sides of the UI, not to get in. */}
+        {import.meta.env.DEV && (
+          <div className="mt-6 rounded-xl border border-dashed border-aura-border bg-aura-mint-wash/50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-aura-muted">
+              Dev preview — no account needed
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  auth.devPreviewSignIn("super_admin")
+                  navigate("/dashboard/admin")
+                }}
+                className="flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-4 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
+              >
+                <UserCog className="h-4 w-4 shrink-0 text-aura-forest" aria-hidden="true" />
+                Sign in as admin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  auth.devPreviewSignIn("clinician")
+                  navigate("/dashboard")
+                }}
+                className="flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-4 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
+              >
+                <Stethoscope className="h-4 w-4 shrink-0 text-aura-forest" aria-hidden="true" />
+                Sign in as clinician
+              </button>
+            </div>
+          </div>
+        )}
+      </AuthShell>
 
       <Dialog open={statusDialog?.type === "pending"} onOpenChange={() => setStatusDialog(null)}>
         <DialogContent className="sm:max-w-md">
@@ -420,7 +479,7 @@ export function Login() {
                 onChange={(e) => setForgotEmail(e.target.value)}
                 required
                 disabled={forgotLoading}
-                className="h-10"
+                className="h-11"
               />
             </div>
             {forgotMessage && (
@@ -442,6 +501,6 @@ export function Login() {
           </form>
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </>
   )
 }

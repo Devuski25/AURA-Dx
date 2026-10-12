@@ -45,7 +45,6 @@ const PAST_DISEASES = [
   "COPD",
   "Bronchitis",
   "Pneumonia",
-  "Tuberculosis",
   "Lung Cancer",
   "Pulmonary Fibrosis",
   "Sleep Apnea",
@@ -176,7 +175,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
               New Patient Screening
             </DialogTitle>
             <DialogDescription className="text-aura-muted">
-              Enter patient details for a new cough screening.
+              Enter patient details for a new breathing screening.
             </DialogDescription>
           </DialogHeader>
         <Form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

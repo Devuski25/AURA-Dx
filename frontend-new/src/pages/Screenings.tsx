@@ -1,26 +1,35 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
-import { Search, ChevronUp, ChevronDown, Download, Eye, Plus, SearchX } from "lucide-react"
+import { Search, ChevronUp, ChevronDown, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
 import { useCachedData } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
-import { renderResultBadges, ConfidenceChip } from "@/lib/badge-helpers"
+import { getRespBadge } from "@/lib/badge-helpers"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/EmptyState"
+import { PageBanner } from "@/components/PageBanner"
 
 type SortDirection = "asc" | "desc" | null
 
@@ -33,9 +42,6 @@ interface Screening {
   age_bracket: string
   clinic_name: string
   clinician_name: string
-  tb_result: string
-  tb_confidence: number | null
-  tb_probabilities: Record<string, number> | null
   respiratory_result: string | null
   respiratory_confidence: number | null
   respiratory_probabilities: Record<string, number> | null
@@ -71,12 +77,23 @@ function computeAgeLabel(screening: Screening): string {
 export function Screenings({ embedded = false }: { embedded?: boolean }) {
   const { user, accessToken } = useAuth()
   const navigate = useNavigate()
+  /* Matches the Dashboard banner's chip so the role reads the same on both. */
+  const roleLabel = (user?.role || "").replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
   const [search, setSearch] = useState("")
   const [classFilter, setClassFilter] = useState("all")
   const [genderFilter, setGenderFilter] = useState("all")
   const [sortField, setSortField] = useState<SortableField>("created_at")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [detailScreening, setDetailScreening] = useState<Screening | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  /** Brief confirmation after a completed export so the button acknowledges. */
+  const [exportDone, setExportDone] = useState(false)
+  useEffect(() => {
+    if (!exportDone) return
+    const timer = window.setTimeout(() => setExportDone(false), 1600)
+    return () => window.clearTimeout(timer)
+  }, [exportDone])
 
   // Shared cache entry — Dashboard and the Screening wizard read the same key
   const screeningsFetcher = useCallback(async (): Promise<Screening[]> => {
@@ -129,11 +146,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     }
 
     if (classFilter !== "all") {
-      if (classFilter === "Tuberculosis") {
-        result = result.filter(s => s.tb_result === "TB")
-      } else {
-        result = result.filter(s => s.respiratory_result === classFilter)
-      }
+      result = result.filter(s => s.respiratory_result === classFilter)
     }
 
     if (genderFilter !== "all") {
@@ -154,10 +167,64 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     return result
   }, [screenings, search, classFilter, genderFilter, sortField, sortDirection])
 
+  /*
+   * Row selection drives which PDFs the bulk export writes. Selections are
+   * scoped to whatever the current filters match, so ids that fall out of view
+   * simply stop counting — they are never silently exported.
+   */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+
+  const selectedScreenings = useMemo(
+    () => filteredAndSortedScreenings.filter(s => selectedIds.has(s.id)),
+    [filteredAndSortedScreenings, selectedIds],
+  )
+
+  const selectedCount = selectedScreenings.length
+  const allSelected =
+    selectedCount > 0 && selectedCount === filteredAndSortedScreenings.length
+
+  /* Checked + some-remaining reads as indeterminate, not unchecked. */
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  const someSelected = selectedCount > 0 && !allSelected
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
+
+  const toggleRow = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set<string>()
+      const everythingPicked =
+        filteredAndSortedScreenings.length > 0 &&
+        filteredAndSortedScreenings.every(s => prev.has(s.id))
+      if (!everythingPicked) {
+        for (const s of filteredAndSortedScreenings) next.add(s.id)
+      }
+      return next
+    })
+  }, [filteredAndSortedScreenings])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  /* Selected rows win; with nothing ticked the export stays "everything the
+     filters match", so the button is never a dead end. */
+  const exportTargets = selectedCount > 0 ? selectedScreenings : filteredAndSortedScreenings
+
   const getStatusBadge = (status: string, reviewedBy: string | null) => {
-    if (status === "pending_review") return <Badge variant="warning">Pending Review</Badge>
-    if (reviewedBy) return <Badge variant="success">Reviewed</Badge>
-    return <Badge variant="secondary">{status}</Badge>
+    const cls = "h-7 px-3 text-sm font-semibold"
+    if (status === "pending_review") return <Badge variant="warning" className={cls}>Pending Review</Badge>
+    if (reviewedBy) return <Badge variant="success" className={cls}>Reviewed</Badge>
+    return <Badge variant="secondary" className={cls}>{status}</Badge>
   }
 
   const SortIcon = ({ field }: { field: SortableField }) => {
@@ -167,57 +234,161 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     return <span className="text-aura-muted"><ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /></span>
   }
 
+  const fetchPdfBlob = useCallback(async (screeningId: string): Promise<Blob | null> => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      toast.error("You must be signed in to download a PDF")
+      return null
+    }
+    const response = await fetch(getApiUrl(`/api/screenings/${screeningId}/pdf`), {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    if (!response.ok) return null
+    return response.blob()
+  }, [])
+
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const downloadPDF = useCallback(async (screeningId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
-        toast.error("You must be signed in to download a PDF")
-        return
-      }
-      const response = await fetch(getApiUrl(`/api/screenings/${screeningId}/pdf`), {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      if (!response.ok) {
+      const blob = await fetchPdfBlob(screeningId)
+      if (!blob) {
         toast.error("Failed to download PDF")
         return
       }
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `aura-dx-screening-${screeningId}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
+      triggerDownload(blob, `aura-dx-screening-${screeningId}.pdf`)
     } catch (error) {
       console.error("PDF download failed:", error)
       toast.error("Failed to download PDF")
     }
-  }, [])
+  }, [fetchPdfBlob])
+
+  /*
+   * Bulk export over whatever the filters currently match.
+   *
+   * Downloads are issued one at a time with a short gap. Firing a dozen
+   * programmatic anchor clicks in the same tick gets treated as a pop-up burst
+   * and silently blocked by the browser, so the pacing is deliberate rather than
+   * cosmetic.
+   */
+  const exportAllPDFs = useCallback(async () => {
+    const targets = exportTargets
+    if (targets.length === 0) {
+      toast.error("No records to export")
+      return
+    }
+
+    setExporting(true)
+    const toastId = toast.loading(`Exporting 0 of ${targets.length}`)
+    let failed = 0
+
+    for (let i = 0; i < targets.length; i++) {
+      const screening = targets[i]
+      try {
+        const blob = await fetchPdfBlob(screening.id)
+        if (blob) {
+          triggerDownload(blob, `aura-dx-screening-${screening.id}.pdf`)
+        } else {
+          failed++
+        }
+      } catch {
+        failed++
+      }
+      toast.loading(`Exporting ${i + 1} of ${targets.length}`, { id: toastId })
+      await new Promise(resolve => setTimeout(resolve, 350))
+    }
+
+    setExporting(false)
+    setExportDone(true)
+    toast.dismiss(toastId)
+
+    const succeeded = targets.length - failed
+    if (failed === 0) {
+      /* Only clear on a clean run — a partial failure should leave the ticks
+         in place so the user can retry exactly the ones that didn't land. */
+      clearSelection()
+      toast.success(`Exported ${succeeded} PDF${succeeded === 1 ? "" : "s"}`)
+    } else {
+      toast.warning(`Exported ${succeeded} of ${targets.length} - ${failed} failed`)
+    }
+  }, [exportTargets, fetchPdfBlob, clearSelection])
 
   return (
     <div className="space-y-6">
       {!embedded && (
-        <div>
-          <h1 className="font-display text-2xl font-bold text-aura-ink">Screening Records</h1>
-          <p className="text-aura-muted">View and manage patient screening records</p>
-        </div>
+        <PageBanner
+          eyebrow={
+            <>
+              {/* Count reads as the headline stat, so it gets tabular figures,
+                  a bolder weight and a mint accent instead of the quiet
+                  grey-on-white chip used for secondary metadata. */}
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-4 py-1.5 text-sm font-bold tabular-nums text-white backdrop-blur-sm">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-aura-accent" aria-hidden="true" />
+                {filteredAndSortedScreenings.length} screening{filteredAndSortedScreenings.length === 1 ? "" : "s"}
+                {filteredAndSortedScreenings.length !== screenings.length && (
+                  <span className="font-medium text-white/70">of {screenings.length}</span>
+                )}
+              </span>
+              {roleLabel && (
+                <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-sm font-bold tracking-wide text-aura-accent">
+                  {roleLabel}
+                </span>
+              )}
+            </>
+          }
+          title="Patient Records"
+          subtitle={
+            <span className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+              Every respiratory screening recorded by your clinic
+            </span>
+          }
+        />
       )}
 
       <motion.div {...staggerProps}>
         <motion.div {...itemProps}>
-          <Card className="overflow-hidden rounded-2xl border border-aura-border-soft bg-white shadow-aura-card transition-shadow duration-300 hover:shadow-aura-card-hover">
-            <CardHeader className="border-b border-aura-border-soft px-6 py-5">
+          <Card className="aura-panel aura-panel-edge overflow-hidden">
+            <CardHeader className="aura-card-band sticky top-0 z-10 px-6 py-5 backdrop-blur-md">
               <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-                <div>
-                  <CardTitle className="font-display text-lg font-semibold text-aura-ink">All Screenings</CardTitle>
-                  <p className="mt-1 text-sm tabular-nums text-aura-muted">
-                    Showing {filteredAndSortedScreenings.length} of {screenings.length} records
+                <div className="min-w-0">
+                  {/* Icon + title reads as a section header, matching the
+                      Dashboard's "Recent Screenings" card. */}
+                  <CardTitle className="flex items-center gap-2 font-display text-2xl font-semibold text-aura-ink">
+                    <Activity className="h-6 w-6 shrink-0 text-aura-forest" aria-hidden="true" />
+                    All Screenings
+                  </CardTitle>
+                  {/* Count sits in its own pill so it reads as a header stat
+                      rather than trailing sentence text. */}
+                  <p className="mt-2 flex items-center gap-2 text-sm text-aura-muted">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-aura-surface-alt px-3 py-1 text-sm font-semibold tabular-nums text-aura-forest">
+                      {filteredAndSortedScreenings.length} of {screenings.length}
+                    </span>
+                    <span>records shown</span>
                   </p>
                 </div>
-                <Button onClick={() => navigate("/dashboard/screening")} className="h-10 shrink-0 gap-2">
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  New Screening
-                </Button>
+                <button
+                  type="button"
+                  onClick={() => void exportAllPDFs()}
+                  disabled={exporting || filteredAndSortedScreenings.length === 0}
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-aura-forest px-5 text-base font-semibold text-white transition-colors hover:bg-aura-forest-light disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {exporting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : exportDone ? (
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {exporting ? "Exporting…" : exportDone ? "Exported" : "Export PDF"}
+                </button>
               </div>
               <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative max-w-xs flex-1">
@@ -228,34 +399,22 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     aria-label="Search screenings by patient, clinic, or clinician"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="h-10 pl-9"
+                    className="h-11 pl-9"
                   />
                 </div>
                 <Select value={classFilter} onValueChange={setClassFilter}>
-                  {/* Item 10: active filters are visibly distinct from defaults */}
-                  <SelectTrigger
-                    className="h-10 w-full md:w-[170px] data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest"
-                    data-active={classFilter !== "all"}
-                    aria-label="Filter by result class"
-                  >
-                    {classFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
+                  <SelectTrigger className="h-11 w-full text-base md:w-[180px]" aria-label="Filter by result class">
                     <SelectValue placeholder="Class" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="Tuberculosis">Tuberculosis</SelectItem>
                     <SelectItem value="Healthy">Healthy</SelectItem>
                     <SelectItem value="COPD">COPD</SelectItem>
                     <SelectItem value="Pneumonia">Pneumonia</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={genderFilter} onValueChange={setGenderFilter}>
-                  <SelectTrigger
-                    className="h-10 w-full md:w-[160px] data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest"
-                    data-active={genderFilter !== "all"}
-                    aria-label="Filter by gender"
-                  >
-                    {genderFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
+                  <SelectTrigger className="h-11 w-full text-base md:w-[170px]" aria-label="Filter by gender">
                     <SelectValue placeholder="Gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -264,18 +423,31 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     <SelectItem value="female">Female</SelectItem>
                   </SelectContent>
                 </Select>
+                {selectedCount > 0 && (
+                  <div className="flex h-11 shrink-0 items-center gap-2 md:ml-auto">
+                    <span className="flex h-7 items-center rounded-full bg-aura-mint-wash px-3 text-sm font-semibold tabular-nums text-aura-forest">
+                      {selectedCount} selected
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      className="rounded-md px-1.5 py-1 text-sm font-medium text-aura-muted transition-colors hover:text-aura-forest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
               </div>
             </CardHeader>
             <CardContent className="p-0">
           {loading ? (
             <div className="space-y-3 p-6" role="status" aria-live="polite">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between gap-4 rounded-lg border border-aura-border-soft bg-aura-bg-card px-4 py-3">
+                <div key={i} className="flex items-center justify-between gap-4 rounded-lg border border-aura-forest/10 bg-white px-4 py-3">
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-40" />
                     <Skeleton className="h-3 w-24" />
                   </div>
-                  <Skeleton className="h-6 w-20 rounded-full" />
                   <Skeleton className="h-6 w-20 rounded-full" />
                   <Skeleton className="h-3 w-24" />
                 </div>
@@ -290,83 +462,119 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
           ) : (
             <div className="max-h-[600px] overflow-auto overscroll-contain">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-aura-sage">
+                <TableHeader className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10">
                   <TableRow>
-                    <TableHead aria-sort={sortField === "patient_name" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                    <TableHead className="w-12 px-2">
+                      <label className="inline-flex cursor-pointer items-center">
+                        <Checkbox
+                          ref={selectAllRef}
+                          className="h-[18px] w-[18px] accent-aura-forest"
+                          checked={allSelected}
+                          onChange={toggleSelectAll}
+                          disabled={filteredAndSortedScreenings.length === 0}
+                          aria-label="Select all screenings for export"
+                        />
+                      </label>
+                    </TableHead>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "patient_name" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
                       <button type="button" onClick={() => handleSort("patient_name")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Patient <SortIcon field="patient_name" />
                       </button>
                     </TableHead>
-                    <TableHead>Age & Gender</TableHead>
-                    <TableHead aria-sort={sortField === "respiratory_result" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "respiratory_result" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
                       <button type="button" onClick={() => handleSort("respiratory_result")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Result <SortIcon field="respiratory_result" />
                       </button>
                     </TableHead>
-                    <TableHead className="hidden lg:table-cell">Confidence</TableHead>
-                    <TableHead aria-sort={sortField === "status" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "status" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
                       <button type="button" onClick={() => handleSort("status")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Status <SortIcon field="status" />
                       </button>
                     </TableHead>
-                    <TableHead aria-sort={sortField === "created_at" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "created_at" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
                       <button type="button" onClick={() => handleSort("created_at")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
                         Date <SortIcon field="created_at" />
                       </button>
                     </TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-20 text-right font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-label="Row actions" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAndSortedScreenings.map((screening, idx) => (
-                    <TableRow key={screening.id} className={cn("hover:bg-aura-surface-alt", idx % 2 === 1 && "bg-aura-table-stripe")}>
-                      <TableCell>
-                        {/* Item 1: canonical label for unlinked screenings — matches Dashboard */}
-                        <div className={cn("font-medium", !screening.patient_name && "italic text-aura-muted")}>
-                          {screening.patient_name || "Anonymous Screening"}
-                        </div>
-                        <div className="text-xs text-aura-muted">{screening.clinician_name}</div>
+                    <TableRow
+                      key={screening.id}
+                      className={cn(
+                        "group align-middle overflow-hidden border-b border-aura-forest/10 transition-colors duration-150 hover:bg-aura-mint-wash/60 focus-within:bg-aura-mint-wash/60",
+                        idx % 2 === 1 && "bg-aura-table-stripe"
+                      )}
+                    >
+                      <TableCell className="w-12 px-2 align-middle">
+                        <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
+                          <Checkbox
+                            className="h-[18px] w-[18px] accent-aura-forest"
+                            checked={selectedIds.has(screening.id)}
+                            onChange={() => toggleRow(screening.id)}
+                            aria-label={`Select ${screening.patient_name || "anonymous screening"} for PDF export`}
+                          />
+                        </label>
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium tabular-nums">{computeAgeLabel(screening)}</div>
-                          <div className="text-xs capitalize text-aura-muted">{screening.gender}</div>
-                        </div>
+                      <TableCell className="relative px-4 align-middle">
+                        {/* Monogram-style hover accent bar. It lives inside the
+                            cell because a bare <span> as a direct child of
+                            <tr> gets hoisted out of the table by the HTML
+                            parser, which breaks column alignment. */}
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
+                        />
+                        <div className="text-base font-medium">{screening.patient_name || "Anonymous Screening"}</div>
+                        <div className="text-sm text-aura-muted">{screening.clinician_name}</div>
                       </TableCell>
-                      {/* Item 4: TB badge always visible (first pipeline tier) +
-                          Item 13: confidence score surfaced in the list view */}
-                      <TableCell>
+                      <TableCell className="px-4 align-middle">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {renderResultBadges(screening.tb_result, screening.respiratory_result)}
+                          {getRespBadge(screening.respiratory_result)}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {/* Respiratory confidence; fall back to TB confidence when the
-                            pipeline halted at the TB gate (no respiratory stage ran) */}
-                        <ConfidenceChip value={screening.respiratory_confidence ?? screening.tb_confidence} />
-                      </TableCell>
-                      <TableCell>{getStatusBadge(screening.status, screening.reviewed_by_name)}</TableCell>
-                      <TableCell className="whitespace-nowrap text-sm tabular-nums text-aura-muted">
+                      <TableCell className="px-4 align-middle">{getStatusBadge(screening.status, screening.reviewed_by_name)}</TableCell>
+                      <TableCell className="px-4 align-middle whitespace-nowrap text-base tabular-nums text-aura-muted">
                         {createdDateFormat.format(new Date(screening.created_at))}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="px-4 align-middle text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="touch-target h-8 w-8 rounded-full text-aura-muted hover:text-aura-ink" onClick={() => navigate(`/dashboard/screenings/${screening.id}`)} aria-label={`View details for ${screening.patient_name || "patient"}`}>
-                                <Eye className="h-4 w-4" />
+                          {/* View / Download collapse into one trigger so the
+                              column stays narrow. */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
+                                aria-label={`Actions for ${screening.patient_name || "anonymous screening"}`}
+                              >
+                                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                               </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>View details</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" className="touch-target h-8 w-8 rounded-full text-aura-muted hover:text-aura-ink" onClick={() => downloadPDF(screening.id)} aria-label={`Download PDF for ${screening.patient_name || "patient"}`}>
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Download PDF</TooltipContent>
-                          </Tooltip>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
+                                {screening.patient_name || "Anonymous Screening"}
+                              </DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onSelect={() => navigate(`/dashboard/screenings/${screening.id}`)}
+                                className="gap-2"
+                              >
+                                <Eye className="h-4 w-4" aria-hidden="true" />
+                                View details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => void downloadPDF(screening.id)}
+                                className="gap-2"
+                              >
+                                <Download className="h-4 w-4" aria-hidden="true" />
+                                Download PDF
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>

@@ -1,228 +1,150 @@
-import { motion, useReducedMotion } from "framer-motion"
-import { Activity, AlertTriangle, Check, ChevronDown, HeartPulse, Mic, ShieldCheck, Stethoscope, Waves, Wind, type LucideIcon } from "lucide-react"
-import { cardHover, fadeUp, spring, fastStagger, staggerItem } from "@/lib/motion"
-import { cn } from "@/lib/utils"
+import { Activity, AlertTriangle, ArrowRight, Check, ChevronDown, HeartPulse, Mic, Stethoscope, Waves, Wind, type LucideIcon } from "lucide-react"
+import { PageHero } from "@/components/PageHero"
+import { PageShell } from "@/components/PageShell"
+import { SectionHeading } from "@/components/SectionHeading"
+import { DrawRule, Reveal, Stagger, StaggerItem } from "@/components/Reveal"
 
-const CONDITIONS: { icon: LucideIcon; name: string; chip: string; desc: string }[] = [
-  { icon: HeartPulse, name: "Healthy", chip: "bg-aura-sage text-aura-forest", desc: "Clear acoustic patterns — no signs of respiratory abnormality." },
-  { icon: Wind, name: "COPD", chip: "bg-aura-sage text-aura-forest", desc: "Inddicators such as wheezing and prolonged expiration patterns." },
-  { icon: Waves, name: "Pneumonia", chip: "bg-aura-sage text-aura-forest", desc: "Patterns consistent with lung inflammation or infection." },
-  { icon: AlertTriangle, name: "Tuberculosis", chip: "bg-aura-sage text-aura-forest", desc: "Acoustic markers flagged immediately by the Tier 1 gatekeeper." },
+/* Each description names the auscultatory signs associated with the class —
+   what the microphone actually picks up — rather than restating the diagnosis.
+   Wording stays descriptive, not diagnostic: this is what sounds are associated
+   with in a screened population, not a criterion for calling it in a patient. */
+const CONDITIONS: { icon: LucideIcon; name: string; desc: string }[] = [
+  { icon: HeartPulse, name: "Healthy", desc: "Clear acoustic patterns — no signs of respiratory abnormality." },
+  { icon: Wind, name: "COPD", desc: "Prolonged expiration with low-pitched wheezing and diminished breath sounds, as air trapping narrows the airway." },
+  { icon: Waves, name: "Pneumonia", desc: "Fine crackles and bronchial breathing over consolidated lung, with breath sounds reduced on the affected side." },
 ]
 
-function FlowNode({ icon: Icon, title, sub, delay = 0 }: { icon: LucideIcon; title: string; sub: string; delay?: number }) {
-  const reduceMotion = useReducedMotion()
-  const hoverProps = reduceMotion ? {} : { whileHover: { y: -3, transition: spring.snappy } }
-  return (
-    <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 16, scale: 0.95 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, amount: 0.5 }}
-      transition={{ type: "spring", stiffness: 120, damping: 14, mass: 0.8, delay }}
-      {...hoverProps}
-      className="group flex flex-col items-center gap-2 rounded-2xl border border-aura-border-soft bg-aura-bg-card p-5 text-center shadow-aura-card transition-shadow duration-300 hover:shadow-aura-card-hover"
-    >
-      <span
-        aria-hidden="true"
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-aura-accent-light to-aura-accent-dark shadow-aura-sm transition-transform duration-300 group-hover:scale-110"
-      >
-        <Icon className="h-6 w-6 text-white" />
-      </span>
-      <p className="m-0 text-sm font-bold leading-snug text-aura-text">{title}</p>
-      <p className="m-0 text-xs text-aura-muted">{sub}</p>
-    </motion.div>
-  )
-}
+const PREP_STEPS = [
+  ["Resampling", "16,000 Hz, mono"],
+  ["Low-pass filter", "5th-order Butterworth, 3,000 Hz cutoff"],
+  ["Spectrogram", "64 Mel bins, resized for ResNet18"],
+  ["Analysis window", "2.0 s, peak-centered"],
+]
 
-function FlowConnector({ delay = 0 }: { delay?: number }) {
-  const reduceMotion = useReducedMotion()
+const SMOOTH = "ease-[cubic-bezier(0.22,1,0.36,1)]"
+
+function FlowNode({ icon: Icon, title, sub }: { icon: LucideIcon; title: string; sub: string }) {
   return (
-    <div aria-hidden="true" className="flex items-center justify-center">
-      <svg viewBox="0 0 24 44" className="h-11 w-6 sm:hidden" fill="none">
-        <motion.line
-          x1="12" y1="4" x2="12" y2="40"
-          stroke="var(--color-aura-accent-dark)"
-          strokeWidth="2" strokeLinecap="round"
-          initial={reduceMotion ? false : { pathLength: 0 }}
-          whileInView={{ pathLength: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.45, delay, ease: "easeOut" }}
-        />
-        {!reduceMotion && (
-          <motion.circle
-            cx="12" cy="4" r="3" fill="var(--color-aura-accent)"
-            animate={{ cy: [4, 4, 40, 40], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 1.4, times: [0, 0.15, 0.85, 1], repeat: Infinity, repeatDelay: 0.6, ease: "easeInOut", delay: delay + 0.5 }}
-          />
-        )}
-      </svg>
-      <svg viewBox="0 0 44 24" className="hidden h-6 w-11 sm:block" fill="none">
-        <motion.line
-          x1="4" y1="12" x2="40" y2="12"
-          stroke="var(--color-aura-accent-dark)"
-          strokeWidth="2" strokeLinecap="round"
-          initial={reduceMotion ? false : { pathLength: 0 }}
-          whileInView={{ pathLength: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.45, delay, ease: "easeOut" }}
-        />
-        {!reduceMotion && (
-          <motion.circle
-            cx="4" cy="12" r="3" fill="var(--color-aura-accent)"
-            animate={{ cx: [4, 4, 40, 40], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 1.4, times: [0, 0.15, 0.85, 1], repeat: Infinity, repeatDelay: 0.6, ease: "easeInOut", delay: delay + 0.5 }}
-          />
-        )}
-      </svg>
+    <div className={`group flex h-full flex-col items-center gap-2 rounded-2xl border border-aura-border-soft bg-aura-bg-card p-6 text-center transition-all duration-500 ${SMOOTH} hover:-translate-y-1 hover:border-aura-accent/40 hover:shadow-aura-card-hover`}>
+      <span aria-hidden="true" className={`flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-white transition-transform duration-500 ${SMOOTH} group-hover:scale-110`}>
+        <Icon className="h-6 w-6" />
+      </span>
+      <p className="text-sm font-bold leading-snug text-aura-text">{title}</p>
+      <p className="text-xs text-aura-muted">{sub}</p>
     </div>
   )
 }
 
+function FlowArrow() {
+  return (
+    <div aria-hidden="true" className="flex items-center justify-center text-aura-accent-dark">
+      <ChevronDown className="h-6 w-6 sm:hidden" />
+      <ArrowRight className="hidden h-6 w-6 sm:block" />
+    </div>
+  )
+}
 
 export function About() {
   return (
-    <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#0a352e] via-[#0d4a3f] to-aura-forest px-6 py-24 text-center">
-        <div aria-hidden="true" className="absolute inset-0 aura-dots opacity-30" />
-        <div className="relative z-10 mx-auto max-w-[720px]">
-          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-4 py-2 text-xs font-semibold tracking-wide text-white/75 backdrop-blur-sm">
-            <Activity className="h-3.5 w-3.5" aria-hidden="true" />
-            How It Works
-          </span>
-          <h1 className="text-[clamp(2rem,4vw,3rem)] font-bold leading-tight tracking-tight text-white">
-            About the System
-          </h1>
-          <p className="mx-auto mt-5 max-w-[58ch] text-lg leading-relaxed text-white/70">
-            Coughing is not random noise. Its acoustic shape carries information about the airway that produced it. AURA-Dx — the Acoustic Unit for Respiratory Analysis — is built to read that signature.
-          </p>
-        </div>
-      </section>
+    <PageShell>
+      <PageHero title="About the system" centered>
+        Breathing is not random noise. Its acoustic shape carries information about the airway that produced it. AURA-Dx — the Acoustic Unit for Respiratory Assessment — is built to read that signature.
+      </PageHero>
 
-      {/* How the System Works */}
-      <section className="bg-white px-6 py-20">
+      {/* Flow */}
+      <section className="bg-white px-6 py-16 md:py-24">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">How the System Works</h2>
-          <p className="mt-2 text-aura-muted">One audio clip moves through two gated stages before it becomes a screening result.</p>
+          <SectionHeading>How the system works</SectionHeading>
+          <Reveal as="p" delay={0.1} className="mt-3 max-w-[60ch] text-aura-muted">One audio clip moves through a single classification stage before it becomes a screening result.</Reveal>
 
-          <div className="mt-10 grid items-stretch gap-3 sm:grid-cols-[1fr_auto_1.15fr_auto_1.15fr_auto_1fr]">
-            <FlowNode icon={Mic} title="Audio Clip" sub="Cough recording" delay={0} />
-            <FlowConnector delay={0.12} />
-            <FlowNode icon={ShieldCheck} title="Tier 1 · TB Gatekeeper" sub="Focused tuberculosis screen" delay={0.22} />
-            <FlowConnector delay={0.34} />
-            <FlowNode icon={Stethoscope} title="Tier 2 · Respiratory Classifier" sub="COPD · Pneumonia · Healthy" delay={0.44} />
-            <FlowConnector delay={0.56} />
-            <FlowNode icon={Activity} title="Screening Result" sub="Confidence score + suggested next step" delay={0.66} />
-          </div>
+          <Stagger className="mt-10 grid items-stretch gap-3 sm:grid-cols-[1fr_auto_1.15fr_auto_1fr]">
+            <StaggerItem><FlowNode icon={Mic} title="Audio clip" sub="Breathing recording" /></StaggerItem>
+            <StaggerItem><FlowArrow /></StaggerItem>
+            <StaggerItem><FlowNode icon={Stethoscope} title="Respiratory classifier" sub="COPD, pneumonia, or healthy" /></StaggerItem>
+            <StaggerItem><FlowArrow /></StaggerItem>
+            <StaggerItem><FlowNode icon={Activity} title="Screening result" sub="Confidence score and suggested next step" /></StaggerItem>
+          </Stagger>
 
-          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.5 }} className="mt-6 grid gap-4 sm:grid-cols-2">
-            <motion.div variants={staggerItem} className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-5 shadow-aura-xs">
+          <Stagger className="mt-6 grid gap-4 sm:grid-cols-2">
+            <StaggerItem className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-5">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-700" aria-hidden="true" />
-              <p className="m-0 text-sm leading-relaxed text-gray-900">
-                <strong className="font-semibold">TB detected</strong> — the pipeline stops at Tier 1 and alerts the clinician immediately.
+              <p className="text-sm leading-relaxed text-gray-900">
+                <strong className="font-semibold">Condition flagged.</strong> The result is surfaced immediately for clinician review.
               </p>
-            </motion.div>
-            <motion.div variants={staggerItem} className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-5 shadow-aura-xs">
+            </StaggerItem>
+            <StaggerItem className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-5">
               <Check className="mt-0.5 h-5 w-5 shrink-0 text-green-700" aria-hidden="true" />
-              <p className="m-0 text-sm leading-relaxed text-gray-900">
-                <strong className="font-semibold">TB-negative</strong> — audio proceeds to Tier 2 for respiratory classification.
+              <p className="text-sm leading-relaxed text-gray-900">
+                <strong className="font-semibold">No abnormality.</strong> The recording classifies as healthy, with the confidence score recorded.
               </p>
-            </motion.div>
-          </motion.div>
+            </StaggerItem>
+          </Stagger>
         </div>
       </section>
 
-      {/* What We Screen For */}
-      <section className="px-6 py-20">
+      {/* Classes */}
+      <section className="bg-aura-mint-wash px-6 py-16 md:py-24">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">What We Screen For</h2>
-          <p className="mt-2 text-aura-muted">
-            Four respiratory classes in one pass — screening support, not a medical diagnosis. Tap a class to see its markers.
-          </p>
-          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {CONDITIONS.map((condition) => (
-              <motion.div key={condition.name} variants={staggerItem} className="transition-transform duration-300 hover:-translate-y-1">
-                <details className="group h-full rounded-2xl border border-aura-border-soft bg-aura-bg-card shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover group-open:border-aura-accent/40 group-open:shadow-aura-card-hover">
-                  <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl p-6 text-base font-bold text-aura-text transition-colors group-open:text-aura-forest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent-dark [&::-webkit-details-marker]:hidden">
-                    <span aria-hidden="true" className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${condition.chip}`}>
-                      <condition.icon className="h-5 w-5" />
-                    </span>
-                    {condition.name}
-                    <ChevronDown
-                      aria-hidden="true"
-                      className="ml-auto h-4 w-4 shrink-0 text-aura-muted transition-transform duration-300 group-open:rotate-180"
-                    />
-                  </summary>
-                  <div className="grid transition-[grid-template-rows] duration-300 ease-out [grid-template-rows:0fr] group-open:[grid-template-rows:1fr]">
-                    <p className="m-0 overflow-hidden px-6 pb-6 text-sm leading-relaxed text-aura-muted">{condition.desc}</p>
-                  </div>
-                </details>
-              </motion.div>
+          <SectionHeading>What we screen for</SectionHeading>
+          <Reveal as="p" delay={0.1} className="mt-3 max-w-[60ch] text-aura-muted">Three respiratory classes in one pass. This is screening support, not a medical diagnosis.</Reveal>
+          <Stagger as="dl" className="m-0 mt-10 grid gap-x-10 gap-y-8 md:grid-cols-3">
+            {CONDITIONS.map((c, i) => (
+              <StaggerItem key={c.name} className="group">
+                <DrawRule className="h-0.5 bg-aura-forest" delay={0.15 + i * 0.1} />
+                <dt className="mt-5 flex items-center gap-3 font-display text-lg font-bold text-aura-text">
+                  <c.icon className={`h-5 w-5 text-aura-forest transition-transform duration-500 ${SMOOTH} group-hover:scale-125`} aria-hidden="true" />
+                  {c.name}
+                </dt>
+                <dd className="m-0 mt-2 max-w-[40ch] text-sm leading-relaxed text-aura-muted">{c.desc}</dd>
+              </StaggerItem>
             ))}
-          </motion.div>
+          </Stagger>
         </div>
       </section>
 
-      {/* Two-tier pipeline */}
-      <section className="bg-aura-mint-wash px-6 py-20">
+      {/* Pipeline */}
+      <section className="bg-white px-6 py-16 md:py-24">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">Two-Tier Gated Classification Pipeline</h2>
-          <p className="mt-2 text-aura-muted">Rather than one model guessing across every condition at once, screening runs through two purpose-built stages in sequence.</p>
-          <motion.div variants={fastStagger} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.3 }} className="mt-8 grid gap-6 md:grid-cols-2">
-            <motion.div variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap} className="rounded-2xl border border-aura-border-soft bg-aura-bg-card p-8 shadow-aura-card">
-              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-aura-accent-light to-aura-accent-dark shadow-aura-sm">
-                <Check className="h-7 w-7 text-white" />
-              </div>
-              <span className="inline-block rounded-full bg-aura-accent-dark px-3 py-1 text-[0.7rem] font-bold tracking-wider text-white">TIER 1</span>
-              <h3 className="mt-4 text-lg font-bold text-aura-text">TB Gatekeeper</h3>
-              <p className="mt-2 text-sm leading-relaxed text-aura-muted">A focused binary check on a short 0.34s window of the cough, screening specifically for tuberculosis. A positive result halts the pipeline and returns a TB alert immediately.</p>
-            </motion.div>
-            <motion.div variants={staggerItem} whileHover={cardHover.whileHover} whileTap={cardHover.whileTap} className="rounded-2xl border border-aura-border-soft bg-aura-bg-card p-8 shadow-aura-card">
-              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-aura-accent-light to-aura-accent-dark shadow-aura-sm">
-                <Mic className="h-7 w-7 text-white" />
-              </div>
-              <span className="inline-block rounded-full bg-aura-accent-dark px-3 py-1 text-[0.7rem] font-bold tracking-wider text-white">TIER 2</span>
-              <h3 className="mt-4 text-lg font-bold text-aura-text">Respiratory Classifier</h3>
-              <p className="mt-2 text-sm leading-relaxed text-aura-muted">If TB is ruled out, a second model analyzes a wider 2.0s window to classify the cough as COPD, Healthy, or Pneumonia.</p>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Signal Processing */}
-      <section className="px-6 py-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid items-center gap-12 md:grid-cols-2">
+          <SectionHeading>How a recording is analyzed</SectionHeading>
+          <div className="mt-10 grid gap-14 md:grid-cols-2 md:gap-16">
             <div>
-              <h2 className="text-[1.65rem] font-bold tracking-tight text-aura-text md:text-[2rem]">Signal Processing</h2>
-              <p className="mt-3 text-aura-muted leading-relaxed">Raw audio is standardized to 16 kHz mono, passed through a low-pass filter to reduce high-frequency noise, then converted into a Log-Mel Spectrogram — the same representation used for both tiers, sliced to a different time window for each.</p>
-            </div>
-            <motion.table variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }} className="w-full border-separate overflow-hidden rounded-2xl border border-aura-border-soft bg-aura-table-neutral shadow-aura-card">
-              <thead>
-                <tr>
-                  <th className="bg-aura-sage px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-aura-text">Step</th>
-                  <th className="bg-aura-sage px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-aura-text">Detail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["Resampling", "16,000 Hz, mono"],
-                  ["Low-pass filter", "5th-order Butterworth, 3,000 Hz cutoff"],
-                  ["Spectrogram", "64 Mel bins, resized for ResNet18"],
-                  ["Tier 1 window", "0.34 s, peak-centered"],
-                  ["Tier 2 window", "2.0 s, peak-centered"],
-                ].map(([step, detail], idx) => (
-                  <tr key={step} className={cn("group", idx % 2 === 1 && "bg-white/60")}>
-                    <td className="border-b border-aura-border px-6 py-4 text-sm font-medium text-aura-text">{step}</td>
-                    <td className="border-b border-aura-border px-6 py-4 text-sm text-aura-muted group-last:border-b-0">{detail}</td>
-                  </tr>
+              <Reveal>
+                <h3 className="font-display text-lg font-bold text-aura-text">Preparing the audio</h3>
+                <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
+                  Each recording is standardized, filtered to reduce high-frequency noise, converted to a Log-Mel Spectrogram, and sliced to the time window the classifier expects.
+                </p>
+              </Reveal>
+              <Stagger as="ol" className="m-0 mt-6 list-none border-b border-aura-border p-0">
+                {PREP_STEPS.map(([step, detail], i) => (
+                  <StaggerItem as="li" key={step} className="group relative grid grid-cols-[2rem_1fr] py-4">
+                    <DrawRule className="absolute inset-x-0 top-0 h-px bg-aura-border" delay={i * 0.08} />
+                    <span className="text-sm font-bold tabular-nums text-aura-accent-dark">{i + 1}</span>
+                    <div className={`transition-transform duration-500 ${SMOOTH} group-hover:translate-x-1`}>
+                      <p className="text-sm font-semibold text-aura-text">{step}</p>
+                      <p className="mt-0.5 text-sm text-aura-muted">{detail}</p>
+                    </div>
+                  </StaggerItem>
                 ))}
-              </tbody>
-            </motion.table>
+              </Stagger>
+            </div>
+
+            <div className="flex flex-col gap-10">
+              <Reveal delay={0.1}>
+                <h3 className="font-display text-lg font-bold text-aura-text">One classifier</h3>
+                <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
+                  Rather than a series of narrow screens chained together, a single purpose-built model analyzes a 2.0 s peak-centered window of the recording and classifies it as COPD, Healthy, or Pneumonia.
+                </p>
+              </Reveal>
+              <Reveal delay={0.2}>
+                <h3 className="font-display text-lg font-bold text-aura-text">A result with its confidence</h3>
+                <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
+                  Every classification returns a per-class probability. Low-confidence results are flagged for manual clinician review rather than presented as a firm finding.
+                </p>
+              </Reveal>
+            </div>
           </div>
         </div>
       </section>
-
-    </div>
+    </PageShell>
   )
 }

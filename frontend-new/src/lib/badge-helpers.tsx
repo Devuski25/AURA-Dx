@@ -1,23 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { AlertTriangle, CheckCircle } from "lucide-react"
 
-export function getTbBadge(label: string) {
-  if (label === "TB") {
-    return (
-      <Badge className="gap-1.5 border-aura-coral/30 bg-aura-coral-soft px-3 py-1 text-aura-coral-strong hover:bg-aura-coral-soft">
-        <AlertTriangle className="h-3.5 w-3.5" />
-        {label}
-      </Badge>
-    )
-  }
-  return (
-    <Badge className="gap-1.5 border-aura-mint/30 bg-aura-mint-soft px-3 py-1 text-aura-pine hover:bg-aura-mint-soft">
-      <CheckCircle className="h-3.5 w-3.5" />
-      {label}
-    </Badge>
-  )
-}
-
 export function getRespBadge(label: string | null) {
   if (!label) return <Badge variant="secondary" className="px-3 py-1">N/A</Badge>
   const styles: Record<string, string> = {
@@ -44,28 +27,11 @@ export function getStatusBadge(status: string) {
 }
 
 /**
- * Item 1 + Item 4: the single canonical result rendering for ALL list views.
- *
- * - TB badge ALWAYS renders (the TB gate is the first, highest-priority tier
- *   of the pipeline — hiding it in list views was a workflow gap).
- * - Returns a fragment meant to sit inside a flex row container at the call
- *   site: `<div className="flex flex-wrap items-center gap-1.5">{...}</div>`
+ * Single canonical result rendering for ALL list views.
+ * Returns only the respiratory classification badge.
  */
-export function renderResultBadges(tbResult: string | null, respResult: string | null) {
-  const tbBadge =
-    tbResult === "TB" ? (
-      <Badge variant="destructive" className="gap-1">
-        <AlertTriangle className="h-3 w-3" />
-        TB
-      </Badge>
-    ) : (
-      <Badge variant="success" className="gap-1">
-        <CheckCircle className="h-3 w-3" />
-        {tbResult || "Non-TB"}
-      </Badge>
-    )
-
-  if (!respResult) return tbBadge
+export function renderResultBadges(respResult: string | null) {
+  if (!respResult) return null
 
   const variants: Record<string, "default" | "success" | "warning" | "destructive"> = {
     Healthy: "success",
@@ -73,10 +39,7 @@ export function renderResultBadges(tbResult: string | null, respResult: string |
     COPD: "warning",
   }
   return (
-    <>
-      {tbBadge}
-      <Badge variant={variants[respResult] || "default"}>{respResult}</Badge>
-    </>
+    <Badge variant={variants[respResult] || "default"}>{respResult}</Badge>
   )
 }
 

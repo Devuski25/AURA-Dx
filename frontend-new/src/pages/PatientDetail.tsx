@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/EmptyState"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { supabase } from "@/lib/supabase"
 import { invalidate } from "@/hooks/useCachedData"
 import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
@@ -44,11 +43,8 @@ interface Patient {
 
 interface Screening {
   id: string
-  tb_result: string
-  tb_confidence: number | null
   respiratory_result: string | null
   respiratory_confidence: number | null
-  cascade_path: string
   model_version: string
   status: string
   reviewed_by_name: string | null
@@ -147,7 +143,7 @@ export function PatientDetail() {
       // Deleted - drop cached lists so Patients/Screenings refetch fresh
       invalidate("patient-records")
       invalidate("screenings")
-      navigate("/dashboard/patients")
+      navigate("/dashboard/patient-records")
     } catch (error) {
       console.error("Error deleting patient:", error)
       toast.error("Failed to delete patient")
@@ -157,11 +153,7 @@ export function PatientDetail() {
     }
   }
 
-  const getTbBadge = (result: string) => (
-    <Badge variant={result === "TB" ? "destructive" : "success"}>
-      {result}
-    </Badge>
-  )
+  
 
   const getRespBadge = (result: string | null) => {
     if (!result) return <Badge variant="secondary">N/A</Badge>
@@ -186,16 +178,26 @@ export function PatientDetail() {
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-48" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-xl" />
+            /* White panels with the same top edge as the real cards, so the
+               loading state doesn't read as a different page. */
+            <div key={i} className="aura-panel aura-panel-edge h-28 rounded-2xl bg-white">
+              <Skeleton className="h-full w-full rounded-2xl bg-aura-surface-alt/50" />
+            </div>
           ))}
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-40 rounded-xl" />
-          <Skeleton className="h-40 rounded-xl" />
+        <div className="grid gap-8 md:grid-cols-2 lg:gap-6">
+          <div className="aura-panel aura-panel-edge h-40 rounded-2xl bg-white">
+            <Skeleton className="h-full w-full rounded-2xl bg-aura-surface-alt/50" />
+          </div>
+          <div className="aura-panel aura-panel-edge h-40 rounded-2xl bg-white">
+            <Skeleton className="h-full w-full rounded-2xl bg-aura-surface-alt/50" />
+          </div>
         </div>
-        <Skeleton className="h-64 rounded-xl" />
+        <div className="aura-panel aura-panel-edge h-64 rounded-2xl bg-white">
+          <Skeleton className="h-full w-full rounded-2xl bg-aura-surface-alt/50" />
+        </div>
       </div>
     )
   }
@@ -220,9 +222,9 @@ export function PatientDetail() {
     return (
       <div className="text-center py-8">
         <p className="text-aura-muted">Patient not found</p>
-        <Button variant="outline" onClick={() => navigate("/dashboard/patients")} className="mt-4">
+        <Button variant="outline" onClick={() => navigate("/dashboard/patient-records")} className="mt-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Patients
+          Back to Patient Records
         </Button>
       </div>
     )
@@ -286,9 +288,9 @@ export function PatientDetail() {
       </div>
 
       {/* Patient Info Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card>
+          <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Age</CardTitle>
               <Calendar className="h-4 w-4 text-aura-muted" />
@@ -300,7 +302,7 @@ export function PatientDetail() {
           </Card>
         </motion.div>
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card>
+          <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Gender</CardTitle>
               <Shield className="h-4 w-4 text-aura-muted" />
@@ -312,7 +314,7 @@ export function PatientDetail() {
           </Card>
         </motion.div>
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card>
+          <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Smoking History</CardTitle>
               <Stethoscope className="h-4 w-4 text-aura-muted" />
@@ -330,7 +332,7 @@ export function PatientDetail() {
           </Card>
         </motion.div>
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card>
+          <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Clinic</CardTitle>
               <MapPin className="h-4 w-4 text-aura-muted" />
@@ -344,8 +346,8 @@ export function PatientDetail() {
       </div>
 
       {/* Medical History */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-8 md:grid-cols-2 lg:gap-6">
+        <Card className="aura-panel">
           <CardHeader>
             <CardTitle>Past Respiratory Diseases</CardTitle>
           </CardHeader>
@@ -361,7 +363,7 @@ export function PatientDetail() {
             )}
           </CardContent>
         </Card>
-        <Card>
+        <Card className="aura-panel">
           <CardHeader>
             <CardTitle>Current Symptoms</CardTitle>
           </CardHeader>
@@ -380,7 +382,7 @@ export function PatientDetail() {
       </div>
 
       {/* Screenings History */}
-      <Card>
+      <Card className="aura-panel">
         <CardHeader>
           <CardTitle>Screening History ({screenings.length})</CardTitle>
         </CardHeader>
@@ -399,10 +401,9 @@ export function PatientDetail() {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-aura-surface-alt">
+                <TableHeader className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10 bg-white backdrop-blur-md">
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>TB Result</TableHead>
                     <TableHead>Respiratory</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Reviewed By</TableHead>
@@ -416,13 +417,12 @@ export function PatientDetail() {
                         <div>{new Date(s.created_at).toLocaleDateString()}</div>
                         <div className="text-xs text-aura-muted">{new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       </TableCell>
-                      <TableCell>{getTbBadge(s.tb_result)}</TableCell>
                       <TableCell>
                         {/* Item 13: confidence travels with the badge — a 51% vs 98%
                             classification should change how a clinician reads it */}
                         <div className="flex flex-col items-start gap-0.5">
                           {getRespBadge(s.respiratory_result)}
-                          <ConfidenceChip value={s.respiratory_confidence ?? s.tb_confidence} />
+                          <ConfidenceChip value={s.respiratory_confidence} />
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(s.status, s.reviewed_by_name)}</TableCell>
@@ -453,7 +453,7 @@ export function PatientDetail() {
       </Card>
 
       {/* B10: give the space below Screening History purpose — review notes */}
-      <Card>
+      <Card className="aura-panel">
         <CardHeader>
           <CardTitle>Clinician Notes &amp; Remarks</CardTitle>
         </CardHeader>
@@ -465,7 +465,7 @@ export function PatientDetail() {
           ) : (
             <ul className="space-y-3">
               {screenings.filter(s => s.review_notes).map(s => (
-                <li key={s.id} className="rounded-xl border border-aura-border-soft bg-aura-surface-alt/60 p-4">
+                <li key={s.id} className="rounded-xl border border-aura-forest/10 bg-aura-surface p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-semibold text-aura-ink">
                       {new Date(s.created_at).toLocaleDateString()}

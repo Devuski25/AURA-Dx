@@ -35,8 +35,6 @@ interface Screening {
   id: string
   patient_name: string | null
   clinician_name: string | null
-  tb_result: string
-  tb_confidence: number | null
   respiratory_result: string | null
   respiratory_confidence: number | null
   status: string
@@ -46,8 +44,6 @@ interface Screening {
 
 interface Stats {
   total: number
-  tb_positive: number
-  tb_negative: number
   healthy: number
   pneumonia: number
   copd: number
@@ -123,7 +119,7 @@ export function Dashboard() {
     } catch { /* ignore */ }
   }, [accessToken, refreshUsers])
 
-  // Shared cache entry — Screenings list and the Screening wizard reuse this key
+  // Shared cache entry â€” Screenings list and the Screening wizard reuse this key
   const screeningsFetcher = useCallback(async (): Promise<Screening[]> => {
     const res = await fetch(getApiUrl("/api/screenings"), {
       headers: { Authorization: `Bearer ${accessToken ?? ""}` },
@@ -147,8 +143,6 @@ export function Dashboard() {
   const stats: Stats = useMemo(() => {
     return {
       total: screenings.length,
-      tb_positive: screenings.filter(s => s.tb_result === "TB").length,
-      tb_negative: screenings.filter(s => s.tb_result === "Non-TB").length,
       healthy: screenings.filter(s => s.respiratory_result === "Healthy").length,
       pneumonia: screenings.filter(s => s.respiratory_result === "Pneumonia").length,
       copd: screenings.filter(s => s.respiratory_result === "COPD").length,
@@ -179,8 +173,8 @@ export function Dashboard() {
     return <Badge variant="secondary">{status}</Badge>
   }
 
-  /* Item 3: app-wide color legend — red = active infection risk (TB,
-     Pneumonia), yellow = chronic warning (COPD), green = healthy/cleared,
+  /* Item 3: app-wide color legend â€” red = active infection risk (Pneumonia),
+     yellow = chronic warning (COPD), green = healthy/cleared,
      neutral = plain counts. Matches the result badges used in every table. */
   const cards = [
     {
@@ -188,12 +182,6 @@ export function Dashboard() {
       value: stats.total,
       icon: FileText,
       tone: "neutral" as const,
-    },
-    {
-      title: ["TB", "Positive"],
-      value: stats.tb_positive,
-      icon: AlertTriangle,
-      tone: "tb-alert" as const,
     },
     {
       title: ["COPD", "Positive"],
@@ -213,6 +201,17 @@ export function Dashboard() {
       icon: CheckCircle,
       tone: "healthy" as const,
     },
+    ...(!isClinician
+      ? [
+          {
+            title: ["Registered", "Users"],
+            value: registeredCount,
+            icon: Users,
+            tone: "neutral" as const,
+            suffix: <span className="ml-2 align-middle text-sm font-medium text-aura-muted">total</span>,
+          },
+        ]
+      : []),
   ]
 
   const staggerProps = reduceMotion
@@ -224,7 +223,7 @@ export function Dashboard() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-aura-surface">
+      <div className="min-h-screen">
         <div className="w-full px-4 pb-10 pt-8 sm:px-6 lg:px-8" role="status" aria-live="polite" aria-label="Loading dashboard">
           {/* Header block */}
           <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
@@ -273,8 +272,8 @@ export function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-aura-surface">
-        {/* ─── Welcome banner ─── */}
+    <div className="min-h-screen">
+        {/* â”€â”€â”€ Welcome banner â”€â”€â”€ */}
         <div className="relative overflow-hidden bg-gradient-to-br from-[#0a352e] via-aura-forest to-aura-forest-light px-4 py-8 sm:px-6 lg:px-8">
           <div aria-hidden="true" className="absolute inset-0 aura-dots opacity-20" />
           <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-aura-accent/10 blur-[80px]" />
@@ -314,59 +313,50 @@ export function Dashboard() {
                   <span>Add User</span>
                 </Button>
               )}
-              <Button
-                onClick={() => void refreshScreenings()}
-                size="icon"
-                className="group h-10 w-10 rounded-lg border border-white/20 bg-white/10 text-white backdrop-blur-sm transition-all hover:border-white/35 hover:bg-white/20"
-                aria-label="Refresh dashboard"
-                title="Refresh dashboard"
-              >
-                <RefreshCw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" aria-hidden="true" />
-              </Button>
             </div>
           </div>
         </div>
 
         <div className="px-4 pb-10 pt-8 sm:px-6 lg:px-8">
 
-          <motion.div {...staggerProps} className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 lg:gap-5">
+          <motion.div
+            {...staggerProps}
+            className={
+              isClinician
+                ? "grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5 items-stretch"
+                : "grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5 lg:gap-5 items-stretch"
+            }
+          >
             {cards.map((card) => {
               const Icon = card.icon
               return (
                 <motion.div key={card.title.join("-")} {...itemProps}>
-                  <Card className={cn(
-                    "aura-sheen h-full min-h-[124px] rounded-2xl border border-aura-border-soft shadow-aura-card transition-all duration-300 hover:shadow-aura-card-hover",
-                    card.tone === "neutral" && "bg-white",
-                    (card.tone === "tb-alert" || card.tone === "critical") && "border-l-aura-coral bg-aura-coral-soft",
-                    card.tone === "copd" && "border-l-aura-warning-strong bg-aura-warning-soft",
-                    card.tone === "healthy" && "border-l-aura-mint bg-aura-mint-soft"
-                  )}>
-                    <CardContent className="flex h-full flex-col justify-between p-4">
+                  <Card className="aura-panel h-full min-h-[124px]">
+                    <CardContent className="flex h-full flex-col justify-between p-5">
                       <div className="flex items-start justify-between gap-3">
                         <p className="font-mono text-[10px] font-medium uppercase leading-[1.4] tracking-[0.08em] text-aura-muted">
                           {card.title.map((line) => <span key={line} className="block">{line}</span>)}
                         </p>
-                      <span className={cn(
-                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
-                        card.tone === "neutral" && "bg-aura-forest/10 text-aura-forest",
-                        (card.tone === "tb-alert" || card.tone === "critical") && "bg-aura-coral/15 text-aura-coral-strong",
-                        card.tone === "copd" && "bg-aura-warning-soft text-aura-warning-strong",
-                        card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine"
-                      )}>
+                        <span className={cn(
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                          card.tone === "neutral" && "bg-aura-forest/10 text-aura-forest",
+                          card.tone === "copd" && "bg-aura-warning/15 text-aura-warning-strong",
+                          card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine"
+                        )}>
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </span>
                       </div>
                       <p className={cn(
                         "font-display text-3xl font-bold leading-none tabular-nums lg:text-4xl",
                         card.tone === "neutral" && "text-aura-ink",
-                        (card.tone === "tb-alert" || card.tone === "critical") && "text-aura-coral-strong",
+                        card.tone === "critical" && "text-aura-coral-strong",
                         card.tone === "copd" && "text-aura-warning-strong",
                         card.tone === "healthy" && "text-aura-pine"
                       )}>
                         <AnimatedStat value={card.value} />
                       </p>
                       {/* Item 9: a zero on an alert-stat means "checked and clear",
-                          not "no data" — say so explicitly. */}
+                          not "no data" â€” say so explicitly. */}
                       {card.value === 0 && card.tone !== "neutral" && card.tone !== "healthy" && (
                         <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
                           Checked &middot; clear
@@ -379,44 +369,27 @@ export function Dashboard() {
             })}
             </motion.div>
 
-          {!isClinician && (
-          <motion.div {...staggerProps} className="mt-6">
-            <motion.div {...{ variants: staggerItem }}>
-            <Card className="rounded-2xl border border-aura-border-soft bg-white shadow-aura-card transition-shadow duration-300 hover:shadow-aura-card-hover">
-              <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-8">
-                <div className="shrink-0">
-                  <p className="font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-aura-muted">
-                    Registered Users
-                  </p>
-                  <p className="mt-1 font-display text-3xl font-semibold leading-none tabular-nums text-aura-ink">
-                    {registeredCount}
-                    <span className="ml-2 align-middle text-sm font-medium text-aura-muted">total</span>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.div>
-          )}
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* The second track only exists for roles that render the Needs
+            Attention panel. A clinician has a single panel, so the two-column
+            split would leave an empty 320px gap beside it. */}
+        <div className={cn("mt-8 grid gap-6", !isClinician && "lg:grid-cols-[1fr_320px]")}>
           <motion.div {...staggerProps}>
             <motion.div {...{ variants: staggerItem }}>
-              <Card className="rounded-2xl border border-aura-border-soft bg-white shadow-aura-card transition-shadow duration-300 hover:shadow-aura-card-hover">
-                <CardHeader className="border-b border-aura-border-soft px-6 py-5">
+              <Card className="aura-panel aura-panel-edge">
+                <CardHeader className="aura-card-band px-6 py-5">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <div>
-                      <CardTitle className="flex items-center gap-2 text-lg text-aura-ink">
-                        <Activity className="h-5 w-5 text-aura-forest" aria-hidden="true" />
+                      <CardTitle className="flex items-center gap-2 text-xl text-aura-ink">
+                        <Activity className="h-6 w-6 text-aura-forest" aria-hidden="true" />
                         Recent Screenings
                       </CardTitle>
-                      <p className="mt-1 text-sm text-aura-muted">Latest respiratory assessments from your clinic</p>
+                      <p className="mt-1 text-base text-aura-muted">Latest respiratory assessments from your clinic</p>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/dashboard/patient-records")}
-                      className="gap-1 text-aura-forest hover:text-aura-ink"
+                      className="gap-1 text-base text-aura-forest hover:text-aura-ink"
                     >
                       View All <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
@@ -431,7 +404,7 @@ export function Dashboard() {
                       action={
                         <Button size="sm" onClick={() => navigate("/dashboard/patient-records")} className="gap-1.5">
                           <Users className="h-3.5 w-3.5" />
-                          View Patients
+                          View Patient Records
                         </Button>
                       }
                     />
@@ -444,7 +417,7 @@ export function Dashboard() {
                           className="group flex w-full items-center gap-4 px-6 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand hover:bg-aura-surface-alt active:bg-aura-bg-alt"
                         >
                             <div className={cn(
-                              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-semibold",
+                              "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold",
                               isAnonymous(screening)
                                 ? "border border-dashed border-aura-border bg-aura-sage text-aura-muted"
                                 : "bg-aura-forest/10 text-aura-forest"
@@ -458,23 +431,23 @@ export function Dashboard() {
 
                           <div className="min-w-0 flex-1">
                             <p className={cn(
-                              "truncate font-semibold",
+                              "truncate text-base font-semibold",
                               isAnonymous(screening) ? "italic text-aura-muted" : "text-aura-ink"
                             )}>
                               {isAnonymous(screening) ? "Anonymous Screening" : screening.patient_name}
                             </p>
-                            <p className="mt-1 truncate text-xs text-aura-muted">
+                            <p className="mt-1 truncate text-sm text-aura-muted">
                               {formatRelativeTime(screening.created_at)} · {shortDateFormat.format(new Date(screening.created_at))} · {screening.clinician_name || "—"}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">
-                              {renderResultBadges(screening.tb_result, screening.respiratory_result)}
+                              {renderResultBadges(screening.respiratory_result)}
                               <ConfidenceChip value={screening.respiratory_confidence} />
                               {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                             </div>
                           </div>
 
                           <div className="hidden shrink-0 flex-wrap items-center gap-1.5 sm:flex">
-                            {renderResultBadges(screening.tb_result, screening.respiratory_result)}
+                            {renderResultBadges(screening.respiratory_result)}
                             <ConfidenceChip value={screening.respiratory_confidence} />
                             {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                           </div>
@@ -492,8 +465,8 @@ export function Dashboard() {
           {!isClinician && (
           <motion.div {...staggerProps} className="flex flex-col">
             <motion.div {...{ variants: staggerItem }} className="flex flex-col">
-              <Card className="rounded-2xl border border-aura-border-soft bg-white shadow-aura-card transition-shadow duration-300 hover:shadow-aura-card-hover">
-                <CardHeader className="border-b border-aura-border-soft px-6 py-5">
+              <Card className="aura-panel aura-panel-edge">
+                <CardHeader className="aura-card-band px-6 py-5">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2 text-base text-aura-ink">
                       <AlertTriangle className="h-5 w-5 text-aura-warning" aria-hidden="true" />

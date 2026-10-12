@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr  # noqa: F401  (Field used by ScreeningCreate)
 from enum import Enum
 
 
@@ -15,11 +15,6 @@ class UserStatus(str, Enum):
     APPROVED = "approved"
     REJECTED = "rejected"
     DELETED = "deleted"
-
-
-class TBCheckResult(str, Enum):
-    TB = "TB"
-    NON_TB = "Non-TB"
 
 
 class RespiratoryResult(str, Enum):
@@ -161,10 +156,16 @@ class PatientUpdate(BaseModel):
 
 
 class ScreeningCreate(BaseModel):
+    """Create a screening from a batch of stethoscope recordings.
+
+    A screening is scored from 3-5 separate auscultation takes, fused by the
+    inference service. `audio_file_paths` is the list of previously-uploaded
+    takes; the first one is retained as the canonical `audio_file_path` on the
+    row for backwards compatibility with existing PDF/audit consumers.
+    """
     patient_id: str
-    audio_file_path: Optional[str] = None
+    audio_file_paths: List[str] = Field(default_factory=list)
     audio_duration_sec: Optional[float] = None
-    camera_data: Optional[Dict[str, Any]] = None
 
 
 class ScreeningResponse(BaseModel):
@@ -173,10 +174,8 @@ class ScreeningResponse(BaseModel):
     clinic_id: str
     clinician_id: str
     audio_file_path: Optional[str]
+    recording_paths: Optional[List[str]] = None
     audio_duration_sec: Optional[float]
-    tb_result: TBCheckResult
-    tb_confidence: Optional[float]
-    tb_probabilities: Optional[Dict[str, float]]
     respiratory_result: Optional[RespiratoryResult]
     respiratory_confidence: Optional[float]
     respiratory_probabilities: Optional[Dict[str, float]]
@@ -208,10 +207,13 @@ class InferenceRequest(BaseModel):
 
 
 class InferenceResponse(BaseModel):
+    """Fused verdict across the recorded takes."""
     model_version: str
-    tb_result: Dict[str, Any]
-    respiratory_result: Optional[Dict[str, Any]]
-    cascade: str
+    recordings_received: int
+    per_clip: List[Dict[str, Any]]
+    respiratory_result: Dict[str, Any]
+    fusion: Dict[str, Any]
+    clinical_note: Optional[str] = None
 
 
 class AuditLogResponse(BaseModel):

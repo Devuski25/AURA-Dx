@@ -37,6 +37,11 @@ from email_service import send_verification_email
 router = APIRouter()
 
 UPLOAD_DIR = "uploads_audio"
+
+# A screening is fused from 3-5 stethoscope takes. Mirrors the inference
+# service's MAX_RECORDINGS so the backend rejects an oversized batch before
+# any file is written to disk.
+MAX_RECORDINGS = 5
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -267,25 +272,49 @@ async def health_check():
 
 @router.post("/audio/upload")
 async def upload_audio(
-    audio: UploadFile = File(...),
+    audios: List[UploadFile] = File(...),
     user: dict = Depends(get_current_user)
 ):
-    """Upload audio file for screening. Returns file path for inference."""
-    if not audio.filename.lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a")):
-        raise HTTPException(status_code=400, detail="Unsupported audio format. Use wav, mp3, flac, ogg, m4a")
-    
-    contents = await audio.read()
-    if len(contents) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Audio file too large. Maximum 5MB.")
-    
-    file_ext = os.path.splitext(audio.filename)[1]
-    unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = os.path.join(UPLOAD_DIR, unique_filename)
-    
-    with open(file_path, "wb") as f:
-        f.write(contents)
-    
-    return {"file_path": file_path, "filename": unique_filename, "size": len(contents)}
+    """Upload one batch of stethoscope takes and return their server paths.
+
+    A screening is scored from 3-5 takes; they are uploaded together here and
+    referenced by the subsequent POST /screenings call.
+    """
+    if not audios:
+        raise HTTPException(status_code=400, detail="No audio files supplied")
+    if len(audios) > MAX_RECORDINGS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many recordings: {len(audios)}. Maximum is {MAX_RECORDINGS}."
+        )
+
+    saved = []
+    for idx, audio in enumerate(audios):
+        if not audio.filename or not audio.filename.lower().endswith((".wav", ".mp3", ".flac", ".ogg", ".m4a")):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Recording {idx + 1} ({audio.filename}) has an unsupported format. Use wav, mp3, flac, ogg, m4a"
+            )
+
+        contents = await audio.read()
+        if len(contents) > 10 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Recording {idx + 1} is too large. Maximum 10MB per file."
+            )
+
+        file_ext = os.path.splitext(audio.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        saved.append({"file_path": file_path, "filename": unique_filename, "size": len(contents)})
+
+    return {
+        "file_paths": [s["file_path"] for s in saved],
+        "files": saved,
+        "count": len(saved),
+    }
 
 
 @router.post("/auth/exchange", response_model=Token)
@@ -751,25 +780,34 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
     if not patient.data:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    if not screening.audio_file_path:
-        raise HTTPException(status_code=400, detail="Audio file required. Upload via /api/audio/upload first.")
+    if not screening.audio_file_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one recording is required. Upload via /api/audio/upload first.",
+        )
+    if len(screening.audio_file_paths) > MAX_RECORDINGS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many recordings: {len(screening.audio_file_paths)}. Maximum is {MAX_RECORDINGS}.",
+        )
 
-    inference_res = await run_inference(screening.audio_file_path, screening.audio_duration_sec)
+    inference_res = await run_inference(screening.audio_file_paths, screening.audio_duration_sec)
+
+    fused = inference_res.get("respiratory_result") or {}
+    fusion = inference_res.get("fusion") or {}
 
     data = {
         "patient_id": screening.patient_id,
         "clinic_id": clinic_id,
         "clinician_id": clinician_id,
-        "audio_file_path": screening.audio_file_path,
+        # Canonical take for the row; the full batch lives in recording_paths.
+        "audio_file_path": screening.audio_file_paths[0],
         "audio_duration_sec": screening.audio_duration_sec,
-        "tb_result": inference_res["tb_result"]["label"],
-        "tb_confidence": inference_res["tb_result"]["confidence"],
-        "tb_probabilities": inference_res["tb_result"]["probabilities"],
-        "respiratory_result": inference_res["respiratory_result"]["label"] if inference_res["respiratory_result"] else None,
-        "respiratory_confidence": inference_res["respiratory_result"]["confidence"] if inference_res["respiratory_result"] else None,
-        "respiratory_probabilities": inference_res["respiratory_result"]["probabilities"] if inference_res["respiratory_result"] else None,
-        "camera_data": screening.camera_data,
-        "cascade_path": inference_res["cascade"],
+        "recording_paths": screening.audio_file_paths,
+        "respiratory_result": fused.get("label"),
+        "respiratory_confidence": fused.get("confidence"),
+        "respiratory_probabilities": fused.get("probabilities"),
+        "cascade_path": fusion.get("method") or "mean_then_safety_override",
         "model_version": inference_res["model_version"],
         "status": "completed"
     }
@@ -779,23 +817,46 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
 
     _log_audit("screening_create", clinician_id, clinic_id, "screening", created["id"], {
         "patient_id": screening.patient_id,
-        "tb_result": data["tb_result"],
-        "respiratory_result": data["respiratory_result"]
+        "recordings": len(screening.audio_file_paths),
+        "respiratory_result": data["respiratory_result"],
+        "override_applied": fusion.get("override_applied"),
     })
 
     return ScreeningResponse(**created, patient_name=patient.data["full_name"], clinic_name=None, clinician_name=None, reviewed_by_name=None)
 
 
-async def run_inference(audio_file_path: str, audio_duration_sec: Optional[float]) -> dict:
+async def run_inference(audio_file_paths: List[str], audio_duration_sec: Optional[float]) -> dict:
+    """Fan the batch of takes out to the inference service and return the fused verdict."""
     headers = {}
     if settings.inference_api_key:
         headers["X-API-Key"] = settings.inference_api_key
-    async with httpx.AsyncClient(timeout=60) as client:
-        with open(audio_file_path, "rb") as f:
-            files = {"audio": (os.path.basename(audio_file_path), f, "audio/wav")}
-            r = await client.post(f"{settings.inference_service_url}/api/inference", files=files, headers=headers)
-        r.raise_for_status()
-        return r.json()
+    async with httpx.AsyncClient(timeout=120) as client:
+        opened = []
+        try:
+            files = []
+            for path in audio_file_paths:
+                handle = open(path, "rb")
+                opened.append(handle)
+                files.append(("audios", (os.path.basename(path), handle, "audio/wav")))
+            r = await client.post(
+                f"{settings.inference_service_url}/api/inference",
+                files=files,
+                headers=headers,
+            )
+        finally:
+            for handle in opened:
+                handle.close()
+    if r.status_code >= 400:
+        detail = None
+        try:
+            detail = r.json().get("detail")
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=502,
+            detail=f"Inference service error ({r.status_code}): {detail or r.text[:200]}",
+        )
+    return r.json()
 
 
 def _enrich_screening(s):
@@ -838,7 +899,6 @@ def _enrich_screening(s):
 @router.get("/screenings", response_model=List[ScreeningResponse])
 async def list_screenings(
     patient_id: Optional[str] = None,
-    tb_result: Optional[str] = None,
     respiratory_result: Optional[str] = None,
     user: dict = Depends(get_current_user),
     limit: int = 100,
@@ -851,7 +911,7 @@ async def list_screenings(
     try:
         query = supabase.table("screening_history_view").select(
             "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,tb_result,tb_confidence,"
+            "clinic_name,clinician_name,"
             "respiratory_result,respiratory_confidence,cascade_path,"
             "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
             "audio_duration_sec,created_at"
@@ -862,8 +922,6 @@ async def list_screenings(
             query = query.eq("clinic_id", clinic_id)
         if patient_id:
             query = query.eq("patient_id", patient_id)
-        if tb_result:
-            query = query.eq("tb_result", tb_result)
         if respiratory_result:
             query = query.eq("respiratory_result", respiratory_result)
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
@@ -882,8 +940,6 @@ async def list_screenings(
             query = query.eq("clinic_id", clinic_id)
         if patient_id:
             query = query.eq("patient_id", patient_id)
-        if tb_result:
-            query = query.eq("tb_result", tb_result)
         if respiratory_result:
             query = query.eq("respiratory_result", respiratory_result)
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
@@ -905,7 +961,7 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
     try:
         query = supabase.table("screening_history_view").select(
             "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,tb_result,tb_confidence,"
+            "clinic_name,clinician_name,recording_paths,"
             "respiratory_result,respiratory_confidence,cascade_path,"
             "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
             "audio_duration_sec,created_at"
@@ -1013,8 +1069,9 @@ async def download_screening_pdf(
     try:
         screening = supabase.table("screening_history_view").select(
             "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,tb_result,tb_confidence,tb_probabilities,"
+            "clinic_name,clinician_name,"
             "respiratory_result,respiratory_confidence,respiratory_probabilities,"
+            "recording_paths,"
             "cascade_path,model_version,status,reviewed_by_name,reviewed_at,review_notes,"
             "audio_duration_sec,created_at,clinic_id,clinician_id"
         ).eq("id", screening_id).single().execute()
@@ -1103,72 +1160,23 @@ async def download_screening_pdf(
     story.append(meta_table)
     story.append(Spacer(1, 12))
     
-    tb_result = data.get("tb_result", "N/A")
-    tb_conf = data.get("tb_confidence")
-    tb_probs = data.get("tb_probabilities", {})
     cascade = data.get("cascade_path", "")
-    
-    tb_color = colors.HexColor('#dc2626') if tb_result == "TB" else colors.HexColor('#16a34a')
-    tb_badge = "⚠ HIGH PRIORITY" if tb_result == "TB" else "✓ NON-TB"
-    
-    story.append(Paragraph("Tier 1: TB Gatekeeper", heading_style))
-    tb_data = [
-        ["Result", tb_result, "Confidence", f"{tb_conf * 100:.1f}%" if tb_conf else "N/A", "Priority", tb_badge],
-    ]
-    tb_table = Table(tb_data, colWidths=[1*inch, 1.5*inch, 1*inch, 1.5*inch, 1*inch, 2*inch])
-    tb_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (4, 0), (4, -1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (1, 0), (1, -1), tb_color),
-        ('TEXTCOLOR', (5, 0), (5, -1), tb_color),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (5, 0), (5, -1), 'Helvetica-Bold'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-    ]))
-    story.append(tb_table)
+    recording_paths = data.get("recording_paths") or []
+
+    story.append(Paragraph("Acquisition", heading_style))
+    story.append(Paragraph(
+        f"Stethoscope takes recorded and fused: {len(recording_paths) if recording_paths else 'n/a'}. "
+        f"Fusion method: {cascade or 'mean_then_safety_override'}.",
+        normal_style,
+    ))
     story.append(Spacer(1, 6))
-    
-    if tb_probs:
-        prob_data = [["Class", "Probability"]]
-        for cls, prob in tb_probs.items():
-            prob_data.append([cls, f"{prob * 100:.1f}%"])
-        prob_table = Table(prob_data, colWidths=[3*inch, 3*inch])
-        prob_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ]))
-        story.append(Paragraph("Probability Distribution", subheading_style))
-        story.append(prob_table)
-        story.append(Spacer(1, 8))
-    
-    if tb_result == "TB":
-        story.append(Paragraph(
-            "<b>⚠ CLINICAL RECOMMENDATION:</b> Immediate referral for confirmatory TB testing recommended. "
-            "Follow local TB protocols and initiate contact tracing as per guidelines.",
-            ParagraphStyle('Rec', parent=normal_style, textColor=colors.HexColor('#dc2626'), backColor=colors.HexColor('#fef2f2'), borderPadding=8)
-        ))
-        story.append(Spacer(1, 8))
-    
+
     resp_result = data.get("respiratory_result")
     resp_conf = data.get("respiratory_confidence")
     resp_probs = data.get("respiratory_probabilities", {})
     
     if resp_result:
-        story.append(Paragraph("Tier 2: Respiratory Classifier", heading_style))
+        story.append(Paragraph("Respiratory Classification", heading_style))
         
         resp_colors = {"Healthy": colors.HexColor('#16a34a'), "Pneumonia": colors.HexColor('#dc2626'), "COPD": colors.HexColor('#ca8a04')}
         resp_recs = {

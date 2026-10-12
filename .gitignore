@@ -89,6 +89,9 @@ client_secret_*.json
 *.key
 id_rsa
 id_ed25519
+# Service config dump — contains the Supabase service_role key, the Resend
+# API key and JWT_SECRET in plaintext. Local reference only.
+SERVICE_CONFIGURATION.md
 # Runtime PIDs
 *.pid
 

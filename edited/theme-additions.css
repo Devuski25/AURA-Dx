@@ -1,0 +1,42 @@
+/* Add to your main stylesheet (Tailwind v4).
+   npm i @fontsource-variable/bricolage-grotesque @fontsource-variable/public-sans
+   Self-hosted, so no third-party font request is made for patients' browsers.
+   If your @theme already sets --font-display / --font-sans, replace those lines. */
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/public-sans";
+
+@theme {
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  h1, h2, h3 { text-wrap: balance; }
+  p, li, dd { text-wrap: pretty; }
+  ::selection { background: color-mix(in oklab, var(--color-aura-accent) 35%, white); }
+}
+
+/* Highlight that travels along the hero waveform: 3.6 s pass, 2.4 s rest, repeating. */
+.aura-wave-sweep {
+  opacity: 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+  -webkit-mask-size: 22% 100%;
+  mask-size: 22% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: aura-wave-sweep 6s cubic-bezier(0.45, 0, 0.55, 1) 3s infinite;
+}
+@keyframes aura-wave-sweep {
+  0%   { opacity: 0.95; -webkit-mask-position: -30% 0; mask-position: -30% 0; }
+  60%, 100% { opacity: 0.95; -webkit-mask-position: 130% 0; mask-position: 130% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aura-wave-sweep { display: none; }
+}
+
+/* Active carousel dot fills over the autoplay interval. */
+@keyframes aura-dot-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}

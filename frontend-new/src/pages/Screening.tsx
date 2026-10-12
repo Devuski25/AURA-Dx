@@ -1,10 +1,10 @@
-"use client"
+﻿"use client"
 
-import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { scaleIn } from "@/lib/motion"
-import { Loader2, Mic, MicOff, FileAudio, Trash2, Upload, X, CheckCircle, AlertCircle, ArrowRight, ChevronRight, Settings, Plus, AlertTriangle, Search } from "lucide-react"
+import { Loader2, Mic, MicOff, Trash2, CheckCircle, AlertCircle, ChevronRight, Settings, Plus, AlertTriangle, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
@@ -17,7 +17,21 @@ import { cn } from "@/lib/utils"
 import { getApiUrl } from "@/lib/api"
 import { useCachedData, invalidate } from "@/hooks/useCachedData"
 import { NewPatientModal } from "@/components/NewPatientModal"
-import { CameraCoughDetection, type CameraCoughSummary } from "@/components/CameraCoughDetection"
+
+/* Capture is stethoscope-only: no camera, no file upload. A clinician records
+   between MIN_TAKES and MAX_TAKES separate takes; the batch is scored
+   independently and fused by the inference service, which is what makes the
+   result steadier than any single take. MIN_TAKES is a hard floor — below it
+   there is not enough evidence for a confident read. */
+const MIN_TAKES = 3
+const MAX_TAKES = 5
+
+type Take = {
+  id: string
+  url: string
+  blob: Blob
+  durationSec: number
+}
 
 const dobDateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" })
 
@@ -41,7 +55,6 @@ const ageOf = (dateOfBirth: string) => {
 
 const STATUS_BADGES = {
   completed: { label: "Completed", className: "bg-green-100 text-green-700" },
-  urgent: { label: "Urgent", className: "bg-red-100 text-red-700" },
   awaiting_review: { label: "Awaiting Review", className: "bg-yellow-100 text-yellow-800" },
   retake_needed: { label: "Retake Needed", className: "bg-red-100 text-red-700" },
   none: { label: "New", className: "bg-aura-surface-alt text-aura-muted" },
@@ -49,10 +62,9 @@ const STATUS_BADGES = {
 
 type PatientStatusBadge = (typeof STATUS_BADGES)[keyof typeof STATUS_BADGES]
 
-const statusBadgeForLatest = (latest?: { status: string; tb_result: string } | null): PatientStatusBadge => {
+const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatusBadge => {
   if (!latest) return STATUS_BADGES.none
   if (latest.status === "error") return STATUS_BADGES.retake_needed
-  if (latest.tb_result === "TB") return STATUS_BADGES.urgent
   if (latest.status === "pending_review") return STATUS_BADGES.awaiting_review
   return STATUS_BADGES.completed
 }
@@ -69,37 +81,31 @@ export function Screening() {
   const reduceMotion = useReducedMotion()
   const [isListOpen] = useState(true)
 
-  // Recording state
+  /* ── Recording state ──────────────────────────────────────────────────────
+     Multiple takes are kept rather than one blob: the inference endpoint takes
+     a single clip, so the takes are concatenated at submit time. */
   const [recording, setRecording] = useState(false)
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [takes, setTakes] = useState<Take[]>([])
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingStartTimeRef = useRef<number>(0)
-  const audioDurationRef = useRef<number>(0)
-  // Track object URLs for cleanup
-  const objectUrlRef = useRef<string | null>(null)
-
-  // Upload state
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const [dragActive, setDragActive] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Result state
   const [result, setResult] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Camera / facial aura-detection state (Step 2 -> Step 3)
-  const [cameraSummary, setCameraSummary] = useState<CameraCoughSummary | null>(null)
-  const cameraDataRef = useRef<CameraCoughSummary | null>(null)
+  /* Object URLs are created per take, so they are tracked together and revoked
+     when a take is dropped, the set is cleared, or the component unmounts. */
+  const takeUrlsRef = useRef<Set<string>>(new Set())
 
-  const handleCameraSummaryChange = (summary: CameraCoughSummary | null) => {
-    setCameraSummary(summary)
-    // Track the latest summary (including null when the camera stops) so a
-    // retake or a different patient never inherits stale facial data.
-    cameraDataRef.current = summary
-  }
-
+  useEffect(() => {
+    const urls = takeUrlsRef.current
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url)
+      urls.clear()
+    }
+  }, [])
 
   // Shared cache entries — "screenings" is the SAME payload Dashboard/Screenings use,
   // so the status badges cost zero extra network traffic on back-navigation.
@@ -137,10 +143,10 @@ export function Screening() {
   const patients = useMemo(() => patientsData ?? [], [patientsData])
 
   const latestByPatient = useMemo(() => {
-    const latest = new Map<string, { status: string; tb_result: string }>()
-    for (const s of (statusData ?? []) as Array<{ patient_id: string; status: string; tb_result: string }>) {
+    const latest = new Map<string, { status: string }>()
+    for (const s of (statusData ?? []) as Array<{ patient_id: string; status: string }>) {
       if (!latest.has(s.patient_id)) {
-        latest.set(s.patient_id, { status: s.status, tb_result: s.tb_result })
+        latest.set(s.patient_id, { status: s.status })
       }
     }
     return latest
@@ -182,11 +188,14 @@ export function Screening() {
     setNewPatientModalOpen(false)
   }
 
+  const stepIndex = ["patient", "record", "result"].indexOf(step)
+
   // --- Audio Recording ---
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioChunksRef.current = []
+
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm"
@@ -198,30 +207,30 @@ export function Screening() {
 
       mediaRecorderRef.current.onstop = async () => {
         const rawBlob = new Blob(audioChunksRef.current, { type: mimeType })
-        audioDurationRef.current = (Date.now() - recordingStartTimeRef.current) / 1000
+        const durationSec = (Date.now() - recordingStartTimeRef.current) / 1000
         stream.getTracks().forEach(t => t.stop())
 
+        let blob = rawBlob
         try {
-          if (objectUrlRef.current) {
-            URL.revokeObjectURL(objectUrlRef.current)
-          }
+          /* Normalise to WAV here so every take shares one sample rate and
+             channel count — concatenating them later requires that. */
           const arrayBuffer = await rawBlob.arrayBuffer()
           const audioCtx = new AudioContext()
           const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
           await audioCtx.close()
-
-          const wavBlob = await encodeWav(audioBuffer)
-          const url = URL.createObjectURL(wavBlob)
-          objectUrlRef.current = url
-          setAudioBlob(wavBlob)
-          setAudioUrl(url)
+          blob = await encodeWav(audioBuffer)
         } catch (convError) {
-          console.error("WAV conversion error, falling back to raw blob:", convError)
-          const url = URL.createObjectURL(rawBlob)
-          objectUrlRef.current = url
-          setAudioBlob(rawBlob)
-          setAudioUrl(url)
+          console.error("WAV conversion failed, keeping raw take:", convError)
+          toast.error("That take could not be converted to WAV and was not saved.")
+          return
         }
+
+        const url = URL.createObjectURL(blob)
+        takeUrlsRef.current.add(url)
+        setTakes(prev => [
+          ...prev,
+          { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, blob, durationSec },
+        ])
       }
 
       recordingStartTimeRef.current = Date.now()
@@ -229,7 +238,7 @@ export function Screening() {
       setRecording(true)
     } catch (error) {
       console.error("Recording error:", error)
-      toast.error("Could not access microphone. Please check permissions.")
+      toast.error("Could not open the stethoscope input. Check that it is connected and that the browser is allowed to record.")
     }
   }
 
@@ -300,86 +309,49 @@ export function Screening() {
     setRecording(false)
   }
 
-  const clearRecording = () => {
-    // Clean up object URLs to prevent memory leaks
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current)
-      objectUrlRef.current = null
-    }
-    setAudioBlob(null)
-    setAudioUrl(null)
-    setUploadedFile(null)
-    audioChunksRef.current = []
-    // Drop the facial summary so a retake starts from a clean slate and no
-    // stale cough data leaks into the next submission.
-    setCameraSummary(null)
-    cameraDataRef.current = null
+  /** Drop one take and release its object URL. */
+  const removeTake = (id: string) => {
+    setTakes(prev => {
+      const target = prev.find(t => t.id === id)
+      if (target) {
+        URL.revokeObjectURL(target.url)
+        takeUrlsRef.current.delete(target.url)
+      }
+      return prev.filter(t => t.id !== id)
+    })
   }
+
+  const clearTakes = () => {
+    for (const take of takes) {
+      URL.revokeObjectURL(take.url)
+      takeUrlsRef.current.delete(take.url)
+    }
+    setTakes([])
+    audioChunksRef.current = []
+  }
+
+  const atMaxTakes = takes.length >= MAX_TAKES
+  const totalRecordedSec = takes.reduce((sum, t) => sum + t.durationSec, 0)
+  const hasEnoughTakes = takes.length >= MIN_TAKES
 
   // Cleanup object URLs on unmount
-  useEffect(() => {
-    return () => {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current)
-      }
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl)
-      }
-    }
-  }, [])
-
-  // --- File Upload ---
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    // Validate file type and extension
-    const validTypes = ["audio/wav", "audio/wave"]
-    const validExtensions = [".wav", ".mp3", ".flac", ".ogg", ".m4a"]
-    const hasValidType = validTypes.includes(file.type)
-    const hasValidExt = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
-
-    if (!hasValidType && !hasValidExt) {
-      toast.error("Unsupported file type. Please upload a WAV, MP3, FLAC, OGG, or M4A file.")
-      return
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1000) {
-      toast.error("File too large. Maximum size is 5MB.")
-      return
-    }
-
-    // Clean up previous URL
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current)
-    }
-
-    const url = URL.createObjectURL(file)
-    objectUrlRef.current = url
-    setUploadedFile(file)
-    setAudioBlob(file)
-    setAudioUrl(url)
-
-    const audio = new Audio()
-    audio.src = url
-    audio.onloadedmetadata = () => {
-      audioDurationRef.current = audio.duration
-      // Don't revoke - we're using the URL for playback
-    }
-  }
 
   // --- Submit for Analysis ---
   const submitForAnalysis = async () => {
-    if (!audioBlob || !selectedPatient || !accessToken) return
+    if (takes.length < MIN_TAKES || !selectedPatient || !accessToken) return
 
     setSubmitting(true)
     abortControllerRef.current = new AbortController()
 
     try {
-      // Step 1: Upload audio file to backend
+      // Step 1: upload every take as its own file. They are deliberately NOT
+      // concatenated: the inference service scores each take separately and
+      // then fuses the per-take verdicts, so merging them here would destroy
+      // the per-take evidence the fusion step depends on.
       const uploadFormData = new FormData()
-      uploadFormData.append("audio", audioBlob, "recording.wav")
+      takes.forEach((take, i) => {
+        uploadFormData.append("audios", take.blob, `take-${i + 1}.wav`)
+      })
 
       const uploadResponse = await fetch(getApiUrl("/api/audio/upload"), {
         method: "POST",
@@ -393,7 +365,7 @@ export function Screening() {
         throw new Error(error.detail || "Audio upload failed")
       }
 
-      const { file_path } = await uploadResponse.json()
+      const { file_paths } = await uploadResponse.json()
 
       // Step 2: Create screening via backend (handles inference + DB save)
       const screeningResponse = await fetch(getApiUrl("/api/screenings"), {
@@ -404,9 +376,8 @@ export function Screening() {
         },
         body: JSON.stringify({
           patient_id: selectedPatient.id,
-          audio_file_path: file_path,
-          audio_duration_sec: Math.round(audioDurationRef.current * 100) / 100 || undefined,
-          camera_data: cameraDataRef.current,
+          audio_file_paths: file_paths,
+          audio_duration_sec: Math.round(totalRecordedSec * 100) / 100 || undefined,
         }),
         signal: abortControllerRef.current.signal,
       })
@@ -420,14 +391,12 @@ export function Screening() {
 
       // Create result object for display
       setResult({
-        tb_result: { label: screening.tb_result, confidence: screening.tb_confidence, probabilities: screening.tb_probabilities },
         respiratory_result: screening.respiratory_result ? { label: screening.respiratory_result, confidence: screening.respiratory_confidence, probabilities: screening.respiratory_probabilities } : null,
         cascade: screening.cascade_path,
         model_version: screening.model_version,
         screening_id: screening.id,
         patient_name: selectedPatient.name,
         timestamp: screening.created_at,
-        cameraData: cameraDataRef.current,
       })
 
       // New screening exists now - drop cached lists so all views refetch fresh
@@ -445,15 +414,6 @@ export function Screening() {
       abortControllerRef.current = null
     }
   }
-
-  const getTbBadge = (label: string) => (
-    <Badge variant={label === "TB" ? "destructive" : "success"}>
-      {label === "TB" && <AlertCircle className="mr-1 h-3 w-3" />}
-      {label === "Non-TB" && <CheckCircle className="mr-1 h-3 w-3" />}
-      {label}
-    </Badge>
-  )
-
   const getRespBadge = (label: string | null) => {
     if (!label) return <Badge variant="secondary">N/A</Badge>
     const variants: Record<string, "default" | "success" | "warning" | "destructive"> = {
@@ -465,93 +425,77 @@ export function Screening() {
   }
 
   const handleNewScreening = () => {
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current)
-      objectUrlRef.current = null
-    }
+    clearTakes()
     setSelectedPatient(null)
-    setAudioBlob(null)
-    setAudioUrl(null)
-    setUploadedFile(null)
     setResult(null)
-    setCameraSummary(null)
-    cameraDataRef.current = null
     setStep("patient")
   }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
-      {/* Progress Steps */}
-      <nav aria-label="Screening progress" className="flex items-start justify-center">
-        {["patient", "record", "result"].map((s, i) => {
-          const stepIndex = ["patient", "record", "result"].indexOf(step)
-          const isComplete = stepIndex > i
-          const isActive = step === s
-          return (
-          <Fragment key={s}>
-            {i > 0 && (
-              <span
-                aria-hidden="true"
-                className="mt-[9px] flex h-5 w-14 items-center sm:w-24"
+      {/* Signal chain — the three steps read as one connected acquisition
+          path rather than three detached dots. The connector fills as each
+          stage is reached. */}
+      <nav aria-label="Screening progress" className="px-2">
+        <ol className="relative flex items-start justify-center">
+          {/* Baseline rail sits behind the nodes. */}
+          <span
+            aria-hidden="true"
+            className="absolute left-[16.67%] right-[16.67%] top-[18px] h-[2px] rounded-full bg-aura-border-soft"
+          />
+          <motion.span
+            aria-hidden="true"
+            className="absolute left-[16.67%] top-[18px] h-[2px] origin-left rounded-full bg-aura-forest"
+            initial={false}
+            animate={{ width: `${(stepIndex / 2) * 66.66}%` }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.45, ease: "easeOut" }}
+          />
+
+          {["patient", "record", "result"].map((s, i) => {
+            const isComplete = stepIndex > i
+            const isActive = step === s
+            return (
+              <li
+                key={s}
+                className="relative z-10 flex w-1/3 flex-col items-center"
+                aria-current={isActive ? "step" : undefined}
               >
-                <span className="relative h-[2px] flex-1 overflow-hidden rounded-full bg-aura-border">
-                  <motion.span
-                    className="absolute inset-y-0 left-0 rounded-full bg-aura-accent-dark"
-                    initial={false}
-                    animate={{ width: stepIndex >= i ? "100%" : "0%" }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                  />
-                </span>
-                <ArrowRight
+                {/* Completed steps are real buttons — clinicians can go back
+                    a step without losing entered data, but cannot skip
+                    forward past an unfinished step. */}
+                <button
+                  type="button"
+                  disabled={!isComplete}
+                  onClick={() => isComplete && setStep(s as typeof step)}
+                  aria-label={isComplete ? `Go back to step ${i + 1}: ${s}` : `Step ${i + 1}: ${s}`}
                   className={cn(
-                    "ml-0.5 h-5 w-5 shrink-0",
-                    stepIndex >= i ? "text-aura-accent-dark" : "text-gray-400"
+                    "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand focus-visible:ring-offset-2",
+                    isActive && "border-aura-pine bg-aura-pine text-white ring-4 ring-aura-pine/20",
+                    isComplete && "cursor-pointer border-aura-pine bg-aura-pine text-white hover:brightness-110 active:scale-95",
+                    !isActive && !isComplete && "border-aura-border-soft bg-white text-aura-muted",
                   )}
-                  strokeWidth={2.5}
-                />
-              </span>
-            )}
-            <div className="flex w-16 flex-col items-center" aria-current={isActive ? "step" : undefined}>
-              {/* Item 11: completed steps are real buttons — clinicians can go back
-                  a step without losing entered data (wizard state persists), but
-                  cannot skip forward past an unfinished step. */}
-              <button
-                type="button"
-                disabled={!isComplete}
-                onClick={() => isComplete && setStep(s as typeof step)}
-                aria-label={isComplete ? `Go back to step ${i + 1}: ${s}` : `Step ${i + 1}: ${s}`}
-                className={cn(
-                  "relative flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand focus-visible:ring-offset-2",
-                  isActive && "border-[#0E7A55] bg-[#0E7A55] text-white ring-4 ring-[#0E7A55]/15",
-                  isComplete && "cursor-pointer border-aura-accent-dark bg-aura-accent-dark text-white hover:brightness-110 active:scale-95",
-                  !isActive && !isComplete && "border-aura-border-soft bg-white text-gray-600"
-                )}
-              >
-                {/* Glowing pulse on the active step */}
-                {isActive && !reduceMotion && (
-                  <motion.span
-                    aria-hidden="true"
-                    className="absolute inset-0 rounded-full border-2 border-[#0E7A55]"
-                    animate={{ scale: [1, 1.45], opacity: [0.55, 0] }}
-                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeOut" }}
-                  />
-                )}
-                {isComplete ? <CheckCircle className="h-5 w-5" aria-hidden="true" /> : i + 1}
-              </button>
-                <span className={cn("mt-1.5 text-xs font-medium", isActive ? "font-semibold text-aura-forest" : "text-gray-600")}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </span>
-            </div>
-          </Fragment>
-          )
-        })}
+                >
+                  {isComplete ? <CheckCircle className="h-5 w-5" aria-hidden="true" /> : i + 1}
+                </button>
+                <span
+                  className={cn(
+                    "mt-2 text-center text-xs font-medium",
+                    isActive ? "font-semibold text-aura-forest" : "text-aura-muted",
+                  )}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
       </nav>
 
       {/* Step 1: Patient Selection */}
       <AnimatePresence mode="wait">
         {step === "patient" && (
           <motion.div key="patient" variants={scaleIn} initial="hidden" animate="visible" exit="exit">
-            <Card className="overflow-hidden">
+            <Card className="aura-panel overflow-hidden rounded-2xl">
               {loadingPatients ? (
                 <div role="status" aria-live="polite" aria-label="Loading patients" className="divide-y divide-aura-border-soft">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -580,7 +524,7 @@ export function Screening() {
                           type="search"
                           value={patientSearch}
                           onChange={e => setPatientSearch(e.target.value)}
-                          placeholder="Search patients by name…"
+                          placeholder="Search patients by name→·"
                           aria-label="Search patients by name"
                           autoComplete="off"
                           className="h-9 rounded-lg border-aura-border pl-9 text-sm"
@@ -660,7 +604,7 @@ export function Screening() {
                                           <span className="flex min-w-0 items-center gap-2">
                                             <span className="truncate text-sm font-medium">{patient.name}</span>
                                             {isSelected && (
-                                              <span className="inline-flex shrink-0 items-center rounded-full border border-green-600 px-1.5 text-[10px] font-semibold leading-4 text-green-700">
+                                              <span className="inline-flex shrink-0 items-center rounded-full border border-green-600 px-1.5 text-[13.5px] font-semibold leading-4 text-green-700">
                                                 SELECTED
                                               </span>
                                             )}
@@ -744,24 +688,41 @@ export function Screening() {
       <AnimatePresence mode="wait">
         {step === "record" && (
           <motion.div key="record" variants={scaleIn} initial="hidden" animate="visible" exit="exit">
-            <Card>
+            <Card className="aura-panel rounded-2xl">
               <CardHeader>
-                <CardTitle>Record or Upload Cough Audio</CardTitle>
+                <CardTitle>Record Breathing Audio</CardTitle>
             <CardDescription>Patient: {selectedPatient?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Recording Section */}
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Microphone Recording</h3>
-              {!audioBlob && !recording && (
+              {/* Progress toward the required minimum, stated plainly so the
+                  clinician can see when the screening is ready to run. */}
+              <div className="rounded-lg border border-aura-border-soft bg-aura-surface-alt p-4">
+                <h3 className="text-lg font-medium">Digital Stethoscope Recording</h3>
+                <p className="mt-1 text-sm text-aura-muted">
+                  Record {MIN_TAKES} to {MAX_TAKES} takes. Each take is scored separately and the
+                  results are fused, so recording more than {MIN_TAKES} usually gives a steadier read
+                  {takes.length > 0
+                    ? ` — you have ${takes.length} of ${MIN_TAKES} needed.`
+                    : "."}
+                </p>
+              </div>
+
+              {!recording && (
                 <Button
                   onClick={startRecording}
                   size="lg"
+                  disabled={atMaxTakes}
                   className="w-full gap-3"
                 >
                   <Mic className="h-5 w-5" />
-                  Start Recording
+                  {takes.length === 0 ? "Start First Recording" : "Record Another Take"}
                 </Button>
+              )}
+              {atMaxTakes && !recording && (
+                <p className="text-center text-sm text-aura-muted">
+                  Maximum of {MAX_TAKES} takes reached. Remove one to record a replacement.
+                </p>
               )}
               {recording && (
                 <>
@@ -801,127 +762,92 @@ export function Screening() {
                   </Button>
                 </>
               )}
-              {audioBlob && (
-                <div className="flex flex-col items-center gap-4 p-4 bg-aura-surface-alt rounded-lg sm:flex-row">
-                  <div className="flex-1">
-                    <audio controls src={audioUrl!} className="w-full" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={clearRecording} size="sm">
+
+              {/* Recorded takes — each one is playable and individually removable */}
+              {takes.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-aura-ink">
+                      Recorded takes
+                      <span className="ml-2 font-normal text-aura-muted">
+                        {totalRecordedSec.toFixed(1)}s total
+                      </span>
+                    </p>
+                    <Button variant="ghost" size="sm" onClick={clearTakes} className="text-aura-muted hover:text-aura-coral-strong">
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Retry
+                      Clear all
                     </Button>
                   </div>
+                  <ul className="space-y-2">
+                    {takes.map((take, index) => (
+                      <li
+                        key={take.id}
+                        className="flex flex-col gap-3 rounded-lg border border-aura-border-soft bg-aura-surface-alt p-4 sm:flex-row sm:items-center"
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-aura-forest/10 text-sm font-bold tabular-nums text-aura-forest"
+                            aria-hidden="true"
+                          >
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-aura-ink">
+                              Take {index + 1}
+                              <span className="ml-2 font-normal text-aura-muted">
+                                {take.durationSec.toFixed(1)}s
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <audio controls src={take.url} className="h-9 min-w-0 flex-1" aria-label={`Take ${index + 1} playback`} />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeTake(take.id)}
+                            className="touch-target h-9 w-9 shrink-0 rounded-full text-aura-muted hover:bg-aura-coral-soft hover:text-aura-coral-strong"
+                            aria-label={`Remove take ${index + 1}`}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
-
-              <div className="h-px bg-border" />
-
-              {/* Facial Cough Detection (Camera) */}
-              <CameraCoughDetection onSummaryChange={handleCameraSummaryChange} />
-              {cameraSummary && (
-                <div className="flex flex-wrap gap-2 text-xs">
-                  <span className={cn(
-                    "rounded-full px-2.5 py-1 font-medium",
-                    cameraSummary.faceTracked
-                      ? "bg-aura-accent-soft text-aura-accent-dark"
-                      : "bg-aura-surface-alt text-aura-muted"
-                  )}>
-                    Face: {cameraSummary.faceTracked ? "tracked" : "not found"}
-                  </span>
-                  <span className="rounded-full bg-aura-surface-alt px-2.5 py-1 font-medium text-aura-muted">
-                    Mouth distance:{" "}
-                    {cameraSummary.mouthDistance != null
-                      ? cameraSummary.mouthDistance.toFixed(3)
-                      : "—"}
-                  </span>
-                  <span className={cn(
-                    "rounded-full px-2.5 py-1 font-medium",
-                    cameraSummary.coughDetected
-                      ? "bg-aura-warning-soft text-aura-warning-strong"
-                      : "bg-aura-surface-alt text-aura-muted"
-                  )}>
-                    Fused coughs: {cameraSummary.coughCount}
-                  </span>
-                </div>
-              )}
-
-              <div className="h-px bg-border" />
-
-              {/* Upload Section */}
-              <h3 className="text-lg font-medium">Upload Audio File</h3>
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-                  dragActive ? "border-aura-accent bg-aura-accent/5" : uploadedFile ? "border-aura-accent bg-aura-accent/5" : "border-aura-border-soft"
-                )}
-                onDragOver={e => { e.preventDefault(); setDragActive(true) }}
-                onDragLeave={e => { e.preventDefault(); setDragActive(false) }}
-                onDrop={e => {
-                  e.preventDefault()
-                  setDragActive(false)
-                  const file = e.dataTransfer.files[0]
-                  const validExt = [".wav", ".mp3", ".flac", ".ogg", ".m4a"]
-                  const isAudio = file && (file.type.startsWith("audio/") || validExt.some(ext => file.name.toLowerCase().endsWith(ext)))
-                  if (isAudio) {
-                    const event = { target: { files: e.dataTransfer.files } } as React.ChangeEvent<HTMLInputElement>
-                    handleFileUpload(event)
-                  } else {
-                    toast.error("Unsupported file type. Please upload a WAV, MP3, FLAC, OGG, or M4A file.")
-                  }
-                }}
-              >
-                <input
-                  type="file"
-                  accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="audio-upload"
-                />
-                {uploadedFile ? (
-                  <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-                    <FileAudio className="h-10 w-10 text-primary" />
-                    <div className="text-left">
-                      <p className="font-medium">{uploadedFile.name}</p>
-                      <p className="text-sm text-aura-muted">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={clearRecording}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <Upload className="h-10 w-10 text-aura-muted" />
-                    <p>Drag & drop a .wav file here, or click to browse</p>
-                    <Button variant="outline" onClick={() => document.getElementById("audio-upload")?.click()}>
-                      Browse Files
-                    </Button>
-                  </div>
-                )}
-              </div>
             </div>
 
-            {/* Submit Button */}
-            {audioBlob && (
+            {/* Submit — gated on the minimum take count. */}
+            <div className="space-y-2">
               <Button
                 onClick={submitForAnalysis}
-                disabled={submitting}
+                disabled={submitting || !hasEnoughTakes}
                 size="lg"
                 className="w-full gap-2"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" role="status" aria-live="polite" />
-                    Analyzing cough audio…
+                    Analyzing {takes.length} takes…
                   </>
                 ) : (
                   <>
                     <Settings className="h-5 w-5" />
-                    Run Analysis
+                    {hasEnoughTakes
+                      ? `Run Analysis on ${takes.length} Takes`
+                      : `Record ${MIN_TAKES - takes.length} More Take${MIN_TAKES - takes.length === 1 ? "" : "s"}`}
                   </>
                 )}
               </Button>
-            )}
+              {!hasEnoughTakes && takes.length > 0 && (
+                <p className="text-center text-sm text-aura-muted">
+                  {MIN_TAKES - takes.length} more take{MIN_TAKES - takes.length === 1 ? "" : "s"} needed
+                  before analysis can run.
+                </p>
+              )}
+            </div>
           </CardContent>
           <CardFooter className="flex justify-between">
             <Button variant="ghost" onClick={() => {
@@ -942,7 +868,7 @@ export function Screening() {
       <AnimatePresence mode="wait">
         {step === "result" && result && (
           <motion.div key="result" variants={scaleIn} initial="hidden" animate="visible" exit="exit">
-            <Card>
+            <Card className="aura-panel rounded-2xl">
               <CardHeader>
                 <CardTitle>Screening Result</CardTitle>
             <CardDescription>
@@ -950,47 +876,11 @@ export function Screening() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* TB Gatekeeper Result */}
-            <div className="p-4 bg-aura-surface-alt rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold">Tier 1: TB Gatekeeper</h3>
-                {getTbBadge(result.tb_result.label)}
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-aura-muted">Confidence</p>
-                  <p className="font-mono text-lg">{(result.tb_result.confidence * 100).toFixed(1)}%</p>
-                </div>
-                <div>
-                  <p className="text-aura-muted">Cascade</p>
-                  <p className="font-mono text-lg">{result.cascade}</p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm text-aura-muted mb-2">Probability Distribution</p>
-                <div className="space-y-2">
-                  {Object.entries(result.tb_result.probabilities || {}).map(([cls, prob]: [string, unknown]) => {
-                    const p = prob as number
-                    return (
-                      <div key={cls} className="flex items-center justify-between text-sm">
-                        <span className={cn("font-medium", cls === "TB" ? "text-destructive" : "text-aura-accent-dark")}>{cls}</span>
-                        <div className="flex items-center gap-2 w-full max-w-xs">
-                          <Progress value={(p * 100)} className="h-2 flex-1" />
-                          <span className="font-mono w-16 text-right">{(p * 100).toFixed(1)}%</span>
-                        </div>
-                      </div>
-                    )
-                  })
-                }
-                </div>
-              </div>
-            </div>
-
             {/* Respiratory Result */}
             {result.respiratory_result && (
               <div className="p-4 bg-aura-surface-alt rounded-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold">Tier 2: Respiratory Classifier</h3>
+                  <h3 className="font-semibold">Respiratory Classifier</h3>
                   {getRespBadge(result.respiratory_result.label)}
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1075,15 +965,7 @@ export function Screening() {
             )}
 
 {/* Clinical Recommendation */}
-            {result.tb_result.label === "TB" ? (
-              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <h4 className="font-semibold text-destructive flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  High Priority: TB Detected
-                </h4>
-                <p className="mt-2 text-sm">Immediate referral for confirmatory TB testing recommended. Follow local TB protocols.</p>
-              </div>
-            ) : result.respiratory_result?.label === "Pneumonia" ? (
+            {result.respiratory_result?.label === "Pneumonia" ? (
               <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
                 <h4 className="font-semibold text-destructive flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" />

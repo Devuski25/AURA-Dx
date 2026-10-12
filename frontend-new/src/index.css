@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -51,6 +51,11 @@
   /* Brand display font (logo typography) */
   --font-display: "Space Grotesk", "Poppins", sans-serif;
 
+  /* Page-title face, used by the logged-in title bar. Manrope is a
+     geometric-humanist sans with real 400–800 weights, so semibold is a true
+     600 rather than a synthesised faux-bold. Segoe UI is the offline fallback. */
+  --font-page-title: "Manrope", "Space Grotesk", "Segoe UI", sans-serif;
+
   /* Clinical precision typography */
   --font-body: "Inter", "Poppins", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
@@ -94,9 +99,27 @@
   --color-aura-table-stripe: #F6FAF8;
   --color-aura-table-neutral: #F7F7F7;
 
+  /* Hero gradient — single token for all public-page heroes */
+  --color-aura-hero-from: #0a352e;
+  --color-aura-hero-via: #0d4a3f;
+  --color-aura-hero-to: var(--color-aura-forest);
+
   /* Status text tones (flip in dark mode for AA contrast) */
   --color-aura-pine: #0E7A55;
   --color-aura-coral-strong: #C4351F;
+
+  /* Page canvas — deliberately deeper than any card surface so white panels
+     read as lifted rather than as the page itself. Measured ~1.21:1 against
+     white at the old value; this pair is deeper still.
+     NOTE: --color-aura-surface is deliberately NOT changed. It fills small
+     inner tiles inside white cards, where a light value is correct. */
+  --color-aura-canvas-from: #B6D3C5;
+  --color-aura-canvas-to: #C6DDD1;
+
+  /* Two-layer forest-tinted elevation for cards. The tight layer gives the
+     hairline something to sit on; the wide layer carries the lift. */
+  --shadow-aura-panel: 0 2px 4px rgba(15, 61, 51, 0.08), 0 16px 32px -12px rgba(15, 61, 51, 0.30);
+  --shadow-aura-panel-hover: 0 4px 8px rgba(15, 61, 51, 0.10), 0 28px 48px -14px rgba(15, 61, 51, 0.38);
 
   /* Shadow scale — Soft UI Evolution */
   --shadow-aura-xs: 0 1px 3px rgba(14, 59, 54, 0.04);
@@ -109,11 +132,40 @@
 
   /* Type scale */
   --font-family-primary: "Poppins", "Inter", sans-serif;
-  --text-aura-display: 2.35rem;
-  --text-aura-heading: 1.55rem;
-  --text-aura-sub: 1.125rem;
-  --text-aura-body: 0.9375rem;
-  --text-aura-sm: 0.8125rem;
+  --text-aura-display: 2.75rem;
+  --text-aura-heading: 1.875rem;
+  --text-aura-sub: 1.375rem;
+  --text-aura-body: 1.125rem;
+  --text-aura-sm: 1rem;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     TEXT SIZE — GLOBAL OVERRIDE  ·  REVERT IN ONE STEP
+     ═══════════════════════════════════════════════════════════════════════
+     These override Tailwind's defaults, so every `text-xs` … `text-9xl`
+     utility in the app grows at once — no per-component edits needed.
+
+     TO REVERT TO NORMAL SIZE: delete this entire block (the lines between
+     this banner and the "Radius scale" comment). Tailwind's stock scale
+     comes back automatically; nothing else in the app depends on these.
+
+     Deliberately NOT a root `font-size` bump: that would also rescale
+     rem-based spacing and layout widths, which risks horizontal overflow on
+     375px. Font size alone leaves the layout untouched. */
+
+  --text-xs: 0.875rem;    /* 14px, stock 12px */
+  --text-sm: 1rem;        /* 16px, stock 14px */
+  --text-base: 1.125rem;  /* 18px, stock 16px */
+  --text-lg: 1.25rem;     /* 20px, stock 18px */
+  --text-xl: 1.5rem;      /* 24px, stock 20px */
+  --text-2xl: 1.75rem;    /* 28px, stock 24px */
+  --text-3xl: 2.125rem;   /* 34px, stock 30px */
+  --text-4xl: 2.625rem;   /* 42px, stock 36px */
+  --text-5xl: 3.5rem;     /* 56px, stock 48px */
+  --text-6xl: 4.25rem;    /* 68px, stock 60px */
+  --text-7xl: 5rem;       /* 80px, stock 72px */
+  --text-8xl: 6.5rem;     /* 104px, stock 96px */
+  --text-9xl: 8.5rem;     /* 136px, stock 128px */
+  /* ═════════════════════════════════════════════════════════════════════ */
 
   /* Radius scale */
   --radius-aura-sm: 10px;
@@ -229,6 +281,116 @@ body {
   background-size: 24px 24px;
 }
 
+/* ─── "The Sound of Breath" signature primitives ─── */
+
+/* EcgGrid — graph-paper ruled field. A fine line every 8px, a heavier one
+   every 40px, both in aura-forest. Four layered gradients because a single
+   background can't carry two different periods; sizes are set independently
+   so the two periods stay locked together at 5:1. */
+.aura-ecg-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-aura-forest) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-aura-forest) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(to right, color-mix(in srgb, var(--color-aura-forest) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-aura-forest) 8%, transparent) 1px, transparent 1px);
+  background-size: 8px 8px, 8px 8px, 40px 40px, 40px 40px;
+}
+
+/* Breath — the single shared "this is alive" loop. 4s inhale/exhale.
+   Transform + opacity only. */
+@keyframes aura-breath {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+.aura-breath {
+  animation: aura-breath 4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Loader stand-in for the shimmer. Skeleton.tsx owns `animate-pulse`; this is
+   the breathing equivalent applied at the call sites in these pages. */
+.aura-skeleton-breathe {
+  animation: aura-breath 3s ease-in-out infinite;
+}
+
+/* Elevation system — three tiers, one visual language.
+   canvas  : the tinted page background every card sits on
+   panel   : a white raised surface with a hairline + two-layer shadow
+   tile    : an inner tinted block for nested content inside a panel
+   Keeping these as utilities means the separation logic lives in one place
+   instead of being re-derived as inline Tailwind on every card. */
+/* The single shared card surface for the logged-in pages. Lives here rather
+   than in card.tsx's defaults because Card is also used by the auth and
+   public pages, which must keep their own treatment. */
+.aura-panel {
+  border: 1px solid color-mix(in srgb, var(--color-aura-forest) 20%, transparent);
+  border-radius: 1rem;
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(15, 61, 51, 0.08), 0 16px 32px -12px rgba(15, 61, 51, 0.30);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .aura-panel:hover {
+    box-shadow: 0 4px 8px rgba(15, 61, 51, 0.10), 0 28px 48px -14px rgba(15, 61, 51, 0.38);
+    transform: translateY(-2px);
+  }
+}
+/* Reduced motion keeps the deepened shadow but drops the lift. */
+@media (prefers-reduced-motion: reduce) {
+  .aura-panel,
+  .aura-panel:hover {
+    transform: none;
+    transition: box-shadow 0.15s ease;
+  }
+}
+
+/* Nested content block. Tinted, borderless — it reads as recessed precisely
+   because it has no shadow of its own. */
+.aura-tile {
+  background-color: color-mix(in srgb, var(--color-aura-sage) 40%, transparent);
+}
+
+/* Card header / toolbar zone. White like the card, separated by a hairline —
+   never a tinted band, which used to blend the header into the canvas. */
+.aura-card-band {
+  background-color: #ffffff;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-aura-forest) 10%, transparent);
+}
+
+/* Ensure sticky table headers are white with backdrop blur, not sage */
+.aura-table-head {
+  background-color: #ffffff;
+  backdrop-filter: blur(8px);
+}
+
+/* 3px forest top edge for the large content cards (tables, panels). Stat
+   cards do not get this — they carry tone via their icon chip and numeral. */
+.aura-panel-edge {
+  border-top: 3px solid var(--color-aura-forest);
+}
+
+/* Hairline divider matching the tile tone, for rules inside a panel. */
+.aura-rule {
+  border-color: color-mix(in srgb, var(--color-aura-forest) 10%, transparent);
+}
+
+/* Instrument-strip underline — a thin tone-colored reading mark that sits
+   under each metric instead of a heavy colored left border. */
+.aura-reading-underline {
+  position: relative;
+}
+.aura-reading-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.28;
+}
+
 /* Subtle section wave divider */
 .aura-wave-top {
   position: relative;
@@ -286,6 +448,82 @@ body {
   .aura-sheen:hover::after {
     transform: translateX(130%) skewX(-8deg);
   }
+}
+
+/* Scrollable table body (Patient Records) — thin rounded thumb in brand
+   green. Firefox reads scrollbar-width/color; WebKit needs the pseudos. */
+.aura-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-aura-forest) 40%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+.aura-table-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.aura-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.aura-table-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-aura-forest) 40%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+}
+.aura-table-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-aura-forest) 65%, transparent);
+}
+
+/* Sticky table header: the separation shadow only appears once rows have
+   scrolled underneath it. The scroll handler flips data-scrolled directly on
+   the node, so no React re-render is involved. */
+.aura-table-head[data-scrolled="true"] {
+  box-shadow: var(--shadow-aura-card);
+}
+
+/* Left-to-right reveal that reads as a check drawing itself in after an
+   approval. Clip-based so it works on any icon without patching its paths. */
+@keyframes aura-check-draw {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.4; }
+  to { clip-path: inset(0 0 0 0); opacity: 1; }
+}
+.aura-check-draw {
+  animation: aura-check-draw 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Expanding ring behind a status dot (User Management "Pending Approvals").
+   Two rings, 2.5s apart, so the pulse never looks metronomic. */
+@keyframes aura-dot-ping {
+  0% { transform: scale(1); opacity: 0.7; }
+  70%, 100% { transform: scale(2.6); opacity: 0; }
+}
+.aura-dot-ping {
+  animation: aura-dot-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.aura-dot-ping-delayed {
+  animation: aura-dot-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation-delay: 1.25s;
+}
+
+/* Badge status loops: the Pneumonia warning pulse and the Pending Review dot.
+   The global reduced-motion block above already clamps both to a single
+   near-instant frame, so no extra media query is needed here. */
+@keyframes aura-badge-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.72; transform: scale(0.9); }
+}
+.aura-badge-pulse {
+  animation: aura-badge-pulse 4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes aura-badge-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.78); }
+}
+.aura-badge-breathe {
+  animation: aura-badge-breathe 2.6s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 /* Hero ambient glow drift (spec #2) — pre-blurred layer, compositor-only. */
@@ -372,3 +610,73 @@ body {
 @utility slide-in-from-bottom-2 { --tw-enter-translate-y: 0.5rem; }
 @utility slide-in-from-left-2 { --tw-enter-translate-x: -0.5rem; }
 @utility slide-in-from-right-2 { --tw-enter-translate-x: 0.5rem; }
+
+/* ─── Animation system additions ─── */
+
+/* Highlight that travels along the hero waveform: 3.6 s pass, 2.4 s rest, repeating. */
+.aura-wave-sweep {
+  opacity: 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+  -webkit-mask-size: 22% 100%;
+  mask-size: 22% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: aura-wave-sweep 6s cubic-bezier(0.45, 0, 0.55, 1) 3s infinite;
+}
+@keyframes aura-wave-sweep {
+  0%   { opacity: 0.95; -webkit-mask-position: -30% 0; mask-position: -30% 0; }
+  60%, 100% { opacity: 0.95; -webkit-mask-position: 130% 0; mask-position: 130% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aura-wave-sweep { display: none; }
+}
+
+/* Selection tint using brand color */
+::selection {
+  background: color-mix(in oklab, var(--color-aura-accent) 35%, white);
+}
+
+/* Balanced headings, pretty paragraphs */
+h1, h2, h3 { text-wrap: balance; }
+p, li, dd { text-wrap: pretty; }
+
+/* Active carousel dot fills over the autoplay interval. */
+@keyframes aura-dot-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* Accordion open/close animations */
+@keyframes accordion-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes accordion-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.animate-accordion-down {
+  animation: accordion-down 0.3s ease-[cubic-bezier(0.4,0,0.2,1)] forwards;
+}
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-[cubic-bezier(0.4,0,0.2,1)] forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-accordion-down,
+  .animate-accordion-up {
+    animation: none !important;
+  }
+}

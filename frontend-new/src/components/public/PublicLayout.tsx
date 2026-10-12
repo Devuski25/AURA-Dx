@@ -3,13 +3,22 @@ import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion"
 import { pageVariants } from "@/lib/motion"
 import { Logo } from "@/components/layout/Logo"
 import { cn } from "@/lib/utils"
-import { ArrowUpRight, Home, Info, LifeBuoy, ShieldCheck, Users } from "lucide-react"
+import { ArrowUpRight, Home, Info, LifeBuoy, ShieldCheck, Users, HelpCircle } from "lucide-react"
+import { FloatingHelpButton } from "@/components/FloatingHelpButton"
 
 const NAV_ITEMS = [
   { label: "Home", path: "/", icon: Home },
   { label: "About System", path: "/about", icon: Info },
   { label: "Our Team", path: "/team", icon: Users },
   { label: "Legal & Privacy", path: "/legal", icon: ShieldCheck },
+]
+
+const MOBILE_NAV_ITEMS = [
+  { label: "Home", path: "/", icon: Home },
+  { label: "About System", path: "/about", icon: Info },
+  { label: "Our Team", path: "/team", icon: Users },
+  { label: "Legal & Privacy", path: "/legal", icon: ShieldCheck },
+  { label: "Help & Support", path: "/help-support", icon: LifeBuoy },
 ]
 
 function ScrollProgress() {
@@ -53,12 +62,12 @@ export function PublicLayout() {
     <div className="min-h-screen bg-aura-bg pb-20 font-[Poppins,sans-serif] text-aura-text lg:pb-0">
       <ScrollProgress />
 
-      {/* ─── Main header ─── */}
+      {/* ·"?·"?·"? Main header ·"?·"?·"? */}
       <header className="sticky top-0 z-50 border-b border-aura-border-soft/40 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
           <Link
             to="/"
-            aria-label="AURA-Dx — Acoustic Unit for Respiratory Analysis"
+            aria-label="AURA-Dx — Acoustic Unit for Respiratory Assessment"
             className="flex shrink-0 items-center text-aura-text no-underline"
           >
             <Logo size="lg" />
@@ -93,28 +102,38 @@ export function PublicLayout() {
         </motion.main>
       </AnimatePresence>
 
-      {/* ─── Footer ─── */}
+      {/* ·"?·"?·"? Footer ·"?·"?·"? */}
       <footer className="bg-aura-forest px-6 pb-8 pt-14 text-white">
         <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+          {/* Two tracks on desktop instead of three: the thesis attribution
+              moved into the brand column, and that column now carries more than
+              links, so it takes the wider track. */}
+          <div className="grid grid-cols-1 gap-x-6 gap-y-10 lg:grid-cols-[2.2fr_1fr]">
             {/* Brand column */}
-            <div className="col-span-2 sm:col-span-1 lg:col-span-1">
+            <div>
               <Logo size="md" inverse withSubtitle />
               <p className="mt-4 max-w-xs text-sm leading-relaxed text-aura-footer-link">
-                Web-based AI system for early detection of respiratory diseases via cough sound analysis.
+                Web-based AI system for respiratory disease screening via breathing sound analysis.
               </p>
-              <div className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-aura-footer-link/40 bg-white/10 px-3 py-1.5 text-[0.65rem] font-semibold tracking-wide text-aura-footer-link uppercase">
+              {/* Attribution, folded in from the old third column. The
+                  "Institution" heading is gone — the three lines read as a
+                  colophon without a label, and the heading was the only thing
+                  making it look like a separate link group. */}
+              <ul className="m-0 mt-5 flex list-none flex-col gap-1 p-0">
+                <li className="text-sm font-medium text-aura-footer-link">
+                  University of Rizal System
+                </li>
+                <li className="text-sm text-aura-footer-link/80">
+                  Morong Campus
+                </li>
+                <li className="text-sm text-aura-footer-link/80">
+                  BS Computer Engineering
+                </li>
+              </ul>
+              <div className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-aura-footer-link/40 bg-white/10 px-3 py-1.5 text-[0.8125rem] font-semibold tracking-wide text-aura-footer-link uppercase">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-aura-accent" />
                 Thesis-stage research prototype
               </div>
-              <Link
-                to="/help-support"
-                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-              >
-                <LifeBuoy className="h-3.5 w-3.5" aria-hidden="true" />
-                Help &amp; Support
-                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-              </Link>
             </div>
 
             {/* Quick Links */}
@@ -136,47 +155,6 @@ export function PublicLayout() {
                 </ul>
               </nav>
             </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-white/35">Legal</h4>
-              <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                <li>
-                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white">
-                    Privacy Policy
-                    <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white">
-                    Data Rights
-                    <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/legal" className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white">
-                    Consent Policy
-                    <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Institution */}
-            <div>
-              <h4 className="mb-4 text-xs font-bold uppercase tracking-widest text-white/35">Institution</h4>
-              <ul className="m-0 flex list-none flex-col gap-3 p-0">
-                <li className="text-sm font-medium text-aura-footer-link">
-                  University of Rizal System
-                </li>
-                <li className="text-sm text-aura-footer-link/80">
-                  Morong Campus
-                </li>
-                <li className="text-sm text-aura-footer-link/80">
-                  BS Computer Engineering
-                </li>
-              </ul>
-            </div>
           </div>
 
           <div className="mt-10 border-t border-white/10 pt-6 text-xs text-white/35">
@@ -190,7 +168,7 @@ export function PublicLayout() {
         aria-label="Mobile navigation"
         className="fixed inset-x-0 bottom-0 z-[60] flex border-t border-aura-border-soft bg-white/95 backdrop-blur-lg lg:hidden"
       >
-        {NAV_ITEMS.map((navItem) => {
+        {MOBILE_NAV_ITEMS.map((navItem) => {
           const active = pathname === navItem.path
           const Icon = navItem.icon
           return (
@@ -199,7 +177,7 @@ export function PublicLayout() {
               to={navItem.path}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 text-[0.7rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent",
+                "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 text-[0.9375rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent",
                 active ? "bg-aura-accent/10 text-aura-accent" : "text-aura-muted hover:text-aura-text"
               )}
             >
@@ -209,6 +187,7 @@ export function PublicLayout() {
           )
         })}
       </nav>
+      <FloatingHelpButton />
     </div>
   )
 }

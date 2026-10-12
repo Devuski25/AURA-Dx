@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Menu } from "lucide-react"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { ScrollTopButton } from "@/components/ScrollTopButton"
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ const STORAGE_KEY = "aura-dx:sidebar-collapsed"
 
 /* Route-change progress bar (motion spec #1): a 3px brand gradient fixed to
    the viewport top, scaleX-driven so it's compositor-only. Shows instantly on
-   route change, fades out ~350ms later — pure polish, never blocks painting. */
+   route change, fades out ~350ms later - pure polish, never blocks painting. */
 function RouteProgress() {
   const { pathname } = useLocation()
   const [active, setActive] = useState(false)
@@ -47,18 +48,8 @@ function RouteProgress() {
   )
 }
 
-/* Route-aware page title shown in the top bar (B1: the AURA-Dx logo already
-   lives in the sidebar, so the header carries context instead of a dup logo) */
-const PAGE_TITLES: { match: (p: string) => boolean; title: string; crumb: string }[] = [
-  { match: p => p === "/dashboard", title: "Dashboard", crumb: "Overview" },
-  { match: p => p.startsWith("/dashboard/screening/"), title: "Screening Result", crumb: "Screening Records" },
-  { match: p => p === "/dashboard/screening", title: "New Screening", crumb: "Screening" },
-  { match: p => p === "/dashboard/patient-records", title: "Patient Records", crumb: "Records" },
-  { match: p => p.startsWith("/dashboard/patients/"), title: "Patient Detail", crumb: "Patient Records" },
-  { match: p => p === "/dashboard/patients", title: "Patients", crumb: "Records" },
-  { match: p => p.startsWith("/dashboard/admin"), title: "User Management", crumb: "Administration" },
-  { match: p => p === "/dashboard/help-support", title: "Help & Support", crumb: "Support" },
-]
+/* PAGE_TITLES was removed along with the top title bar. Route-aware titles now
+   live inside each page's own card header. */
 
 function getInitialCollapsed() {
   try {
@@ -103,10 +94,8 @@ export function Layout() {
   }
 
   const isAdmin = user?.role === "admin" || user?.role === "super_admin"
-  const pageInfo = PAGE_TITLES.find(entry => entry.match(location.pathname))
-
   return (
-    <div className="min-h-screen overflow-x-clip bg-aura-surface">
+    <div className="min-h-screen overflow-x-clip bg-gradient-to-b from-aura-canvas-from to-aura-canvas-to">
       <RouteProgress />
       <div className="flex min-h-screen flex-row">
         <Sidebar
@@ -119,13 +108,17 @@ export function Layout() {
           user={user}
         />
         <div className="flex h-[100dvh] min-w-0 flex-1 flex-col overflow-y-auto">
-          <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-aura-border-soft bg-aura-elevated/90 px-4 backdrop-blur-md lg:px-6 print:hidden">
+          {/* The page title bar was removed. The mobile drawer trigger stays
+              as a bare button below `lg` — without it the sidebar would be
+              unreachable on small screens. Nothing renders at desktop widths,
+              where the sidebar is always visible. */}
+          <div className="flex items-center gap-2 px-4 pt-[env(safe-area-inset-top)] lg:hidden print:hidden">
             <Tooltip>
               <TooltipTrigger asChild>
                 <motion.button
                   whileTap={{ scale: 0.88 }}
                   transition={{ type: "spring", stiffness: 500, damping: 20 }}
-                  className="rounded-md p-2.5 text-aura-muted transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand lg:hidden"
+                  className="rounded-md p-2.5 text-aura-muted transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
                   onClick={() => setSidebarOpen(true)}
                   aria-label="Open sidebar"
                   aria-expanded={sidebarOpen}
@@ -136,16 +129,7 @@ export function Layout() {
               </TooltipTrigger>
               <TooltipContent>Open navigation</TooltipContent>
             </Tooltip>
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-display text-[0.95rem] font-semibold leading-tight text-aura-ink">
-                {pageInfo?.title ?? "AURA-Dx"}
-              </p>
-              <p className="truncate text-xs text-aura-muted">
-                {pageInfo ? pageInfo.crumb : "Acoustic Unit for Respiratory Analysis"}
-              </p>
-            </div>
-          </header>
+          </div>
 
           <AnimatePresence mode="wait">
             <motion.main
@@ -155,7 +139,9 @@ export function Layout() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="p-4 lg:p-6 print:p-0"
+              /* The canvas gradient is painted by the outer wrapper so it covers the
+                 whole scrollport; <main> stays transparent. */
+              className="bg-transparent p-4 lg:p-6 print:bg-none print:p-0"
             >
               <Outlet />
             </motion.main>
