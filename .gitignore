@@ -94,5 +94,19 @@ SERVICE_CONFIGURATION.md
 # Runtime PIDs
 *.pid
 
-# Patient audio recordings — NEVER commit (PHI)
+# Patient audio recordings — NEVER commit (PHI).
+# These were committed by accident before this rule existed, and .gitignore does
+# not untrack anything already tracked. They were removed with `git rm --cached`.
+# Anyone cloning an older commit can still retrieve them, which is why the
+# repository has to stay private.
 backend/uploads_audio/
+
+# Audio fixtures must be synthesised, not copied from a patient upload. The
+# committed test_cough.wav was a copy of a real screening recording, so it is
+# gone for the same reason. Generate a synthetic fixture instead if one is ever
+# needed. The model exports contain no audio, so nothing needs re-including.
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.ogg
