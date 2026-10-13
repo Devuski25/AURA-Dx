@@ -91,12 +91,20 @@ Configured in `.opencode/opencode.json` (OpenCode auto-loads this; no manual `cl
 
 | Server | Command / Transport | Purpose |
 |--------|---------------------|---------|
+| `chrome-devtools` | `chrome-devtools-mcp` (local, stdio) | **Browser/UI verification.** Installed via `npm i -g chrome-devtools-mcp`. Requires Chrome at the standard install path. |
 | `supabase` | `npx -y @supabase/mcp-server-supabase` (env `SUPABASE_ACCESS_TOKEN`, project `zczzviyyrrrmzmvjyigx`) | Inspect/query the hosted Supabase project, run SQL, manage migrations via the MCP client. |
 | `motion-dev` | `node dist/index.js` (cwd `C:/Users/David/motion-dev-mcp`) | Motion Dev MCP. Source built locally at `C:/Users/David/motion-dev-mcp` (clone → `npm install` → `npm run build`). Rebuild if its source changes. |
 
 Notes:
+- Servers live under `mcp.servers.<name>` in **OpenCode V2**. A server
+  placed directly under `mcp` is the V1 shape and is silently ignored — the file
+  parses as valid JSON and `opencode mcp list` reports nothing configured.
+- There is no `enabled` field. Use `disabled: true` to keep a server configured
+  without connecting it.
 - `animate-ui` and `shadcn-ui/ui` are **component libraries, NOT MCP servers** — add their components via the shadcn CLI / registry, not as MCP servers.
-- Browser/UI verification uses the `chrome-devtools` MCP server (see Testing above).
+- MCP tools are loaded when a session starts. Fixing the config mid-session
+  requires a restart before the tools appear; `opencode mcp list` confirms
+  connection status independently of that.
 
 ## DO NOT
 

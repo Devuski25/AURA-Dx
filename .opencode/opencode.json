@@ -1,11 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "chrome-devtools": {
-      "type": "local",
-      "command": ["chrome-devtools-mcp"],
-      "enabled": true,
-      "environment": {}
+    "servers": {
+      "chrome-devtools": {
+        "type": "local",
+        "command": ["chrome-devtools-mcp"],
+        "timeout": {
+          "startup": 60000
+        }
+      }
     }
   }
 }
