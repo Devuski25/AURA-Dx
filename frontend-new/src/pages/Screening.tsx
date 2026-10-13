@@ -883,11 +883,9 @@ export function Screening() {
                   <h3 className="font-semibold">Respiratory Classifier</h3>
                   {getRespBadge(result.respiratory_result.label)}
                 </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-aura-muted">Confidence</p>
-                    <p className="font-mono text-lg">{(result.respiratory_result.confidence * 100).toFixed(1)}%</p>
-                  </div>
+                <div className="text-sm">
+                  <p className="text-aura-muted">Confidence</p>
+                  <p className="font-mono text-lg">{(result.respiratory_result.confidence * 100).toFixed(1)}%</p>
                 </div>
                 <div className="mt-4">
                   <p className="text-sm text-aura-muted mb-2">Probability Distribution</p>

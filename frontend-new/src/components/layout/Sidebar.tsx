@@ -162,6 +162,14 @@ export function Sidebar({
             : "sticky top-0 h-screen shrink-0"
         )}
       >
+        {/* The drawer is full-bleed on a phone, so it has to clear the notch on
+            the left and the gesture bar at the bottom itself. Without this the
+            top logo sits under the camera cutout on an iPhone in landscape. */}
+        <div
+          aria-hidden="true"
+          className={cn(isMobile && "pt-[var(--aura-safe-top)] pl-[var(--aura-safe-left)]")}
+          style={isMobile ? undefined : { display: "none" }}
+        />
         <div className="flex shrink-0 items-center justify-between border-b border-white/15 px-3 pb-2 pt-2">
           {/* Logo badge doubles as the sidebar collapse/expand toggle (desktop).
               Geometry mirrors the nav links below: same px-3 gutter, h-11 row,
@@ -223,7 +231,7 @@ export function Sidebar({
           </motion.button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 pb-3 pt-1">
+        <nav className="flex-1 space-y-1 px-3 pb-3 pt-1 pb-[max(0.75rem,var(--aura-safe-bottom))]">
           {items.map((item) => {
             const isActive =
               item.href === "/dashboard"

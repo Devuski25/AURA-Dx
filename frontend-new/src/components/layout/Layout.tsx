@@ -141,7 +141,7 @@ export function Layout() {
               exit="exit"
               /* The canvas gradient is painted by the outer wrapper so it covers the
                  whole scrollport; <main> stays transparent. */
-              className="bg-transparent p-4 lg:p-6 print:bg-none print:p-0"
+              className="bg-transparent p-4 pt-[max(1rem,var(--aura-safe-top))] pb-[max(1rem,var(--aura-safe-bottom))] lg:p-6 2xl:p-8 print:bg-none print:p-0"
             >
               <Outlet />
             </motion.main>

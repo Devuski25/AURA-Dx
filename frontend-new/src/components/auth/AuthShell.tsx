@@ -36,8 +36,13 @@ const CARD_WIDE = CARD_BASE + " max-w-4xl md:grid-cols-[20rem_1fr]"
    the column reads as empty below them. Safe here because the grid row always
    grows to fit whichever column is taller, so the content can never overflow
    the box that `justify-center` centres it within. */
-const PANEL_NARROW = "flex flex-col justify-center bg-white px-6 py-10 sm:px-8 md:px-10"
-const PANEL_WIDE = "flex flex-col justify-center bg-white px-6 py-7 sm:px-8 md:px-10"
+/* On a phone the card fills the viewport, so the padding has to yield to the
+   notch at the top and the gesture bar at the bottom. `max()` keeps the design
+   padding as the floor on devices that report no inset at all. */
+const PANEL_NARROW =
+  "flex flex-col justify-center bg-white px-6 pt-[max(2.5rem,var(--aura-safe-top))] pb-[max(2.5rem,var(--aura-safe-bottom))] sm:px-8 sm:py-10 sm:px-8 md:px-10"
+const PANEL_WIDE =
+  "flex flex-col justify-center bg-white px-6 pt-[max(1.75rem,var(--aura-safe-top))] pb-[max(1.75rem,var(--aura-safe-bottom))] sm:px-8 sm:py-7 md:px-10"
 
 type AuthShellProps = {
   /**

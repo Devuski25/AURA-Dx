@@ -227,7 +227,21 @@ function Start-Tunnel {
     }
     Write-Host "  [START] Cloudflare tunnel ($tunnelId)..."
     $log = Join-Path $Logs "cloudflared.log"
-    $cmd = "`"$exe`" --logfile `"$log`" --loglevel info tunnel run $tunnelId"
+    # Launched through run-hidden.vbs (WScript.Shell.Run, windowStyle 0) rather
+    # than `cmd /c start /b`. WMI creates processes inside a job object, so a
+    # child that detaches from a short-lived cmd is torn down with it - the tunnel
+    # registered its connections and died a second later.
+    #
+    # The command goes through a file because wscript parses its own command line
+    # with C quoting rules and a quoted exe path plus two more quoted arguments
+    # does not survive the trip; cloudflared is invoked with a truncated path and
+    # never starts.
+    $runner = Join-Path $PSScriptRoot 'run-hidden.vbs'
+    $cmdFile = Join-Path $Logs 'cloudflared.cmd'
+    Set-Content -Path $cmdFile -Encoding ASCII -Value (
+        "`"$exe`" --logfile `"$log`" --loglevel info tunnel run $tunnelId"
+    )
+    $cmd = "wscript.exe `"$runner`" `"$cmdFile`""
     if (-not (Invoke-WmiLaunch $cmd)) {
         Write-Host "  [FAIL] tunnel: could not launch" -ForegroundColor Red
         return

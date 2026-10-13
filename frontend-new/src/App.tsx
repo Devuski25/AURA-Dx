@@ -13,6 +13,7 @@ import { Team } from "@/pages/public/Team"
 import { Legal } from "@/pages/public/Legal"
 import { PublicHelpSupport } from "@/pages/public/HelpSupport"
 import { AuthProvider } from "@/context/AuthContext"
+import { BackendWatchdog } from "@/components/BackendWatchdog"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -133,6 +134,9 @@ function App() {
         </a>
         <ScrollToTop />
         <AppRoutes />
+        {/* Renders nothing; tells the user once if the backend disappears while
+            they are working, rather than letting buttons fail unexplained. */}
+        <BackendWatchdog />
         <Toaster />
       </BrowserRouter>
     </AuthProvider>

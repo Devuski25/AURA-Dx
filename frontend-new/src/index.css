@@ -259,6 +259,80 @@
 html,
 body {
   overflow-x: clip;
+  /* Phones with a notch or a gesture bar report insets here. Reading them
+     means padded chrome can clear the hardware instead of hiding under it. */
+  --aura-safe-top: env(safe-area-inset-top, 0px);
+  --aura-safe-right: env(safe-area-inset-right, 0px);
+  --aura-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --aura-safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* ─── Device adaptation ────────────────────────────────────────────────────
+   Three targets, treated as genuinely different devices rather than one
+   layout that stretches.
+
+   PHONE   <= 639px   single column, 44px minimum tap targets, chrome padded
+                     clear of the notch and the gesture bar
+   TABLET  640-1023px two columns, sidebar still a drawer
+   DESKTOP >= 1024px  sidebar, three columns
+
+   Above 1536px the type scale opens up rather than leaving the content
+   centred in a sea of white. Two steps only: enough to feel deliberate on a
+   27" display without making a 13" laptop look sparse. */
+
+/* A phone in landscape has almost no vertical room, and a tall header plus a
+   scrollable form does not fit in it. Compact the header and let the page
+   scroll normally rather than trapping the user in a squeezed viewport. */
+@media (max-width: 639px) and (orientation: landscape) {
+  .aura-safe-pad {
+    padding-left: max(1rem, var(--aura-safe-left));
+    padding-right: max(1rem, var(--aura-safe-right));
+  }
+}
+
+@media (min-width: 1536px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+/* Very large displays: one step further, capped so a 32" monitor does not
+   turn body copy into something a clinician has to back away from. */
+@media (min-width: 1920px) {
+  html {
+    font-size: 19px;
+  }
+}
+
+/* Height-constrained viewports: laptops in a browser with devtools open, and
+   phones in landscape. Nothing should need scrolling twice to reach. */
+@media (max-height: 560px) {
+  .aura-page-header {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+}
+
+/* Touch devices: kill the 300ms tap delay highlight and stop double-tap
+   zoom on controls that are meant to be tapped repeatedly. */
+@media (hover: none) and (pointer: coarse) {
+  .aura-tap {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+}
+
+/* Respect the OS reduced-motion setting at the CSS layer too. Framer Motion
+   handles its own animations; this covers the CSS transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Print: clean clinical report output (Download PDF uses window.print) */

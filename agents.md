@@ -61,6 +61,7 @@ cd frontend-new && npm run dev
 | Frontend↔backend API contract | `python scripts/audit-api-contract.py` |
 | Orphaned pages / route sanity | `python scripts/audit-routes.py` |
 | Unreferenced files | `python scripts/find-unused.py` |
+| Responsive contract | `python scripts/check-responsive.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 
@@ -124,6 +125,38 @@ Notes:
 - **A11y**: all icon-only buttons ≥44×44px hit area + `aria-label`; dialogs use `w-[95vw] max-w-lg` + `max-h-[90vh] overflow-y-auto`; tables wrap in `overflow-x-auto`
 - **Layout**: left-side sidebar — `lg:` desktop toggle (collapsed ↔ expanded, persisted `aura-dx:sidebar-collapsed`) + left slide-over drawer `<lg` (Escape / backdrop / nav click closes; `inert`+`aria-hidden` while closed)
 - **Mobile-first**: zero horizontal scroll on 375px; keep `overflow-x: clip` on `html, body`
+
+### Responsive contract
+
+Three targets, treated as genuinely different devices rather than one layout
+that stretches.
+
+| Target | Width | Layout | Chrome |
+|---|---|---|---|
+| Phone | <=639px | 1 column | drawer nav, safe-area padding |
+| Tablet | 640-1023px | 2 columns | drawer nav |
+| Desktop | >=1024px | 3-5 columns | persistent sidebar |
+| Large | >=1536px | same grid, root font 18px; >=1920px 19px | - |
+
+Rules that are not optional:
+
+- **375px must not scroll horizontally.** `overflow-x: clip` on `html, body` is
+  the backstop, not the mechanism.
+- **A wide table goes inside `overflow-x-auto`, never a bare `min-w-[...]px`.** A
+  min-w wider than 340px is only correct when an overflow ancestor exists.
+- **Multi-column grids need a responsive escape.** `grid-cols-2` with no
+  `sm:`/`md:`/`lg:` override is a bug, not a style choice.
+- **Icon-only buttons >=44x44px.** Add `touch-target` or an explicit `h-11`+.
+- **Full-bleed mobile chrome reads `env(safe-area-inset-*)`** - exposed as
+  `--aura-safe-top|right|bottom|left` on `html, body`. Without it, content hides
+  under a notch or a gesture bar.
+- **`prefers-reduced-motion` is honoured at the CSS layer**, not only inside
+  Framer Motion.
+
+Verify with `python scripts/check-responsive.py`. It reads class strings, so it
+catches what is written - it cannot prove a layout renders correctly. A real
+device still has to check it.
+
 
 ### Avoid
 - Redux/Zustand — use React Context only

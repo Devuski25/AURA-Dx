@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
+import { ServiceHealthPanel } from "@/components/ServiceHealthPanel"
 import { getApiUrl } from "@/lib/api"
 import {
   Dialog,
@@ -607,6 +608,12 @@ export function Admin() {
           })}
         </motion.div>
       </motion.div>
+
+        {/* Admin-only diagnostic. The Login page tells a clinician whether to
+            bother; this tells an administrator what is actually wrong. */}
+        <motion.div variants={accountsCardVariants} className="mt-8">
+          <ServiceHealthPanel />
+        </motion.div>
 
         <motion.div variants={accountsCardVariants} className="mt-8">
           <Card className="aura-panel aura-panel-edge overflow-hidden">

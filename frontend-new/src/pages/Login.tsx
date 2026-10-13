@@ -34,6 +34,7 @@ import { PasswordToggle } from "@/components/auth/PasswordToggle"
 import { authCardVariants, authFieldGroupVariants, authFieldVariants } from "@/components/auth/auth-motion"
 import { useAuth } from "@/hooks/useAuth"
 import { GoogleIcon } from "@/components/GoogleIcon"
+import { StatusIndicator } from "@/components/StatusIndicator"
 import { scorePassword, type PasswordStrengthLevel } from "@/lib/password-strength"
 import { supabase } from "@/lib/supabase"
 
@@ -171,6 +172,11 @@ export function Login() {
           </>
         }
       >
+        {/* Availability, above the form. A clinician walking up to a headless
+            clinic PC needs to know whether a screening will work before they
+            start typing a password. */}
+        <StatusIndicator className="mb-5" />
+
         {/* The form owns the shake transform, so the field stagger lives on an
             inner wrapper — two transform sources on one element fight. */}
         <motion.form

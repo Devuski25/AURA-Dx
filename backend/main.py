@@ -6,12 +6,17 @@ from collections import defaultdict
 from time import time
 import traceback
 from routes.api import router as api_router
+from routes.status import register_heartbeat
+from routes.status import router as status_router
 from config import settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting AURA-Dx FastAPI Backend...")
+    # Publishes liveness to Supabase on an interval so the frontend can tell
+    # "switched off" from "crashed" even while this process is gone.
+    register_heartbeat(app)
     yield
     print("Shutting down AURA-Dx FastAPI Backend...")
 
@@ -96,6 +101,10 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
+# /api/status is public and unauthenticated: the Login page needs it before any
+# session exists. It is mounted separately rather than folded into api_router
+# so that the absence of a guard there is deliberate and visible in one place.
+app.include_router(status_router, prefix="/api")
 
 
 @app.get("/")

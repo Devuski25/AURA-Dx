@@ -13,15 +13,19 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 FE = REPO / "frontend-new" / "src"
-BE = REPO / "backend" / "routes" / "api.py"
+BE_MODULES = sorted((REPO / "backend" / "routes").glob("*.py"))
 
 # ---------------------------------------------------------------------------
 # Backend routes
+#
+# Every module under backend/routes defines its own APIRouter, so scanning only
+# api.py reported /api/status as missing when it lives in status.py.
 # ---------------------------------------------------------------------------
 route_re = re.compile(r'@router\.(get|post|patch|delete|put)\(\s*"([^"]+)"')
 backend = defaultdict(set)
-for method, path in route_re.findall(BE.read_text(encoding="utf-8")):
-    backend[path].add(method.upper())
+for module in BE_MODULES:
+    for method, path in route_re.findall(module.read_text(encoding="utf-8")):
+        backend[path].add(method.upper())
 
 # ---------------------------------------------------------------------------
 # Frontend calls
