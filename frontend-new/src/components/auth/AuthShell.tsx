@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { cn } from "@/lib/utils"
 import { Link } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
 import { ArrowLeft } from "lucide-react"
@@ -97,7 +98,9 @@ export function AuthShell({ brand, children, wideForm = false }: AuthShellProps)
           </div>
         </aside>
 
-        <div className={wideForm ? PANEL_WIDE : PANEL_NARROW}>{children}</div>
+        {/* `relative` so the availability indicator can pin itself to the panel's
+            top-right corner without anchoring to the viewport. */}
+        <div className={cn("relative", wideForm ? PANEL_WIDE : PANEL_NARROW)}>{children}</div>
       </motion.div>
     </div>
   )

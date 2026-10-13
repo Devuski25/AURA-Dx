@@ -181,7 +181,7 @@ export function PublicHelpSupport() {
         </div>
       </div>
 
-      {/* Quick contact info - centered at bottom in a distinct box */}
+      {/* Quick contact info: centered at bottom in a distinct box */}
       <div className="flex justify-center mt-20 md:mt-28 pb-12 md:pb-20">
         <Reveal delay={0.2} className="w-full max-w-md">
           <Card className="bg-aura-surface border-2 border-aura-border shadow-aura-md">

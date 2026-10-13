@@ -20,7 +20,7 @@ const STEPS = [
 ]
 
 const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
-  { icon: Stethoscope, title: "Digital stethoscope", desc: "Capture high-fidelity breathing sounds from standard auscultation points - posterior, anterior, and lateral." },
+  { icon: Stethoscope, title: "Digital stethoscope", desc: "Capture high-fidelity breathing sounds from standard auscultation points: posterior, anterior, and lateral." },
   { icon: FileAudio, title: "WAV upload", desc: "Analyze an existing recording from any compatible digital stethoscope." },
   { icon: ShieldCheck, title: "Clinician portal", desc: "Review the spectrogram, confidence score, and a suggested next step for every session." },
 ]

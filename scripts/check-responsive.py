@@ -101,6 +101,50 @@ for f in sorted(SRC.rglob("*.tsx")):
                 "raw <table> with no overflow-x-auto ancestor")
 
 # ---------------------------------------------------------------------------
+# 4b. Both-axis table scrollers that reach the phone breakpoint
+#
+# A container with `overflow-auto` looks responsive and is not: on a 375px
+# screen a five-column table still renders five columns, each about 60px wide,
+# with the email breaking mid-string and a 32px action target. The user has to
+# discover they can scroll sideways. `overflow-x-auto` is the same story, but
+# that case is a legitimate choice for a genuinely tabular readout, so only the
+# both-axis form is flagged here.
+#
+# The fix is not a wider scroller -- it is a card layout below `md`, which is
+# what Admin.tsx now does. This rule exists so the next table does not quietly
+# reintroduce the pattern.
+# ---------------------------------------------------------------------------
+for f in sorted(SRC.rglob("*.tsx")):
+    if f.name == "table.tsx":
+        continue
+    text = f.read_text(encoding="utf-8", errors="ignore")
+    for m in re.finditer(r'className="[^"]*\boverflow-auto\b[^"]*"', text):
+        # The window is generous on purpose. The card list is a full ~100-line
+        # sibling, so a tight lookback window never sees it and flags a page
+        # that is already correct. Widening only makes this rule more
+        # permissive -- it will miss a real problem in a file where some
+        # unrelated `md:hidden` happens to be nearby -- which is the right
+        # trade against crying wolf on every table page.
+        before = text[max(0, m.start() - 6000): m.start()]
+        after = text[m.start(): m.start() + 6000]
+        if "<Table" not in after and "<table" not in after:
+            continue  # not a table scroller
+        # A mobile alternative may sit on either side of the scroller: Admin.tsx
+        # hides the table and follows it with the card list, Screenings.tsx does
+        # the reverse. Checking one direction only let Screenings through.
+        has_mobile_alternative = (
+            "hidden md:block" in before
+            or "hidden md:table" in before
+            or re.search(r'\bmd:hidden\b', before)
+            or re.search(r'\bmd:hidden\b', after)
+        )
+        if not has_mobile_alternative:
+            line = text[: m.start()].count("\n") + 1
+            add(f, line, "table-mobile",
+                "table in an overflow-auto scroller with no mobile alternative; "
+                "below md it needs a card list")
+
+# ---------------------------------------------------------------------------
 # 5. Global CSS guarantees
 # ---------------------------------------------------------------------------
 css = (SRC / "index.css").read_text(encoding="utf-8")

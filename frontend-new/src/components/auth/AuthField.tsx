@@ -10,18 +10,25 @@ import type { PasswordStrengthLevel } from "@/lib/password-strength"
    Tailwind's scanner can see each one. `group` on the wrapper is what lets the
    leading icon recolour itself on focus via `group-focus-within`. */
 
-const INPUT_BASE =
-  "h-11 w-full rounded-lg border border-aura-border bg-white pl-11 text-sm text-aura-text shadow-aura-xs outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-aura-muted focus:border-aura-forest focus:ring-4 focus:ring-aura-forest/15 disabled:cursor-not-allowed disabled:opacity-60"
+/* h-11 (44px) is the tap-target floor and is kept at every breakpoint — it is an
+   accessibility minimum, not a styling choice. What shrinks on a phone is the
+   surrounding furniture: horizontal padding, the leading icon, and the focus
+   ring, which at 4px reads as a heavy glow against a 375px-wide field.
 
-const INPUT_PLAIN = INPUT_BASE + " pr-4"
-const INPUT_TRAILING = INPUT_BASE + " pr-12"
+   `text-sm` is already the smallest comfortable size; going to text-xs would
+   push body copy below readable on an older phone in a bright clinic. */
+const INPUT_BASE =
+  "h-11 w-full rounded-lg border border-aura-border bg-white pl-10 pr-3 text-sm text-aura-text shadow-aura-xs outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-aura-muted focus:border-aura-forest focus:ring-2 focus:ring-aura-forest/15 disabled:cursor-not-allowed disabled:opacity-60 sm:pl-11 sm:pr-4 sm:focus:ring-4"
+
+const INPUT_PLAIN = INPUT_BASE + " sm:pr-4"
+const INPUT_TRAILING = INPUT_BASE + " pr-11 sm:pr-12"
 
 const LEADING_ICON =
-  "pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-aura-muted transition-colors duration-200 group-focus-within:text-aura-forest"
+  "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-aura-muted transition-colors duration-200 group-focus-within:text-aura-forest sm:left-3.5 sm:h-[18px] sm:w-[18px]"
 
 /** Secondary action — Send code, Verify, Continue with Google. */
 export const AUTH_SECONDARY_BUTTON =
-  "flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-4 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+  "flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-3 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
 
 /* Label → input → footer sit 6px apart. `gap-1.5` rather than `gap-2` is what
    keeps an eight-field form from stacking up: across ten grid rows the 2px

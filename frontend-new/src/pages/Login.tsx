@@ -71,8 +71,39 @@ export function Login() {
      reset does not reach it — the hook is the only thing gating these. */
   const reduced = useReducedMotion() ?? false
 
-  // Handle already authenticated users
+  /* An authenticated user who is not approved gets their own screen rather
+     than a redirect.
+
+     Previously this block only checked `user`, so a pending or rejected account
+     signed in, landed here, was told "Already Signed In", tapped "Go to
+     Dashboard", and PrivateRoute -- which requires status === "approved" --
+     redirected straight back to /login. Tap, bounce, tap, bounce, with no way
+     out but the browser's reload button. On a phone that reads as a frozen
+     app.
+
+     Each status now gets the screen that tells the truth about it, and only
+     approved users are offered the dashboard. */
   if (user && !authLoading) {
+    const status = user.status ?? "approved"
+    const approved = status === "approved"
+
+    const copy = {
+      icon: approved ? CheckCircle2 : status === "pending" ? Clock : ShieldAlert,
+      title: approved
+        ? "Already Signed In"
+        : status === "pending"
+          ? "Awaiting Approval"
+          : "Access Denied",
+      tone: approved ? "text-aura-accent" : status === "pending" ? "text-amber-600" : "text-destructive",
+      body: approved
+        ? `You are already logged in to your AURA-Dx account.`
+        : status === "pending"
+          ? "Your account has been created and is waiting for an administrator to approve it. You will be able to sign in once that is done."
+          : "Your account has not been approved for access to AURA-Dx. Please contact your administrator.",
+    } as const
+
+    const Icon = copy.icon
+
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,#9edfc1_0%,#b5e7d0_40%,#dcf2e8_74%,#effaf4_100%)] px-4 py-12">
         <motion.div
@@ -82,25 +113,33 @@ export function Login() {
           className="w-full max-w-md rounded-2xl border border-aura-border bg-white p-8 shadow-aura-xl"
         >
           <div className="flex flex-col items-center gap-3 text-center">
-            <CheckCircle2 className="h-8 w-8 text-aura-accent" aria-hidden="true" />
-            <h1 className="font-display text-2xl font-bold text-aura-text">Already Signed In</h1>
-            <p className="text-aura-muted">Welcome back, {user.full_name?.split(" ")[0] || "Clinician"}</p>
+            <Icon className={`h-8 w-8 ${copy.tone}`} aria-hidden="true" />
+            <h1 className="font-display text-2xl font-bold text-aura-text">{copy.title}</h1>
+            <p className="text-aura-muted">
+              {approved ? `Welcome back, ${user.full_name?.split(" ")[0] || "Clinician"}` : user.email}
+            </p>
           </div>
           <div className="mt-6 space-y-1 text-center text-aura-muted">
-            <p>You are already logged in to your AURA-Dx account.</p>
-            <p className="text-sm">Role: {(user.role || "").replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}</p>
+            <p>{copy.body}</p>
+            {approved && (
+              <p className="text-sm">
+                Role: {(user.role || "").replace("_", " ").replace(/\b\w/g, c => c.toUpperCase())}
+              </p>
+            )}
           </div>
           <div className="mt-7 flex gap-2">
+            {approved && (
+              <Button
+                className="flex-1 gap-2"
+                onClick={() => navigate("/dashboard")}
+              >
+                <ArrowRight className="h-4 w-4" />
+                Go to Dashboard
+              </Button>
+            )}
             <Button
-              className="flex-1 gap-2"
-              onClick={() => navigate("/dashboard")}
-            >
-              <ArrowRight className="h-4 w-4" />
-              Go to Dashboard
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1"
+              variant={approved ? "outline" : "default"}
+              className={approved ? "flex-1" : "w-full"}
               onClick={async () => {
                 await signOut()
                 navigate("/login")
@@ -159,7 +198,7 @@ export function Login() {
       <AuthShell
         brand={
           <>
-            <h1 className="font-display text-xl font-bold tracking-tight text-white md:text-4xl md:leading-[1.08]">
+            <h1 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl md:text-4xl md:leading-[1.08]">
               Welcome back
             </h1>
             {/* `md:text-lg` rather than an arbitrary rem: the hardcoded value
@@ -172,10 +211,15 @@ export function Login() {
           </>
         }
       >
-        {/* Availability, above the form. A clinician walking up to a headless
-            clinic PC needs to know whether a screening will work before they
-            start typing a password. */}
-        <StatusIndicator className="mb-5" />
+        {/* Availability. A clinician at a headless clinic PC needs to know whether a
+            screening will work before typing a password, but it should not push
+            the form down or compete with it.
+
+            Pinned to the panel's top-right from `sm` up, where there is width to
+            spare. Below that it stays in flow: absolutely positioning it on a
+            375px screen puts it on top of the first form field rather than
+            beside it. */}
+        <StatusIndicator className="mb-5 sm:absolute sm:right-0 sm:top-0 sm:mb-0 sm:w-auto sm:max-w-[46%]" />
 
         {/* The form owns the shake transform, so the field stagger lives on an
             inner wrapper — two transform sources on one element fight. */}

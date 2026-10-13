@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils"
 import {
   AVAILABILITY_COPY,
   describeLastSeen,
-  isFresh,
   lastHeartbeat,
   probe,
   type Availability,
@@ -25,6 +24,11 @@ const TONE: Record<Availability, { dot: string; text: string; icon: typeof Check
  * spinner that never resolves -- if the backend is down the user still needs to
  * be able to read the form and sign in once it comes back.
  *
+ * Healthy state is a bare dot plus a short reassurance. Restating "Backend is
+ * running" as a headline is noise: when it is obviously up, saying so adds
+ * nothing, and when it is down the word "Backend" means nothing to a clinician.
+ * Unavailable state keeps its explanation, because that is the case worth words.
+ *
  * `role="status"` with aria-live so a screen reader announces a transition rather
  * than only the initial state.
  */
@@ -36,7 +40,7 @@ export function StatusIndicator({ className }: { className?: string }) {
     let cancelled = false
 
     const run = async () => {
-      const { availability: next, detail: payload } = await probe()
+      const { availability: next } = await probe()
       if (cancelled) return
       setAvailability(next)
 
@@ -44,11 +48,16 @@ export function StatusIndicator({ className }: { className?: string }) {
         setDetail(null)
         return
       }
-      // The probe failed. Ask Supabase when the backend last checked in, so the
-      // message can distinguish "off since 2 minutes ago" from "never started".
+      // The probe failed. Ask Supabase when the backend last checked in.
+      //
+      // Always shown, fresh or stale, because the two cases point at different
+      // faults and both are worth naming:
+      //   fresh  -> the Mini PC is alive and talking to Supabase but unreachable
+      //             from here, so the tunnel or the network is at fault
+      //   stale  -> the Mini PC itself has been gone for a while
       const beat = await lastHeartbeat()
       if (cancelled) return
-      setDetail(isFresh(beat?.last_seen) ? null : describeLastSeen(beat?.last_seen) || null)
+      setDetail(describeLastSeen(beat?.last_seen) || null)
     }
 
     void run()
@@ -61,41 +70,48 @@ export function StatusIndicator({ className }: { className?: string }) {
 
   const tone = TONE[availability]
   const Icon = tone.icon
-  const copy = availability === "checking" ? null : AVAILABILITY_COPY[availability]
+  const healthy = availability === "online" || availability === "degraded"
+
+  if (healthy) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn("flex items-center gap-2", className)}
+      >
+        <span className="relative flex h-2 w-2 shrink-0 items-center justify-center" aria-hidden="true">
+          <span className={cn("absolute h-2 w-2 rounded-full", tone.dot)} />
+          <span className={cn("absolute h-2 w-2 animate-ping rounded-full opacity-60", tone.dot)} />
+        </span>
+        <p className={cn("text-xs font-medium", availability === "online" ? "text-aura-pine" : "text-amber-700")}>
+          {availability === "online"
+            ? "Ready to screen."
+            : AVAILABILITY_COPY.degraded.hint}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div
       role="status"
       aria-live="polite"
       className={cn(
-        "mx-auto flex w-full max-w-sm items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left",
-        availability === "online" && "border-aura-border-soft bg-aura-surface-alt",
-        availability === "degraded" && "border-amber-200 bg-amber-50",
-        availability === "offline" && "border-red-200 bg-red-50",
-        availability === "checking" && "border-aura-border-soft bg-aura-surface-alt",
+        "flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-left",
+        availability === "offline" ? "border-red-200 bg-red-50" : "border-aura-border-soft bg-aura-surface-alt",
         className
       )}
     >
-      <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center" aria-hidden="true">
-        <span className={cn("absolute h-2.5 w-2.5 rounded-full", tone.dot)} />
-        {availability === "online" && (
-          <span className={cn("absolute h-2.5 w-2.5 animate-ping rounded-full opacity-60", tone.dot)} />
-        )}
+      <span className="relative mt-1 flex h-2 w-2 shrink-0 items-center justify-center" aria-hidden="true">
+        <span className={cn("absolute h-2 w-2 rounded-full", tone.dot)} />
       </span>
-
       <div className="min-w-0 flex-1">
         <p className={cn("flex items-center gap-1.5 text-sm font-semibold", tone.text)}>
-          <Icon
-            className={cn(
-              "h-3.5 w-3.5 shrink-0",
-              availability === "checking" && "animate-spin"
-            )}
-            aria-hidden="true"
-          />
-          {copy ? copy.label : "Checking services"}
+          <Icon className={cn("h-3.5 w-3.5 shrink-0", availability === "checking" && "animate-spin")} aria-hidden="true" />
+          {availability === "checking" ? "Checking services" : "Screening unavailable"}
         </p>
         <p className="mt-0.5 text-xs leading-snug text-aura-muted">
-          {copy ? copy.hint : "One moment."}
+          {availability === "checking" ? "One moment." : AVAILABILITY_COPY.offline.hint}
           {detail && ` Last seen ${detail}.`}
         </p>
       </div>

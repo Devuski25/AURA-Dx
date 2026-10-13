@@ -13,7 +13,10 @@ export function FloatingHelpButton() {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 20 }}
       transition={{ type: "spring", stiffness: 300, damping: 24 }}
-      className="fixed bottom-6 right-6 z-[50]"
+      /* Hidden below lg: the bottom nav already carries a Help & Support item on
+         exactly those viewports, so this button was a duplicate sitting on top of
+         the nav bar (both fixed to the bottom-right) with a lower z-index. */
+      className="fixed bottom-6 right-6 z-50 hidden lg:flex"
     >
       <Tooltip>
         <TooltipTrigger asChild>

@@ -14,6 +14,7 @@ import { Legal } from "@/pages/public/Legal"
 import { PublicHelpSupport } from "@/pages/public/HelpSupport"
 import { AuthProvider } from "@/context/AuthContext"
 import { BackendWatchdog } from "@/components/BackendWatchdog"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -47,6 +48,14 @@ function PrivateRoute({ children, allowedRoles }: { children: React.ReactNode; a
     return <Navigate to="/login" replace />
   }
 
+  /* Signed in but not approved.
+
+     Sent to /login, which is not a dead end -- it renders a status-specific
+     screen (Awaiting Approval / Access Denied) with a Sign Out button. That
+     matters because redirecting somewhere that redirects back here is what
+     produced the unbreakable loop: tap "Go to Dashboard", get bounced to
+     /login, sign-in page offers the dashboard again, forever. `replace` keeps
+     the protected URL out of history so Back does not walk the loop again. */
   if (user.status !== "approved") {
     return <Navigate to="/login" replace />
   }
@@ -127,19 +136,24 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-background focus:text-foreground focus:rounded-md focus:ring-2 focus:ring-ring">
-          Skip to main content
-        </a>
-        <ScrollToTop />
-        <AppRoutes />
-        {/* Renders nothing; tells the user once if the backend disappears while
-            they are working, rather than letting buttons fail unexplained. */}
-        <BackendWatchdog />
-        <Toaster />
-      </BrowserRouter>
-    </AuthProvider>
+    /* Outermost, so it also catches a crash inside AuthProvider — which is
+       where a failed Supabase session load lands. Inside BrowserRouter so the
+       fallback screen keeps the router context if it ever needs to navigate. */
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-background focus:text-foreground focus:rounded-md focus:ring-2 focus:ring-ring">
+            Skip to main content
+          </a>
+          <ScrollToTop />
+          <AppRoutes />
+          {/* Renders nothing; tells the user once if the backend disappears while
+              they are working, rather than letting buttons fail unexplained. */}
+          <BackendWatchdog />
+          <Toaster />
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 

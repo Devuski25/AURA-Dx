@@ -460,7 +460,100 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
               hint="Try adjusting your search or filters"
             />
           ) : (
-            <div className="max-h-[600px] overflow-auto overscroll-contain">
+            <>
+            {/* Mobile: one card per screening. The table below is six columns
+                including a checkbox and a 32px action trigger; at 375px that is
+                about 50px per column, with the date clipped and the result
+                badge wrapping. A card gives the patient name room, the result
+                somewhere to sit, and the actions a full-width row.
+
+                Hidden from `md` up, where the table fits. Both render the same
+                `filteredAndSortedScreenings`, so search, sort and the PDF
+                selection all apply to both. */}
+            <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+              {filteredAndSortedScreenings.map((screening, idx) => {
+                const isSelected = selectedIds.has(screening.id)
+                const label = screening.patient_name || "Anonymous Screening"
+                return (
+                  <li
+                    key={screening.id}
+                    className={cn(
+                      "rounded-xl border bg-white p-4 transition-colors",
+                      isSelected
+                        ? "border-aura-forest/40 bg-aura-mint-wash/60"
+                        : "border-aura-forest/10",
+                      idx % 2 === 1 && !isSelected && "bg-aura-table-stripe"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* 44x44 label so the checkbox clears the tap-target
+                          floor; the box itself stays 18px. */}
+                      <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                        <Checkbox
+                          className="h-[18px] w-[18px] accent-aura-forest"
+                          checked={isSelected}
+                          onChange={() => toggleRow(screening.id)}
+                          aria-label={`Select ${label} for PDF export`}
+                        />
+                      </label>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="text-base font-medium">{label}</div>
+                        <div className="text-sm text-aura-muted">
+                          {screening.clinician_name}
+                        </div>
+                      </div>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="touch-target h-8 w-8 shrink-0 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
+                            aria-label={`Actions for ${label}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
+                            {label}
+                          </DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => navigate(`/dashboard/screenings/${screening.id}`)}
+                            className="gap-2"
+                          >
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                            View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => void downloadPDF(screening.id)}
+                            className="gap-2"
+                          >
+                            <Download className="h-4 w-4" aria-hidden="true" />
+                            Download PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Result, status and date on one wrapping row rather than
+                        three columns. */}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {getRespBadge(screening.respiratory_result)}
+                      {getStatusBadge(screening.status, screening.reviewed_by_name)}
+                      <span className="text-sm tabular-nums text-aura-muted">
+                        {createdDateFormat.format(new Date(screening.created_at))}
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {/* Table, from `md` up. */}
+            <div className="hidden max-h-[600px] overflow-auto overscroll-contain md:block">
               <Table>
                 <TableHeader className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10">
                   <TableRow>
@@ -582,6 +675,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                 </TableBody>
               </Table>
             </div>
+            </>
           )}
             </CardContent>
           </Card>

@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion"
 import { pageVariants } from "@/lib/motion"
 import { Logo } from "@/components/layout/Logo"
 import { cn } from "@/lib/utils"
-import { ArrowUpRight, Home, Info, LifeBuoy, ShieldCheck, Users, HelpCircle } from "lucide-react"
+import { ArrowUpRight, Home, Info, ShieldCheck, Users, HelpCircle } from "lucide-react"
 import { FloatingHelpButton } from "@/components/FloatingHelpButton"
 
 const NAV_ITEMS = [
@@ -18,7 +18,7 @@ const MOBILE_NAV_ITEMS = [
   { label: "About System", path: "/about", icon: Info },
   { label: "Our Team", path: "/team", icon: Users },
   { label: "Legal & Privacy", path: "/legal", icon: ShieldCheck },
-  { label: "Help & Support", path: "/help-support", icon: LifeBuoy },
+  { label: "Help & Support", path: "/help-support", icon: HelpCircle },
 ]
 
 function ScrollProgress() {
@@ -59,7 +59,7 @@ export function PublicLayout() {
   const { pathname } = useLocation()
 
   return (
-    <div className="min-h-screen bg-aura-bg pb-20 font-[Poppins,sans-serif] text-aura-text lg:pb-0">
+    <div className="min-h-screen bg-aura-bg pb-[calc(5rem+max(0px,var(--aura-safe-bottom)))] font-[Poppins,sans-serif] text-aura-text lg:pb-0">
       <ScrollProgress />
 
       {/* ·"?·"?·"? Main header ·"?·"?·"? */}
@@ -163,10 +163,19 @@ export function PublicLayout() {
         </div>
       </footer>
 
-      {/* Mobile bottom navigation */}
+      {/* Mobile / tablet bottom navigation.
+
+          Icons only below `md`. Five labels at 375px gives each item 75px, and
+          "Legal & Privacy" at 15px needs roughly 100px — the labels were
+          squeezing each other into two lines and misaligning the icons, which
+          is worse than having no labels. The icons are unambiguous enough with
+          the tooltip-free aria-label carrying the full name for assistive tech,
+          and the labels come back at 768px where there is room for them.
+
+          `pb-[max(...)]` keeps the row clear of the iOS gesture bar. */}
       <nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-[60] flex border-t border-aura-border-soft bg-white/95 backdrop-blur-lg lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-[60] flex border-t border-aura-border-soft bg-white/95 pb-[max(0px,var(--aura-safe-bottom))] backdrop-blur-lg lg:hidden"
       >
         {MOBILE_NAV_ITEMS.map((navItem) => {
           const active = pathname === navItem.path
@@ -176,13 +185,17 @@ export function PublicLayout() {
               key={navItem.path}
               to={navItem.path}
               aria-current={active ? "page" : undefined}
+              /* The visible label is display:none below md, which also removes
+                 it from the accessibility tree — so the accessible name has to
+                 be set here rather than being inherited from the span. */
+              aria-label={navItem.label}
               className={cn(
-                "flex min-h-[56px] flex-1 flex-col items-center justify-center gap-1 text-[0.9375rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent",
+                "flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[0.8125rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent md:text-[0.9375rem]",
                 active ? "bg-aura-accent/10 text-aura-accent" : "text-aura-muted hover:text-aura-text"
               )}
             >
-              <Icon className="h-5 w-5" aria-hidden="true" />
-              <span>{navItem.label}</span>
+              <Icon className="h-6 w-6 shrink-0 md:h-5 md:w-5" aria-hidden="true" />
+              <span className="hidden md:inline">{navItem.label}</span>
             </Link>
           )
         })}

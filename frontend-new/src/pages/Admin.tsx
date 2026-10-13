@@ -41,7 +41,7 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useLocation } from "react-router-dom"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { motion, AnimatePresence, useReducedMotion, animate, type Variants } from "framer-motion"
+import { motion, AnimatePresence, useReducedMotion, animate, type TargetAndTransition, type Variants } from "framer-motion"
 import { EASE_OUT } from "@/lib/fine-motion"
 import { PageBanner } from "@/components/PageBanner"
 
@@ -88,6 +88,20 @@ const accountsCardVariants: Variants = {
   },
 }
 
+/* The `exit` target, lifted out of `rowVariants` and typed as a plain target.
+
+   `Variants` widens every key to `Variant`, which includes target resolvers and
+   label maps that `exit` does not accept. The table row reads it back through
+   `variants`, but the mobile card passes it directly, so it needs the narrower
+   type. One definition, so the two cannot drift. */
+const ROW_EXIT = {
+  opacity: 0,
+  // Height collapse is the one non-compositor property here, but the spec asks
+  // for a collapsing delete; everything else animates transform only.
+  height: 0,
+  transition: { duration: 0.24, ease: EASE_OUT },
+} satisfies TargetAndTransition
+
 const rowVariants: Variants = {
   hidden: { opacity: 0, y: 8 },
   visible: (index: number) => ({
@@ -99,17 +113,196 @@ const rowVariants: Variants = {
       delay: index < STAGGERED_ROWS ? index * ROW_STAGGER : 0,
     },
   }),
-  exit: {
-    opacity: 0,
-    // Height collapse is the one non-compositor property here, but the spec
-    // asks for a collapsing delete; everything else animates transform only.
-    height: 0,
-    transition: { duration: 0.24, ease: EASE_OUT },
-  },
+  exit: ROW_EXIT,
 }
 
 /** TableRow forwards its ref, so framer can wrap the shadcn primitive. */
 const MotionTableRow = motion(TableRow)
+
+/* ---------------------------------------------------------------------------
+   Row pieces shared by the desktop table and the mobile card list.
+
+   These were inline in the table. Rendering the same user as a card on a phone
+   meant copying them, and the copies drifted -- the status pill lost its pending
+   dot and its flash check within one commit. One definition, two layouts.
+   --------------------------------------------------------------------------- */
+
+type AdminUser = {
+  id: string
+  full_name: string
+  email: string
+  role: string
+  status: string
+}
+
+/** Monogram badge, ringed in the role tone. */
+function UserMonogram({ user }: { user: AdminUser }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 font-display text-[14.5px] font-bold tracking-tight",
+        user.role === "super_admin"
+          ? "border-aura-pine/40 bg-aura-pine/10 text-aura-pine"
+          : "border-aura-forest/25 bg-aura-sage text-aura-forest"
+      )}
+    >
+      {user.full_name
+        .split(" ")
+        .map((part: string) => part[0])
+        .slice(0, 2)
+        .join("")}
+    </span>
+  )
+}
+
+/** Role badge: Clinician / Admin. */
+function UserRoleBadge({ role }: { role: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "h-7 px-3 text-sm font-semibold capitalize",
+        role === "super_admin"
+          ? "border-aura-pine/25 bg-aura-pine/10 text-aura-pine"
+          : "border-aura-forest/15 bg-aura-sage text-aura-forest"
+      )}
+    >
+      {role.replace("_", " ")}
+    </Badge>
+  )
+}
+
+/**
+ * Status pill. Keyed on status so it crossfades in place when an approval lands,
+ * with the check drawing itself in. Text is unchanged.
+ */
+function UserStatusPill({
+  user,
+  reduceMotion,
+  flashed,
+}: {
+  user: AdminUser
+  reduceMotion: boolean | null
+  flashed: boolean
+}) {
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.span
+        key={user.status}
+        initial={reduceMotion ? false : { opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={reduceMotion ? undefined : { opacity: 0, scale: 0.92 }}
+        transition={{ duration: 0.18, ease: EASE_OUT }}
+        className={cn(
+          "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold",
+          user.status === "approved" && "border-transparent bg-aura-pine text-white",
+          user.status === "pending" && "border-sky-200 bg-sky-50 text-sky-800",
+          user.status === "rejected" && "border-transparent bg-destructive text-white",
+          user.status === "deleted" && "border-transparent bg-aura-muted text-white"
+        )}
+      >
+        {user.status === "pending" ? (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="aura-badge-breathe h-1.5 w-1.5 shrink-0 rounded-full bg-sky-600" aria-hidden="true" />
+                {user.status}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Awaiting approval</TooltipContent>
+          </Tooltip>
+        ) : user.status === "approved" && flashed ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Check className="aura-check-draw h-3 w-3" aria-hidden="true" />
+            {user.status}
+          </span>
+        ) : (
+          user.status
+        )}
+      </motion.span>
+    </AnimatePresence>
+  )
+}
+
+/** The three-dot action menu. Same contents in the table and the card. */
+function UserActionsMenu({
+  user,
+  currentUserRole,
+  currentUserId,
+  onApprove,
+  onReject,
+  onEdit,
+  onDelete,
+  align = "end",
+}: {
+  user: AdminUser
+  currentUserRole?: string
+  currentUserId?: string
+  onApprove: (id: string) => void
+  onReject: (id: string) => void
+  onEdit: (user: AdminUser) => void
+  onDelete: (user: AdminUser) => void
+  align?: "start" | "center" | "end"
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
+          aria-label={`Actions for ${user.full_name}`}
+        >
+          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={align} className="w-44">
+        <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
+          {user.full_name}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {/* Approve / Reject — only for pending non-super-admins */}
+        {user.status === "pending" && user.role !== "super_admin" && (
+          <>
+            <DropdownMenuItem
+              onSelect={() => onApprove(user.id)}
+              className="gap-2 text-green-700 focus:text-green-800 focus:bg-green-50"
+            >
+              <CheckCircle className="h-4 w-4" aria-hidden="true" />
+              Approve
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => onReject(user.id)}
+              className="gap-2 text-red-600 focus:text-red-700 focus:bg-red-50"
+            >
+              <XCircle className="h-4 w-4" aria-hidden="true" />
+              Reject
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuItem onSelect={() => onEdit(user)} className="gap-2">
+          <Edit className="h-4 w-4" aria-hidden="true" />
+          Edit
+        </DropdownMenuItem>
+        {/* Delete — super_admin only, not self, not other super_admins */}
+        {currentUserRole === "super_admin" && user.role !== "super_admin" && user.id !== currentUserId && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => onDelete(user)}
+              className="gap-2 text-aura-coral-strong focus:text-aura-coral-strong focus:bg-aura-coral-soft"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Delete
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 /** Shared empty value so the flash effect can reuse the identical reference. */
 const EMPTY_FLASH: { message: string; ids: Set<string> } = { message: "", ids: new Set() }
@@ -738,7 +931,7 @@ export function Admin() {
                   <p className="text-xs text-aura-muted">Try adjusting your search or filters</p>
                 </motion.div>
               ) : (
-                <div className="relative">
+                <div className="relative hidden md:block">
                 <div
                   onScroll={handleTableScroll}
                   className="aura-table-scroll max-h-[560px] overflow-auto overscroll-contain"
@@ -788,16 +981,7 @@ export function Admin() {
                               className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                             />
                             <div className="flex items-center gap-3">
-                              <span
-                                className={cn(
-                                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 font-display text-[14.5px] font-bold tracking-tight",
-                                  u.role === "super_admin"
-                                    ? "border-aura-pine/40 bg-aura-pine/10 text-aura-pine"
-                                    : "border-aura-forest/25 bg-aura-sage text-aura-forest",
-                                )}
-                              >
-                                {u.full_name.split(" ").map((part: string) => part[0]).slice(0, 2).join("")}
-                              </span>
+                              <UserMonogram user={u} />
                               <span className="truncate text-base font-medium">{u.full_name}</span>
                             </div>
                           </TableCell>
@@ -808,120 +992,31 @@ export function Admin() {
                             {/* Faint tinted fill instead of a bare outline; the
                                 label sits at 12.4:1 on its own wash. */}
                             <div className="flex justify-center">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "h-7 px-3 text-sm font-semibold",
-                                  u.role === "super_admin"
-                                    ? "border-aura-pine/25 bg-aura-pine/10 text-aura-pine"
-                                    : "border-aura-forest/15 bg-aura-sage text-aura-forest"
-                                )}
-                              >
-                                {u.role.replace("_", " ")}
-                              </Badge>
+                              <UserRoleBadge role={u.role} />
                             </div>
                           </TableCell>
                           <TableCell className="px-3 text-center align-middle">
-                            {/* Keyed on status so the pill crossfades in place
-                                when an approval lands, with the check drawing
-                                itself in. Text is unchanged. */}
                             <div className="flex justify-center">
-                              <AnimatePresence mode="wait" initial={false}>
-                                <motion.span
-                                  key={u.status}
-                                  initial={reduceMotion ? false : { opacity: 0, scale: 0.92 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={reduceMotion ? undefined : { opacity: 0, scale: 0.92 }}
-                                  transition={{ duration: 0.18, ease: EASE_OUT }}
-                                  className={cn(
-                                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold",
-                                    u.status === "approved" && "border-transparent bg-aura-pine text-white",
-                                    u.status === "pending" && "border-sky-200 bg-sky-50 text-sky-800",
-                                    u.status === "rejected" && "border-transparent bg-destructive text-white",
-                                    u.status === "deleted" && "border-transparent bg-aura-muted text-white"
-                                  )}
-                                >
-                                  {u.status === "pending" ? (
-                                    <Tooltip delayDuration={300}>
-                                      <TooltipTrigger asChild>
-                                        <span className="inline-flex items-center gap-1.5">
-                                          <span className="aura-badge-breathe h-1.5 w-1.5 shrink-0 rounded-full bg-sky-600" aria-hidden="true" />
-                                          {u.status}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent>Awaiting approval</TooltipContent>
-                                    </Tooltip>
-                                  ) : u.status === "approved" && flashedIds.has(u.id) ? (
-                                    <span className="inline-flex items-center gap-1.5">
-                                      <Check className="aura-check-draw h-3 w-3" aria-hidden="true" />
-                                      {u.status}
-                                    </span>
-                                  ) : (
-                                    u.status
-                                  )}
-                                </motion.span>
-                              </AnimatePresence>
+                              <UserStatusPill
+                                user={u}
+                                reduceMotion={reduceMotion}
+                                flashed={flashedIds.has(u.id)}
+                              />
                             </div>
                           </TableCell>
                           <TableCell className="px-3 text-center align-middle">
                             {/* Row actions collapse into a single trigger so the
                                 column stays a fixed ~80px. Four inline icons
                                 needed ~170px and overflowed their own width. */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
-                                  aria-label={`Actions for ${u.full_name}`}
-                                >
-                                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-44">
-                                <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
-                                  {u.full_name}
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {/* Approve / Reject — only for pending non-super-admins */}
-                                {u.status === "pending" && u.role !== "super_admin" && (
-                                  <>
-                                    <DropdownMenuItem
-                                      onSelect={() => handleApprove(u.id)}
-                                      className="gap-2 text-green-700 focus:text-green-800 focus:bg-green-50"
-                                    >
-                                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                                      Approve
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onSelect={() => handleReject(u.id)}
-                                      className="gap-2 text-red-600 focus:text-red-700 focus:bg-red-50"
-                                    >
-                                      <XCircle className="h-4 w-4" aria-hidden="true" />
-                                      Reject
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                )}
-                                <DropdownMenuItem onSelect={() => openEditDialog(u)} className="gap-2">
-                                  <Edit className="h-4 w-4" aria-hidden="true" />
-                                  Edit
-                                </DropdownMenuItem>
-                                {/* Delete — super_admin only, not self, not other super_admins */}
-                                {(user?.role === "super_admin" && u.role !== "super_admin" && u.id !== user?.id) && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onSelect={() => confirmDelete(u)}
-                                      className="gap-2 text-aura-coral-strong focus:text-aura-coral-strong focus:bg-aura-coral-soft"
-                                    >
-                                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <UserActionsMenu
+                              user={u}
+                              currentUserRole={user?.role}
+                              currentUserId={user?.id}
+                              onApprove={handleApprove}
+                              onReject={handleReject}
+                              onEdit={openEditDialog}
+                              onDelete={confirmDelete}
+                            />
                           </TableCell>
                         </MotionTableRow>
                       ))}
@@ -937,6 +1032,84 @@ export function Admin() {
                 <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-gradient-to-t from-white to-transparent" />
                 </div>
               )}
+
+              {/* Mobile: one card per user.
+
+                  The table is five columns — name, email, role, status, actions —
+                  which at 375px is roughly 340px of content spread across five
+                  columns. Every cell ends up 60px wide, email breaks mid-string,
+                  and the action menu is a 32px target. Horizontally scrolling a
+                  user list on a phone is worse than restructuring it.
+
+                  Hidden from `md` up, where the table has room again. Both lists
+                  render the same `filteredUsers`, so search and filters apply to
+                  both without changes. `md:hidden` rather than `hidden md:block`
+                  on the card so the card markup is the one carrying the
+                  breakpoint. */}
+              <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+                <AnimatePresence initial={false}>
+                  {filteredUsers.map((u, idx) => (
+                    <motion.li
+                      key={u.id}
+                      layout
+                      custom={idx}
+                      variants={rowVariants}
+                      initial={entranceDone || reduceMotion ? false : "hidden"}
+                      exit={ROW_EXIT}
+                      transition={{ layout: { duration: 0.28, ease: EASE_OUT } }}
+                      className={cn(
+                        "rounded-xl border border-aura-forest/10 bg-white p-4 transition-colors duration-150 focus-within:bg-aura-mint-wash/60",
+                        // Faint sky tint marks rows still awaiting a decision.
+                        u.status === "pending" && "bg-sky-50/50",
+                        // Brief green flash after a status change lands.
+                        flashState.ids.has(u.id) && "bg-aura-pine/15"
+                      )}
+                    >
+                      {/* Top row: who they are, and whether they are in yet. */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <UserMonogram user={u} />
+                          <span className="min-w-0 truncate text-base font-semibold">
+                            {u.full_name}
+                          </span>
+                        </div>
+                        <UserStatusPill
+                          user={u}
+                          reduceMotion={reduceMotion}
+                          flashed={flashedIds.has(u.id)}
+                        />
+                      </div>
+
+                      {/* Middle row: identity and authority. The email breaks
+                          rather than scrolls — a long address on a 375px screen
+                          is the same word-wrap anywhere, and an ellipsis hides
+                          exactly the part that distinguishes two similar
+                          addresses. */}
+                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                        <span className="min-w-0 break-all text-sm text-aura-muted">
+                          {u.email}
+                        </span>
+                        <UserRoleBadge role={u.role} />
+                      </div>
+
+                      {/* Actions. Full-width row on mobile: the 32px trigger is
+                          well under the 44px floor once the menu opens upward
+                          into the rest of the list. */}
+                      <div className="mt-3 flex justify-end border-t border-aura-forest/10 pt-3">
+                        <UserActionsMenu
+                          user={u}
+                          currentUserRole={user?.role}
+                          currentUserId={user?.id}
+                          onApprove={handleApprove}
+                          onReject={handleReject}
+                          onEdit={openEditDialog}
+                          onDelete={confirmDelete}
+                        />
+                      </div>
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
+              </ul>
             </CardContent>
           </Card>
           </motion.div>

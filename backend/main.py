@@ -92,9 +92,17 @@ async def exception_guard_middleware(request: Request, call_next):
 
 # Added last => OUTERMOST: every response below (200/401/403/429/500) gets the
 # CORS headers, and preflights are answered before the rate limiter counts them.
+#
+# `allow_origin_regex` admits origins on the local network so the dev site works
+# from a phone or a second laptop without hand-editing CORS_ORIGINS every time
+# the DHCP lease changes. Starlette checks the explicit list first, so the
+# production origins still match by name; the regex is http-only and RFC1918-
+# scoped, and the API is bearer-token authenticated rather than cookie-based.
+# See Settings.cors_lan_origin_regex for the full scoping argument.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
+    allow_origin_regex=settings.cors_lan_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

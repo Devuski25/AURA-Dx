@@ -48,6 +48,43 @@ class Settings(BaseSettings):
         # origins without one, so "https://auradx.xyz/" would never match).
         return [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
 
+    @property
+    def cors_lan_origin_regex(self) -> str:
+        """Origins on the local network, for cross-device development.
+
+        Opening the dev site on a phone or a second laptop means the browser
+        sends `Origin: http://192.168.1.42:5174`. That origin is not in
+        CORS_ORIGINS, the preflight fails, and every request dies before it
+        reaches a route -- which surfaces in the UI as "inference down" even
+        though both services are healthy. Adding every address by hand is not
+        practical, because the DHCP lease changes.
+
+        Scoped as tightly as the problem allows:
+
+        * `http` only. Every production origin is `https`, so this can never
+          widen the production surface.
+        * RFC1918 ranges, loopback, and `.local` mDNS names only. A public
+          address such as `https://evil.example.com` does not match.
+        * Any port, because the Vite dev port is configurable.
+
+        This is safe to leave enabled in production even though it is not
+        needed there: reaching it requires already being on the clinic's LAN,
+        and the API authenticates with a bearer token (backend/auth.py uses
+        HTTPBearer) rather than a cookie, so a cross-origin page cannot ride an
+        authenticated session.
+        """
+        return (
+            r"^http://("
+            r"localhost"
+            r"|127\.0\.0\.1"
+            r"|\[::1\]"
+            r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+            r"|192\.168\.\d{1,3}\.\d{1,3}"
+            r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+            r"|[\w-]+\.local"
+            r")(:\d+)?$"
+        )
+
 
 settings = Settings()
 

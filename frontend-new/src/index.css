@@ -259,6 +259,12 @@
 html,
 body {
   overflow-x: clip;
+  /* Long unbroken tokens — "RespiratoryScreening", an unbreakable email, a file
+     name in a table cell — are the single most common cause of a 375px page
+     scrolling sideways. `overflow-wrap: anywhere` lets them break rather than
+     push, without the ragged mid-word breaks `break-word` produces on ordinary
+     prose. */
+  overflow-wrap: anywhere;
   /* Phones with a notch or a gesture bar report insets here. Reading them
      means padded chrome can clear the hardware instead of hiding under it. */
   --aura-safe-top: env(safe-area-inset-top, 0px);

@@ -1,4 +1,54 @@
-export const API_BASE = import.meta.env.VITE_API_URL ?? "https://api.auradx.xyz"
+/**
+ * Where the API lives, and why it is not always the same answer.
+ *
+ * Three environments, three different needs:
+ *
+ * 1. PRODUCTION — the bundle is served from auradx.xyz and the API is reached
+ *    through the Cloudflare tunnel at api.auradx.xyz. `VITE_API_URL` is injected
+ *    at build time from CI secrets, so this is just a string constant and the
+ *    browser never has to think about it.
+ *
+ * 2. LOCAL DEV on the machine that also runs the backend — `localhost:8001`.
+ *
+ * 3. LOCAL DEV opened from another device on the same network — a phone at
+ *    `http://192.168.1.42:5174`. This is the case that used to fail. The dev
+ *    server was told to use `localhost:8001`, but on a phone `localhost` means
+ *    the phone, so every request went to a port nobody was listening on and the
+ *    app reported "inference down" while the Mini PC sat there perfectly
+ *    healthy. The fix is to reuse the hostname the page was served from.
+ *
+ * The distinction is made on the *configured* value, not on the current
+ * hostname: production must keep pointing at the tunnel even though it is also
+ * reached over a network, and a developer running `localhost` deliberately
+ * should not be silently redirected.
+ */
+
+/** Loopback hosts, where "localhost" would be a device-local address. */
+const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i
+
+const BACKEND_PORT = 8001
+
+function resolveApiBase(): string {
+  const configured = import.meta.env.VITE_API_URL
+
+  // Production, or any explicitly non-loopback target: honour it verbatim.
+  if (configured && !LOOPBACK.test(configured)) return configured
+
+  // Loopback target. If the page itself is being served from somewhere other
+  // than loopback — a phone or a second laptop on the LAN — the backend is on
+  // that same host, so reuse its hostname and swap the port.
+  if (typeof window !== "undefined" && window.location.hostname) {
+    const { protocol, hostname } = window.location
+    if (!LOOPBACK.test(`${protocol}//${hostname}`)) {
+      return `${protocol}//${hostname}:${BACKEND_PORT}`
+    }
+  }
+
+  // Genuinely local, or no browser at all (SSR, tests, build-time import).
+  return configured ?? `http://localhost:${BACKEND_PORT}`
+}
+
+export const API_BASE = resolveApiBase()
 
 export function getApiUrl(path: string): string {
   return `${API_BASE}${path}`
