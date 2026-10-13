@@ -118,16 +118,19 @@ async def send_otp(payload: SendOtp, request: Request):
         email_sent = True
     except Exception as e:
         print(f"[send-otp] email send failed: {e}")
-        # In non-production, surface the code so local E2E / manual testing can
-        # proceed without a real inbox. In production, report the failure.
-        if settings.app_env == "production":
+        # Only a named development environment gets the code in the response.
+        # Everywhere else the failure is reported, because a silently-swallowed
+        # send failure means the user waits for an email that will never arrive.
+        if settings.is_production:
             raise HTTPException(
                 status_code=502,
                 detail="Failed to send verification email. Please try again later.",
             )
 
     resp = {"success": True}
-    if settings.app_env != "production":
+    # See Settings.is_production: this line hands out the verification code for
+    # any address, so it must only ever be reachable in an explicit dev env.
+    if not settings.is_production:
         resp["dev_code"] = code
     return resp
 

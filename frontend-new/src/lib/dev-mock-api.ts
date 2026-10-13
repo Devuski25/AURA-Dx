@@ -47,7 +47,7 @@ type MockUser = {
 }
 
 const USERS: MockUser[] = [
-  { id: "u1", email: "superadmin@aura-dx.xyz", full_name: "Preview Admin", role: "super_admin", status: "approved", phone: null, specialization: null, license_number: null, clinic_id: null, last_login_at: iso(0, 8), created_at: iso(180), updated_at: iso(0, 8), avatar_url: null },
+  { id: "u1", email: "superadmin@auradx.xyz", full_name: "Preview Admin", role: "super_admin", status: "approved", phone: null, specialization: null, license_number: null, clinic_id: null, last_login_at: iso(0, 8), created_at: iso(180), updated_at: iso(0, 8), avatar_url: null },
   { id: "u2", email: "m.delacruz@auradx.clinic", full_name: "Dr. Maria Cristina Santos-Delacruz", role: "clinician", status: "approved", phone: "+63 917 555 0142", specialization: "Pulmonology", license_number: "PRC 104382", clinic_id: "c1", last_login_at: iso(0, 7), created_at: iso(120), updated_at: iso(1), avatar_url: null },
   { id: "u3", email: "r.villanueva@auradx.clinic", full_name: "Dr. Rafael Villanueva", role: "clinician", status: "approved", phone: "+63 918 555 0198", specialization: "Internal Medicine", license_number: "PRC 118204", clinic_id: "c1", last_login_at: iso(1, 14), created_at: iso(96), updated_at: iso(2), avatar_url: null },
   { id: "u4", email: "a.merano@auradx.clinic", full_name: "Dr. Andrea Merano", role: "clinician", status: "approved", phone: "+63 919 555 0110", specialization: "Pediatrics", license_number: "PRC 127715", clinic_id: "c1", last_login_at: iso(2, 10), created_at: iso(74), updated_at: iso(3), avatar_url: null },

@@ -1,0 +1,18 @@
+# AURA-Dx — https://auradx.xyz
+#
+# Every public route is a client-side path in a React Router SPA, so the crawler
+# reaches them by executing JavaScript. Listing them here is a hint, not a
+# requirement; the sitemap below is what Search Console actually reads.
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /auth/
+Disallow: /login
+Disallow: /register
+Disallow: /reset-password
+
+Sitemap: https://auradx.xyz/sitemap.xml
+
+# /dashboard is behind auth and holds patient records. /auth/callback only exists
+# to receive a Google or Supabase redirect and has no content of its own.

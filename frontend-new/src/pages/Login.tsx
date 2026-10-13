@@ -211,15 +211,17 @@ export function Login() {
           </>
         }
       >
-        {/* Availability. A clinician at a headless clinic PC needs to know whether a
-            screening will work before typing a password, but it should not push
-            the form down or compete with it.
+        {/* Availability.
 
-            Pinned to the panel's top-right from `sm` up, where there is width to
-            spare. Below that it stays in flow: absolutely positioning it on a
-            375px screen puts it on top of the first form field rather than
-            beside it. */}
-        <StatusIndicator className="mb-5 sm:absolute sm:right-0 sm:top-0 sm:mb-0 sm:w-auto sm:max-w-[46%]" />
+            Inset from the panel's corner by the panel's own padding rather than
+            pinned to it. `right-0 top-0` resolves against the padding box, so it
+            sat flush against the card border and read as a stray label rather
+            than part of the form. `sm:right-8` / `md:right-10` line it up with
+            the input fields below it at both breakpoints.
+
+            In flow below `sm`: absolutely positioning it on a 375px screen
+            puts it on top of the first field rather than beside it. */}
+        <StatusIndicator className="mb-5 sm:absolute sm:right-8 sm:top-10 sm:mb-0 md:right-10" />
 
         {/* The form owns the shake transform, so the field stagger lives on an
             inner wrapper — two transform sources on one element fight. */}

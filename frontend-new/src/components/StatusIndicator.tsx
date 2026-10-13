@@ -79,15 +79,25 @@ export function StatusIndicator({ className }: { className?: string }) {
         aria-live="polite"
         className={cn("flex items-center gap-2", className)}
       >
-        <span className="relative flex h-2 w-2 shrink-0 items-center justify-center" aria-hidden="true">
-          <span className={cn("absolute h-2 w-2 rounded-full", tone.dot)} />
-          <span className={cn("absolute h-2 w-2 animate-ping rounded-full opacity-60", tone.dot)} />
-        </span>
-        <p className={cn("text-xs font-medium", availability === "online" ? "text-aura-pine" : "text-amber-700")}>
-          {availability === "online"
-            ? "Ready to screen."
-            : AVAILABILITY_COPY.degraded.hint}
+        {/* Text first, dot after. The dot is a trailing state marker rather
+            than a leading bullet: this line ends a sentence about the service
+            being ready, and a marker at the end reads as a full stop on it.
+            Leading, it looked like a list item. */}
+        <p
+          className={cn(
+            "text-xs font-medium",
+            availability === "online" ? "text-aura-pine" : "text-amber-700"
+          )}
+        >
+          {availability === "online" ? "Ready to screen." : AVAILABILITY_COPY.degraded.hint}
         </p>
+        <span
+          className={cn(
+            "h-1.5 w-1.5 shrink-0 rounded-full",
+            availability === "online" ? "bg-emerald-500" : "bg-amber-500"
+          )}
+          aria-hidden="true"
+        />
       </div>
     )
   }

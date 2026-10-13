@@ -62,6 +62,8 @@ cd frontend-new && npm run dev
 | Orphaned pages / route sanity | `python scripts/audit-routes.py` |
 | Unreferenced files | `python scripts/find-unused.py` |
 | Responsive contract | `python scripts/check-responsive.py` |
+| Environment gating (fail-closed) | `python backend/test_app_env.py` |
+| CORS LAN scoping | `python backend/test_cors_lan.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 
@@ -122,6 +124,21 @@ Notes:
 - **No commits to main** — always `feature/*` branches
 - **Port consistency**: Inference `:8000`, Backend `:8001`, Frontend `:5174`, Supabase `:54321`
 - **Branding**: AURA-Dx (Acoustic Unit for Respiratory Assessment), green `#3cb87a`. No `cough`-era naming in new UI.
+
+### The domain is `auradx.xyz`. The product is `AURA-Dx`.
+
+Two different things that look identical and are not. Getting this wrong is not
+cosmetic -- `api.aura-dx.xyz` does not resolve.
+
+| | Spelling | Where |
+|---|---|---|
+| Product / brand | `AURA-Dx` (hyphenated) | UI copy, PDF reports, page titles, email subjects, `agents.md` headings |
+| Domain | `auradx.xyz` (no hyphen) | `auradx.xyz`, `www.auradx.xyz`, `api.auradx.xyz`, `infer.auradx.xyz` |
+| Internal identifiers | `aura-dx` | npm `package.json` name, Cloudflare worker name, `localStorage` keys, PDF filenames |
+
+`scripts/audit-routes.py` fails on a hyphenated canonical, and
+`frontend-new/.env.example` pins the API host. Neither catches a stray
+`aura-dx.xyz` inside prose, so check by eye when writing config.
 - **A11y**: all icon-only buttons ≥44×44px hit area + `aria-label`; dialogs use `w-[95vw] max-w-lg` + `max-h-[90vh] overflow-y-auto`; tables wrap in `overflow-x-auto`
 - **Layout**: left-side sidebar — `lg:` desktop toggle (collapsed ↔ expanded, persisted `aura-dx:sidebar-collapsed`) + left slide-over drawer `<lg` (Escape / backdrop / nav click closes; `inert`+`aria-hidden` while closed)
 - **Mobile-first**: zero horizontal scroll on 375px; keep `overflow-x: clip` on `html, body`

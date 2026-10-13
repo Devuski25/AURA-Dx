@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     inference_api_key: str = ""
     api_host: str = "0.0.0.0"
     api_port: int = 8001
-    app_env: str = "development"
+    # NOTE: there is deliberately no default. See `is_production` below -- an
+    # unset value must not be treated as development.
+    app_env: str = ""
     cors_origins: str = "http://localhost:5174,http://localhost:3000"
     # Transactional email via Resend SMTP (read from backend/.env.local)
     resend_api_key: str = ""
@@ -41,6 +43,28 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8-sig"
         case_sensitive = False
         extra = "ignore"
+
+    @property
+    def is_production(self) -> bool:
+        """True unless the environment is explicitly a development one.
+
+        Written as an allowlist rather than `app_env == "production"` because
+        that comparison fails open. APP_ENV was unset on the deployed machine,
+        so the check `if settings.app_env == "production"` was False and two
+        things followed from it:
+
+          * `POST /api/auth/send-otp` returned the verification code in its JSON
+            response (`dev_code`), so anyone could read the code for any address
+            and skip email verification entirely.
+          * Email send failures were swallowed rather than raised, so a broken
+            sender looked like success.
+
+        With an allowlist, every value that is not recognisably a development
+        environment -- unset, blank, "prod", "Production", a typo, a stale name
+        from another system -- resolves to production. To get development
+        behaviour you must ask for it by name.
+        """
+        return self.app_env.strip().lower() not in {"development", "dev", "local"}
 
     @property
     def cors_origin_list(self) -> list[str]:

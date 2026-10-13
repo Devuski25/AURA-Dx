@@ -123,6 +123,81 @@ report("redirects unauthenticated to /login", 'to="/login"' in app)
 report("blocks non-approved users", 'status !== "approved"' in app)
 report("role check present", "allowedRoles" in app)
 
+# --- sitemap / robots cross-check ------------------------------------------
+# Public routes are client-side paths in a React Router SPA, so the sitemap is
+# the only machine-readable list of what should be indexed. It drifts silently:
+# rename a route and the sitemap keeps advertising a URL that now 404s into the
+# SPA fallback. Cheap to check, and the failure mode is silent in both
+# directions -- a stale entry and a missing page look identical to a crawler.
+
+SITEMAP = REPO / "frontend-new" / "public" / "sitemap.xml"
+ROBOTS = REPO / "frontend-new" / "public" / "robots.txt"
+
+if not SITEMAP.exists():
+    report("sitemap.xml exists", False, "no sitemap - Search Console has no URL list")
+else:
+    report("sitemap.xml exists", True)
+    listed = set(re.findall(r"<loc>https://auradx\.xyz([^<]*)</loc>", SITEMAP.read_text(encoding="utf-8")))
+    listed = {p if p.startswith("/") else "/" + p for p in listed}
+
+    # Public = top-level path, not behind auth, not an OAuth receiving end.
+    #
+    # Routes are declared two ways in App.tsx: top-level ones carry a leading
+    # slash ("/about"), while children of the /dashboard layout route are
+    # relative ("screening", "patient-records", "admin"). Requiring the leading
+    # slash is what separates the public set from the app's, so a child route
+    # cannot be mistaken for a public page.
+    #
+    # The site root is an *index* route -- `<Route index element={<Home />} />`,
+    # inside the PublicLayout route -- so it has no path attribute to match on
+    # and has to be detected separately.
+    private = {"/dashboard", "/login", "/register", "/reset-password", "/auth/callback"}
+    public = {
+        p for p in route_paths
+        if p.startswith("/") and p != "*" and p not in private
+    }
+    if "<Route index" in app:
+        public.add("/")
+
+    for pth in sorted(listed):
+        report(f"sitemap {pth} is a real route", pth in public,
+               "listed but not a public route - it will 404 into the SPA fallback")
+    for pth in sorted(public):
+        report(f"route {pth} is in the sitemap", pth in listed,
+               "public route missing from the sitemap")
+
+    # Only the <loc> hosts, not the file's prose -- an explanatory comment that
+    # mentions www.auradx.xyz while explaining why it is absent would otherwise
+    # fail the very check it documents.
+    sitemap_hosts = set(re.findall(r"<loc>https://([^/<]+)", SITEMAP.read_text(encoding="utf-8")))
+    report("sitemap uses the apex host only", sitemap_hosts == {"auradx.xyz"},
+           f"hosts listed are {sorted(sitemap_hosts)}; apex and www serve identical "
+           "bytes, so listing both tells crawlers the content exists twice")
+
+if ROBOTS.exists():
+    text = ROBOTS.read_text(encoding="utf-8")
+    report("robots.txt blocks /dashboard", "/dashboard" in text)
+    report("robots.txt points at the sitemap", "sitemap" in text.lower())
+else:
+    report("robots.txt exists", False, "missing - crawlers get the SPA shell for /robots.txt")
+
+# The canonical and the sitemap must agree, or the two contradict each other.
+index_html = (REPO / "frontend-new" / "index.html").read_text(encoding="utf-8")
+canonical = re.search(r'<link\s+rel="canonical"\s+href="([^"]+)"', index_html)
+report("index.html has a canonical", canonical is not None,
+       "apex and www both serve this content with no redirect; without a "
+       "canonical every public page has two URLs")
+if canonical:
+    href = canonical.group(1)
+    report("canonical host is the apex", href.startswith("https://auradx.xyz"),
+           f"canonical is {href}; it should name the apex host")
+    # Read the href, not the file: a comment explaining that the domain has no
+    # hyphen necessarily contains the hyphenated form, and would fail this.
+    report("canonical host has no hyphen", "aura-dx" not in href,
+           f"canonical is {href}; the domain is auradx.xyz - no hyphen")
+    report("canonical does not point at www", "www." not in href,
+           "canonical should name one host; www and apex serve identical bytes")
+
 print()
 print("NO ORPHANED PAGES" if failures == 0 else f"{failures} PROBLEM(S)")
 sys.exit(1 if failures else 0)

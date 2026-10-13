@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Public routes only. /dashboard and the auth routes are deliberately absent:
+  they are behind a login or exist solely to receive an OAuth redirect.
+
+  Every URL is the apex host, matching the canonical in index.html. Both
+  auradx.xyz and www.auradx.xyz serve the same bytes with no redirect between
+  them, so listing www would tell crawlers the content exists in two places.
+
+  Regenerate the lastmod values when public page copy changes.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://auradx.xyz/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://auradx.xyz/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://auradx.xyz/team</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://auradx.xyz/legal</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://auradx.xyz/help-support</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>

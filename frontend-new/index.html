@@ -16,6 +16,39 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>AURA-Dx - AI-Assisted Respiratory Screening</title>
     <meta name="description" content="AURA-Dx (Acoustic Unit for Respiratory Assessment) screens breathing audio for COPD, Pneumonia, and healthy lungs through an acoustic AI classification pipeline." />
+
+    <!-- Canonical host.
+
+         wrangler.jsonc binds auradx.xyz AND www.auradx.xyz as custom domains,
+         and the worker serves identical bytes from both with no redirect
+         between them. Without a canonical, every public page exists at two
+         URLs and search engines have to pick one themselves -- splitting link
+         equity and letting the ranking drift between the two.
+
+         Pointing at the apex on every route, including when the visitor is
+         already there, is the standard fix and costs nothing. Note the domain
+         has NO hyphen: `auradx.xyz`, not `aura-dx.xyz`. The product name is
+         "AURA-Dx" with one, because that is the product name, not the domain. -->
+    <link rel="canonical" href="https://auradx.xyz/" />
+
+    <!-- Open Graph and Twitter card. Without these, a link shared on
+         Facebook, LinkedIn or X renders as a bare URL. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AURA-Dx" />
+    <meta property="og:title" content="AURA-Dx - AI-Assisted Respiratory Screening" />
+    <meta property="og:description" content="Screens breathing audio for COPD, Pneumonia, and healthy lungs through an acoustic AI classification pipeline. A research prototype from the University of Rizal System." />
+    <meta property="og:url" content="https://auradx.xyz/" />
+    <meta property="og:image" content="https://auradx.xyz/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AURA-Dx - AI-Assisted Respiratory Screening" />
+    <meta name="twitter:description" content="Screens breathing audio for COPD, Pneumonia, and healthy lungs through an acoustic AI classification pipeline." />
+    <meta name="twitter:image" content="https://auradx.xyz/og-image.png" />
+
+    <!-- Not indexed. App routes are behind auth and carry patient data; the
+         auth routes exist only to receive an OAuth redirect and should never
+         appear in results. React renders these client-side, so the rule lives
+         in robots.txt rather than as per-route meta tags. -->
+    <meta name="robots" content="index, follow" />
     <script>
       (function() {
         try {
