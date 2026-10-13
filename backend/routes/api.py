@@ -19,17 +19,26 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from fastapi.responses import StreamingResponse
+# The legacy JWT login flow (/auth/login, /auth/me, /auth/logout,
+# /auth/exchange) and the /clinics and /audit-logs routes have been removed.
+# Auth is Supabase's job end to end: the browser holds a Supabase session and
+# sends its bearer token, and get_current_user validates it. The removed routes
+# were a second, parallel credential system that nothing called -- a JWT minted
+# and checked here, alongside the real one, which is attack surface with no user.
+#
+# UserLogin, Token, ClinicCreate, ClinicResponse and AuditLogResponse are the
+# request/response shapes those routes used. They stay in models.py because that
+# is the schema module's job, and they document the shape the API once had.
 from models import (
-    UserLogin, UserCreate, UserResponse, UserUpdate, Token,
+    UserCreate, UserResponse, UserUpdate,
     PatientCreate, PatientResponse, PatientUpdate,
     ScreeningCreate, ScreeningResponse, ScreeningReview,
     InferenceRequest, InferenceResponse,
-    ClinicCreate, ClinicResponse,
-    AuditLogResponse, MetricsSummary,
+    MetricsSummary,
     UserRole, UserStatus, ScreeningStatus,
     ErrorResponse, HealthResponse, SendOtp, VerifyOtp
 )
-from auth import get_current_user, get_current_user_id, require_role, create_access_token
+from auth import get_current_user, get_current_user_id, require_role
 from database import supabase, supabase_anon
 from config import settings
 from email_service import send_verification_email
@@ -320,95 +329,6 @@ async def upload_audio(
     }
 
 
-@router.post("/auth/exchange", response_model=Token)
-async def exchange_token(user: dict = Depends(get_current_user)):
-    """Exchange a valid session (already-authenticated via Supabase) for a backend JWT.
-
-    The frontend calls this with the raw Supabase session token to obtain a
-    short-lived backend access token that carries the application role.
-    """
-    return {
-        "access_token": create_access_token({
-            "sub": user.get("sub"),
-            "email": user.get("email", ""),
-            "role": user.get("role"),
-            "clinic_id": user.get("clinic_id"),
-        })
-    }
-
-
-@router.post("/auth/login", response_model=Token)
-async def login(credentials: UserLogin, http: Request):
-    client_ip = http.client.host if http.client else "unknown"
-    if not _auth_rate_limit(f"login:ip:{client_ip}", 10):
-        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
-    if not _auth_rate_limit(f"login:email:{credentials.email.lower().strip()}", 5):
-        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
-
-    try:
-        res = supabase_anon.auth.sign_in_with_password({
-            "email": credentials.email,
-            "password": credentials.password
-        })
-        if not res.user:
-            # Use generic message to prevent user enumeration
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-
-        if not res.user.email_confirmed_at:
-            # Non-enumerating message for unconfirmed/blocked accounts
-            raise HTTPException(status_code=403, detail="Account not active or requires approval")
-
-        user_data = supabase.table("profiles").select("*").eq("id", res.user.id).single().execute()
-        if not user_data.data:
-            # Don't reveal whether the account exists
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-
-        profile = user_data.data
-        if profile["status"] != "approved":
-            raise HTTPException(
-                status_code=403,
-                detail="Account not active or requires approval"
-            )
-
-        access_token = create_access_token({
-            "sub": res.user.id,
-            "email": res.user.email,
-            "role": profile["role"],
-            "clinic_id": profile.get("clinic_id")
-        })
-
-        supabase.table("profiles").update({"last_login_at": datetime.utcnow().isoformat()}).eq("id", res.user.id).execute()
-
-        _log_audit("login", res.user.id, profile.get("clinic_id"), details={"email": credentials.email})
-
-        return Token(access_token=access_token)
-    except HTTPException:
-        raise
-    except Exception:
-        # Generic message to prevent user enumeration
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-
-@router.get("/auth/me", response_model=UserResponse)
-async def get_me(user: dict = Depends(get_current_user)):
-    user_id = user.get("sub")
-    res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return UserResponse(**res.data)
-
-
-@router.post("/auth/logout")
-async def logout(user: dict = Depends(get_current_user)):
-    user_id = user.get("sub")
-    profile = supabase.table("profiles").select("clinic_id").eq("id", user_id).single().execute()
-    clinic_id = profile.data.get("clinic_id") if profile.data else None
-
-    _log_audit("logout", user_id, clinic_id)
-
-    return {"message": "Logged out successfully"}
-
-
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
     user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
@@ -590,25 +510,6 @@ async def delete_user(user_id: str, user: dict = Depends(require_role(UserRole.A
     _log_audit("user_delete", user.get("sub"), None, "user", user_id, {"deleted_user": target.data["email"]})
 
     return {"message": "User deleted"}
-
-
-@router.post("/clinics", response_model=ClinicResponse)
-async def create_clinic(clinic: ClinicCreate, user: dict = Depends(require_role(UserRole.SUPER_ADMIN))):
-    res = supabase.table("clinics").insert(clinic.model_dump()).execute()
-    return ClinicResponse(**res.data[0])
-
-
-@router.get("/clinics", response_model=List[ClinicResponse])
-async def list_clinics(user: dict = Depends(get_current_user)):
-    try:
-        if user.get("role") == "super_admin":
-            res = supabase.table("clinics").select("*").order("created_at", desc=True).execute()
-        else:
-            clinic_id = user.get("clinic_id")
-            res = supabase.table("clinics").select("*").eq("id", clinic_id).execute()
-        return [ClinicResponse(**c) for c in (res.data or [])]
-    except Exception:
-        return []
 
 
 @router.get("/patients", response_model=List[PatientResponse])
@@ -1023,36 +924,6 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
 
     res = supabase.table("screening_history_view").select("*").eq("id", screening_id).single().execute()
     return ScreeningResponse(**res.data)
-
-
-@router.get("/audit-logs", response_model=List[AuditLogResponse])
-async def list_audit_logs(
-    user_id: Optional[str] = None,
-    action: Optional[str] = None,
-    limit: int = 100,
-    user: dict = Depends(get_current_user)
-):
-    role = user.get("role")
-    current_user_id = user.get("sub")
-    clinic_id = user.get("clinic_id")
-
-    query = supabase.table("audit_logs").select("*")
-
-    if role == "clinician":
-        query = query.eq("user_id", current_user_id)
-    elif role == "admin":
-        query = query.eq("clinic_id", clinic_id)
-
-    if user_id and role in ["admin", "super_admin"]:
-        query = query.eq("user_id", user_id)
-    if action:
-        query = query.eq("action", action)
-
-    try:
-        res = query.order("created_at", desc=True).limit(limit).execute()
-        return [AuditLogResponse(**a) for a in res.data]
-    except Exception:
-        return []
 
 
 @router.get("/metrics/summary", response_model=MetricsSummary)
