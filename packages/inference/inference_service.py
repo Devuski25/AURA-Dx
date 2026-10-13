@@ -43,6 +43,35 @@ from scipy.signal import butter, filtfilt
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _load_local_env() -> None:
+    """Populate os.environ from packages/inference/.env.local.
+
+    Mirrors how backend/config.py reads backend/.env.local via pydantic-settings,
+    so both services get their machine-local secrets the same way.
+
+    This exists because the service is launched through WMI from
+    deploy/mini-pc/start-aura-services.ps1. A WMI-spawned process is owned by
+    WmiPrvSE and does NOT inherit the launching shell's environment, so setting
+    $env:INFERENCE_API_KEY before launch does not reach it. The alternative,
+    baking the value into the command line, would expose the key to anything that
+    can list process arguments.
+
+    Existing environment variables win, so an operator can still override.
+    """
+    env_path = Path(__file__).resolve().parent / ".env.local"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
+_load_local_env()
+
 INFERENCE_API_KEY = os.environ.get("INFERENCE_API_KEY", "")
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 

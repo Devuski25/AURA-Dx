@@ -1,4 +1,4 @@
-# start-aura-services.ps1 - AURA-Dx Mini PC service manager (Windows / PowerShell 5.1)
+﻿# start-aura-services.ps1 - AURA-Dx Mini PC service manager (Windows / PowerShell 5.1)
 #
 #   .\start-aura-services.ps1 start     Start inference (:8000) + backend (:8001) + Cloudflare tunnel
 #   .\start-aura-services.ps1 stop      Stop everything this setup runs
@@ -75,6 +75,63 @@ function Get-PortPid([int]$Port) {
 
 function Test-Port([int]$Port) { return [bool](Get-PortPid $Port) }
 
+function Show-ErrorTail([string]$Name, [string]$LogPath, [int]$Lines = 15) {
+    # When a service dies during startup the only useful thing is the reason, and
+    # nobody reads a log file under pressure. Print it.
+    Write-Host ""
+    Write-Host "  --- $Name log (last $Lines lines) ---" -ForegroundColor Red
+    if (Test-Path $LogPath) {
+        $tail = Get-Content $LogPath -Tail $Lines -ErrorAction SilentlyContinue
+        if ($tail) { $tail | ForEach-Object { Write-Host "  $_" -ForegroundColor Red } }
+        else { Write-Host "  (log is empty)" -ForegroundColor Red }
+    } else {
+        Write-Host "  (no log at $LogPath)" -ForegroundColor Red
+    }
+    Write-Host "  --- full log: $LogPath ---" -ForegroundColor Red
+}
+
+function Stop-PortOwner([int]$Port, [string]$Name) {
+    # A venv's python.exe is a shim that launches the real interpreter as a
+    # CHILD. The process that owns the port is the child, so Stop-Process on the
+    # owning PID is not the whole story - and a plain Stop-Process on a shim PID
+    # kills the shim only, leaving uvicorn listening while this script reports
+    # success. taskkill /T kills the tree.
+    #
+    # Killing the tree means a second kill of an already-dead PID writes
+    # "ERROR: The process N not found." to stderr. Under ErrorActionPreference
+    # Stop, PS 5.1 promotes native stderr to a terminating error and aborts the
+    # loop - so the port check is filtered first and stderr is silenced for the
+    # duration of the call.
+    $pid_ = Get-PortPid $Port
+    if (-not $pid_) {
+        Write-Host "  [SKIP] $Name not running"
+        return
+    }
+
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    try {
+        & taskkill /PID $pid_ /T /F 2>&1 | Out-Null
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+
+    # Confirm rather than assume. A service still listening is worse than one
+    # that failed to start, because nothing will tell you it is there.
+    for ($i = 0; $i -lt 10; $i++) {
+        if (-not (Test-Port $Port)) { break }
+        Start-Sleep -Milliseconds 500
+    }
+
+    if (Test-Port $Port) {
+        $still = Get-PortPid $Port
+        Write-Host "  [WARN] ${Name}: port $Port STILL LISTENING (PID $still)" -ForegroundColor Red
+        Write-Host "         Something else holds the port, or the process survived the kill." -ForegroundColor Red
+    } else {
+        Write-Host "  [STOP] $Name (port $Port free)"
+    }
+}
+
 function Wait-Port([int]$Port, [string]$Name, [int]$TimeoutSec = 30) {
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     while ((Get-Date) -lt $deadline) {
@@ -133,12 +190,19 @@ function Start-ServiceProcess($Svc) {
     }
     Write-Host "  [START] $($Svc.Name) (:$($Svc.Port))..."
     $out = Join-Path $Logs "$($Svc.Name).log"
+    # Truncate first, otherwise a failure shows the tail of the PREVIOUS run and
+    # sends you chasing a problem that already got fixed.
+    Set-Content -Path $out -Value "" -ErrorAction SilentlyContinue
     $cmd = "cmd /c cd /d $($Svc.Dir) && $($Svc.Py) $($Svc.Args -join ' ') > $out 2>&1"
     if (-not (Invoke-WmiLaunch $cmd)) {
         Write-Host "  [FAIL] $($Svc.Name): could not launch" -ForegroundColor Red
         return
     }
-    Wait-Port $Svc.Port $Svc.Name | Out-Null
+    if (-not (Wait-Port $Svc.Port $Svc.Name)) {
+        Show-ErrorTail $Svc.Name $out
+        return
+    }
+    Write-Host "  [OK] $($Svc.Name) up on :$($Svc.Port)" -ForegroundColor Green
 }
 
 function Start-Tunnel {
@@ -178,13 +242,7 @@ function Start-Tunnel {
 
 function Stop-All {
     foreach ($Svc in $Services) {
-        $pid_ = Get-PortPid $Svc.Port
-        if ($pid_) {
-            Write-Host "  [STOP] $($Svc.Name) (PID $pid_)"
-            Stop-Process -Id $pid_ -Force -ErrorAction SilentlyContinue
-        } else {
-            Write-Host "  [SKIP] $($Svc.Name) not running"
-        }
+        Stop-PortOwner $Svc.Port $Svc.Name
     }
     $svc = Get-Service -Name "cloudflared" -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -eq "Running") {
@@ -214,6 +272,29 @@ function Show-Status {
         Write-Host "  backend    health: $($h.status)"
     } catch {
         Write-Host "  backend    health: unreachable" -ForegroundColor Red
+    }
+
+    # Local ports being up is not the same as the live website working. The
+    # browser calls https://api.auradx.xyz, which only reaches this machine if
+    # the tunnel is up. 530 from Cloudflare means "I cannot reach the origin",
+    # which is the single most common reason a locally-perfect stack still
+    # fails for anyone visiting auradx.xyz.
+    $tunnelUp = (Test-CloudflaredService) -or [bool](Get-Process -Name cloudflared -ErrorAction SilentlyContinue)
+    if ($tunnelUp) {
+        try {
+            $r = Invoke-RestMethod -Uri "https://api.auradx.xyz/api/health" -TimeoutSec 20
+            Write-Host "  live API   https://api.auradx.xyz -> $($r.status)" -ForegroundColor Green
+        } catch {
+            $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+            Write-Host "  live API   https://api.auradx.xyz -> HTTP $code" -ForegroundColor Red
+            if ($code -eq 530) {
+                Write-Host "             530 = the tunnel is not carrying traffic." -ForegroundColor Red
+                Write-Host "             Restart it, or install it as a Windows service." -ForegroundColor Red
+            }
+        }
+    } else {
+        Write-Host "  live API   not reachable (tunnel down)" -ForegroundColor Red
+        Write-Host "             The live website cannot reach the backend until the tunnel runs." -ForegroundColor Red
     }
     Write-Host "  logs       $Logs"
 }

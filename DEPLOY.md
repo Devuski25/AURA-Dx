@@ -101,8 +101,10 @@ python scripts\make-backend-env.py
 This writes two gitignored files:
 
 - `backend/.env.local` — read by `backend/config.py`
-- `packages\inference/.env.local` — read by `scripts/aura.ps1`, which injects
-  `INFERENCE_API_KEY` into the inference process
+- `packages/inference/.env.local` - read by `inference_service.py` at startup for
+  `INFERENCE_API_KEY`. The service is launched through WMI, which does not inherit
+  the launching shell's environment, so it reads the file itself rather than relying
+  on `$env:` injection from the start script
 
 Check without writing anything:
 
@@ -166,7 +168,7 @@ cd ..\
 ## Step 4 — start the services on demand
 
 ```powershell
-.\scripts\aura.ps1 start
+.\deploy\mini-pc\start-aura-services.ps1 start
 ```
 
 ```
@@ -182,7 +184,7 @@ every screening. If you start them by hand instead, always do inference first.
 ### When you are done
 
 ```powershell
-.\scripts\aura.ps1 stop
+.\deploy\mini-pc\start-aura-services.ps1 stop
 ```
 
 Both go down. Nothing runs overnight.
@@ -190,8 +192,8 @@ Both go down. Nothing runs overnight.
 ### Other commands
 
 ```powershell
-.\scripts\aura.ps1 status     # check without changing anything
-.\scripts\aura.ps1 restart    # stop then start
+.\deploy\mini-pc\start-aura-services.ps1 status     # check without changing anything
+.\deploy\mini-pc\start-aura-services.ps1 restart    # stop then start
 ```
 
 Logs and PID files: `%LOCALAPPDATA%\AURA-Dx\`
@@ -244,7 +246,7 @@ analyse → Screening Detail shows the per-take table → download the PDF.
 | Screening works, no per-take table | Migration 1 not applied, so `recording_scores` is NULL. |
 | `dev-mock has no route` | Mock is installed. Set `VITE_DISABLE_API_MOCK=true`. |
 | New signup cannot create a patient | Migration 3 not applied. |
-| Port already in use | Something else is on 8000/8001, or a previous run is still alive. `aura.ps1 stop` falls back to killing whatever owns the port. |
+| Port already in use | Something else is on 8000/8001, or a previous run is still alive. `start-aura-services.ps1 stop` falls back to killing whatever owns the port. |
 
 ---
 

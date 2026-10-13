@@ -142,10 +142,10 @@ with `pending` status, pending admin approval.
 The backend and inference services are **not** always-on.
 
 ```powershell
-.\scripts\aura.ps1 start     # inference, then backend; health-checked
-.\scripts\aura.ps1 status
-.\scripts\aura.ps1 stop
-.\scripts\aura.ps1 restart
+.\deploy\mini-pc\start-aura-services.ps1 start     # inference, then backend; health-checked
+.\deploy\mini-pc\start-aura-services.ps1 status
+.\deploy\mini-pc\start-aura-services.ps1 stop
+.\deploy\mini-pc\start-aura-services.ps1 restart
 ```
 
 PID files and logs live in `%LOCALAPPDATA%\AURA-Dx`, outside the repo.

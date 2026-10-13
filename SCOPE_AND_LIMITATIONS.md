@@ -80,7 +80,7 @@ excludes none of these.
 | Both models loaded in memory at startup | ~25 MB combined |
 
 Runs on the Mini PC. Model loading is the slow part of startup, which is why
-`scripts/aura.ps1 start` health-checks before reporting success.
+`deploy/mini-pc/start-aura-services.ps1 start` health-checks before reporting success.
 
 ---
 
@@ -112,7 +112,7 @@ both models. See `MODEL_CARD.md`.
 
 - Frontend auto-deploys to Cloudflare on push to `main`
 - Backend and inference run on the Mini PC and are **not** always-on. Use
-  `scripts/aura.ps1 start` / `stop` / `status`.
+  `deploy/mini-pc/start-aura-services.ps1 start` / `stop` / `status`.
 - Database migrations must be applied before a backend that references new
   columns is started. Starting them out of order produces a 500 on screening
   creation, not a startup failure.

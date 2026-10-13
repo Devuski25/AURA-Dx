@@ -1,4 +1,4 @@
-# Regression test for the aura.ps1 startup failures.
+﻿# Regression test for the Mini PC service manager.
 #
 # Reproduces the exact Start-Process call that broke on Windows PowerShell 5.1:
 #   "RedirectStandardOutput" and "RedirectStandardError" are same.
@@ -23,12 +23,12 @@ New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 $outLog = Join-Path $tmp 'svc.out.log'
 $errLog = Join-Path $tmp 'svc.err.log'
 
-Write-Host "=== aura.ps1 startup regression tests ==="
+Write-Host "=== service manager regression tests ==="
 Write-Host "PowerShell $($PSVersionTable.PSVersion)"
 Write-Host ''
 
 # ---------------------------------------------------------------------------
-# 1. Separate stdout/stderr files — this is the bug that was reported.
+# 1. Separate stdout/stderr files - this is the bug that was reported.
 # ---------------------------------------------------------------------------
 $py = (Get-Command python -ErrorAction SilentlyContinue).Source
 if (-not $py) { $py = (Get-Command py -ErrorAction SilentlyContinue).Source }
@@ -100,13 +100,13 @@ $errLog2 = Join-Path $tmp 'boom.err.log'
 
 # Pull the function out of the real script rather than duplicating it, so this
 # tests the shipped code.
-$scriptPath = Join-Path $PSScriptRoot 'aura.ps1'
+$scriptPath = Join-Path $PSScriptRoot '..\deploy\mini-pc\start-aura-services.ps1'
 $src = Get-Content $scriptPath -Raw
 $m = [regex]::Match($src, '(?s)function Show-ErrorTail.*?\n\}')
 if (-not $m.Success) {
-    Report 'Show-ErrorTail exists in aura.ps1' $false 'function not found'
+    Report 'Show-ErrorTail exists in start-aura-services.ps1' $false 'function not found'
 } else {
-    Report 'Show-ErrorTail exists in aura.ps1' $true
+    Report 'Show-ErrorTail exists in start-aura-services.ps1' $true
     Invoke-Expression $m.Value
     # Write-Host goes to the information stream, not the success stream, so it has
     # to be captured with 6>&1. Piping to Out-String on its own returns nothing,
@@ -125,7 +125,7 @@ if ($hasNet) {
     $conn = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue
     Report 'Get-NetTCPConnection works for port checks' $true
 } else {
-    Report 'Get-NetTCPConnection available' $false 'cmdlet missing — Get-ListeningPid will always return null'
+    Report 'Get-NetTCPConnection available' $false 'cmdlet missing - Get-ListeningPid will always return null'
 }
 
 # ---------------------------------------------------------------------------
@@ -134,14 +134,14 @@ if ($hasNet) {
 $parseErrors = $null
 $tokens = $null
 [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors) | Out-Null
-Report 'aura.ps1 parses without syntax errors' ($parseErrors.Count -eq 0) `
+Report 'start-aura-services.ps1 parses without syntax errors' ($parseErrors.Count -eq 0) `
        (($parseErrors | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; ')
 
 # ---------------------------------------------------------------------------
 # 6. status must not need a venv, so it can diagnose a broken setup.
 # ---------------------------------------------------------------------------
 $statusOut = & $scriptPath status 6>&1 | Out-String
-Report 'aura.ps1 status runs without any venv present' ($statusOut -match 'Inference') `
+Report 'start-aura-services.ps1 status runs without any venv present' ($statusOut -match 'Inference') `
        ($statusOut.Trim() -replace "`r?`n", ' | ')
 
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

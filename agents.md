@@ -58,6 +58,10 @@ cd frontend-new && npm run dev
 | Feature layout contract | `python packages/inference/test_feature_layout.py` |
 | Service script regression | `powershell -ExecutionPolicy Bypass -File scripts/test-aura-start.ps1` |
 | Migration safety checks | `python scripts/check-migrations.py` |
+| Frontend↔backend API contract | `python scripts/audit-api-contract.py` |
+| Orphaned pages / route sanity | `python scripts/audit-routes.py` |
+| Unreferenced files | `python scripts/find-unused.py` |
+| Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 
 `test_fusion.py` and `test_feature_layout.py` need only numpy — they stub
