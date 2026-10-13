@@ -15,7 +15,20 @@ def send_verification_email(to_email: str, code: str) -> None:
     if not (settings.smtp_host and settings.resend_api_key):
         raise RuntimeError("SMTP/Resend is not configured (check RESEND_API_KEY / SMTP_HOST)")
 
-    from_addr = settings.smtp_from or "onboarding@resend.dev"
+    # No fallback. This used to read `settings.smtp_from or "onboarding@resend.dev"`,
+    # which meant a blank SMTP_FROM silently became Resend's sandbox address --
+    # and that address can only ever deliver to the account owner's own inbox.
+    # The failure surfaced as a 550 from Resend about the recipient, which points
+    # at the wrong thing entirely. auradx.xyz is verified as a sending domain, so
+    # there is a real address to use and a missing one is a configuration bug.
+    from_addr = settings.smtp_from
+    if not from_addr:
+        raise RuntimeError(
+            "SMTP_FROM is not set. Set it to a sender on the verified Resend "
+            "domain (e.g. noreply@auradx.xyz)."
+        )
+    if "@" not in from_addr:
+        raise RuntimeError(f"SMTP_FROM is not an email address: {from_addr!r}")
     msg = EmailMessage()
     msg["Subject"] = "Your AURA-Dx email verification code"
     msg["From"] = from_addr

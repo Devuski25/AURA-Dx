@@ -250,6 +250,48 @@ analyse → Screening Detail shows the per-take table → download the PDF.
 
 ---
 
+## Email (Resend)
+
+Registration emails are sent by the backend over Resend's SMTP relay, from
+`backend/email_service.py`. If `send-otp` returns **502**, the backend log has
+the reason on the `[send-otp]` line — that line is the only place it appears.
+
+### What has to be true for mail to work
+
+Four things, and each one has bitten this project already:
+
+1. **`RESEND_API_KEY`** is a live key. Resend → API Keys. A dead one fails
+   `535 Authentication credentials invalid`.
+2. **The sending domain must be verified.** Resend → Domains. `auradx.xyz` is
+   verified, with DKIM (`resend._domainkey`) and SPF (`send` → `send.forge.rnta.net`)
+   both live in Cloudflare DNS.
+3. **`SMTP_FROM` must be an address on that domain** — currently
+   `noreply@auradx.xyz`.
+4. **The domain name must be spelled right.** `auradx.xyz`, no hyphen. An earlier
+   `aura-dx.xyz` domain was created on the Resend account on 2026-08-30, never
+   given DNS records, and sat at status `failed` — which is why nothing had ever
+   sent.
+
+### The sandbox trap
+
+`onboarding@resend.dev` is Resend's testing address. It only ever delivers to
+the account owner's own inbox, and with a domain verified Resend rejects it for
+anyone else with `550 Invalid 'to' field`. It is **not** a fallback: if it is
+what `SMTP_FROM` says, registration email is broken for every real clinician
+while still looking configured. `email_service.py` now raises if `SMTP_FROM` is
+blank rather than quietly substituting it.
+
+### Rotating the API key
+
+1. Resend → API Keys → Create
+2. Put it in `backend/.env.local` as `RESEND_API_KEY`
+3. `.\deploy\mini-pc\start-aura-services.ps1 restart`
+4. `POST /api/auth/send-otp` should return `{"success":true}` with **no**
+   `dev_code` field. If `dev_code` appears, `APP_ENV` is not `production` — see
+   `python backend/test_app_env.py`.
+
+---
+
 ## Rotating the exposed credentials
 
 `SERVICE_CONFIGURATION.md` holds a Supabase `service_role` key, a Resend API key
