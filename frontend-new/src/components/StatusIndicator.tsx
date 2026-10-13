@@ -1,20 +1,11 @@
 import { useEffect, useState } from "react"
-import { AlertTriangle, CheckCircle2, Loader2, WifiOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  AVAILABILITY_COPY,
   describeLastSeen,
   lastHeartbeat,
   probe,
   type Availability,
 } from "@/lib/service-status"
-
-const TONE: Record<Availability, { dot: string; text: string; icon: typeof CheckCircle2 }> = {
-  checking: { dot: "bg-aura-muted", text: "text-aura-muted", icon: Loader2 },
-  online: { dot: "bg-emerald-500", text: "text-aura-pine", icon: CheckCircle2 },
-  degraded: { dot: "bg-amber-500", text: "text-amber-700", icon: AlertTriangle },
-  offline: { dot: "bg-red-500", text: "text-red-700", icon: WifiOff },
-}
 
 /**
  * Login-page availability indicator.
@@ -24,14 +15,28 @@ const TONE: Record<Availability, { dot: string; text: string; icon: typeof Check
  * spinner that never resolves -- if the backend is down the user still needs to
  * be able to read the form and sign in once it comes back.
  *
- * Healthy state is a bare dot plus a short reassurance. Restating "Backend is
- * running" as a headline is noise: when it is obviously up, saying so adds
- * nothing, and when it is down the word "Backend" means nothing to a clinician.
- * Unavailable state keeps its explanation, because that is the case worth words.
+ * All three states render the same shape -- a short label, then a trailing dot,
+ * in the same box -- so the indicator does not resize or reflow as it changes.
+ * A box for "checking" that became bare text when healthy, then a wide bordered
+ * box again when offline, meant the top-right corner moved three times in the
+ * first second. The only thing that varies is the dot's colour.
+ *
+ * Word count follows urgency, not symmetry. Healthy gets five words because it
+ * needs no attention. Down gets the shortest honest phrasing that still tells
+ * the user something is wrong, plus when the backend was last seen when that is
+ * known.
  *
  * `role="status"` with aria-live so a screen reader announces a transition rather
  * than only the initial state.
  */
+
+const TONE: Record<Availability, { dot: string; text: string }> = {
+  checking: { dot: "bg-aura-muted animate-pulse", text: "text-aura-muted" },
+  online: { dot: "bg-emerald-500", text: "text-aura-pine" },
+  degraded: { dot: "bg-amber-500", text: "text-amber-700" },
+  offline: { dot: "bg-red-500", text: "text-red-700" },
+}
+
 export function StatusIndicator({ className }: { className?: string }) {
   const [availability, setAvailability] = useState<Availability>("checking")
   const [detail, setDetail] = useState<string | null>(null)
@@ -69,62 +74,30 @@ export function StatusIndicator({ className }: { className?: string }) {
   }, [])
 
   const tone = TONE[availability]
-  const Icon = tone.icon
-  const healthy = availability === "online" || availability === "degraded"
 
-  if (healthy) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        className={cn("flex items-center gap-2", className)}
-      >
-        {/* Text first, dot after. The dot is a trailing state marker rather
-            than a leading bullet: this line ends a sentence about the service
-            being ready, and a marker at the end reads as a full stop on it.
-            Leading, it looked like a list item. */}
-        <p
-          className={cn(
-            "text-xs font-medium",
-            availability === "online" ? "text-aura-pine" : "text-amber-700"
-          )}
-        >
-          {availability === "online" ? "Ready to screen." : AVAILABILITY_COPY.degraded.hint}
-        </p>
-        <span
-          className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-full",
-            availability === "online" ? "bg-emerald-500" : "bg-amber-500"
-          )}
-          aria-hidden="true"
-        />
-      </div>
-    )
-  }
+  const label =
+    availability === "checking"
+      ? "Checking"
+      : availability === "online"
+        ? "Ready to screen."
+        : availability === "degraded"
+          ? "Limited"
+          : "Offline"
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-left",
-        availability === "offline" ? "border-red-200 bg-red-50" : "border-aura-border-soft bg-aura-surface-alt",
-        className
-      )}
-    >
-      <span className="relative mt-1 flex h-2 w-2 shrink-0 items-center justify-center" aria-hidden="true">
-        <span className={cn("absolute h-2 w-2 rounded-full", tone.dot)} />
+    <div role="status" aria-live="polite" className={cn("flex items-center gap-2", className)}>
+      <span className="shrink-0 text-xs font-medium leading-none" >
+        <span className={cn("font-medium", tone.text)}>{label}</span>
+        {/* Only the offline state carries a second line. Healthy and checking
+            need nothing more than the dot. */}
+        {availability === "offline" && detail && (
+          <span className="ml-1.5 text-[0.6875rem] text-aura-muted">last seen {detail}</span>
+        )}
       </span>
-      <div className="min-w-0 flex-1">
-        <p className={cn("flex items-center gap-1.5 text-sm font-semibold", tone.text)}>
-          <Icon className={cn("h-3.5 w-3.5 shrink-0", availability === "checking" && "animate-spin")} aria-hidden="true" />
-          {availability === "checking" ? "Checking services" : "Screening unavailable"}
-        </p>
-        <p className="mt-0.5 text-xs leading-snug text-aura-muted">
-          {availability === "checking" ? "One moment." : AVAILABILITY_COPY.offline.hint}
-          {detail && ` Last seen ${detail}.`}
-        </p>
-      </div>
+      <span
+        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone.dot)}
+        aria-hidden="true"
+      />
     </div>
   )
 }

@@ -100,8 +100,9 @@ export function isFresh(iso: string | null | undefined): boolean {
   return Date.now() - then < STALE_HEARTBEAT_MS
 }
 
-export const AVAILABILITY_COPY: Record<Exclude<Availability, "checking">, { label: string; hint: string }> = {
-  online: { label: "Backend is running", hint: "Ready to screen." },
-  degraded: { label: "Backend is running", hint: "Some services are unavailable. Screening may be affected." },
-  offline: { label: "Backend is offline", hint: "Screening is unavailable. Please contact your administrator." },
-}
+/* An AVAILABILITY_COPY map used to live here, holding the wording for each
+   state. StatusIndicator renders its own labels now -- deliberately shorter,
+   and in one consistent shape so the indicator does not resize as it changes --
+   so the map has no consumer. Left in place it would be the kind of thing that
+   looks authoritative and quietly goes stale against the component that actually
+   renders. Add state copy next to the component instead. */

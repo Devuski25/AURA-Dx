@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Activity, Database, RefreshCw, Server, Waypoints } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getApiUrl } from "@/lib/api"
@@ -131,14 +131,17 @@ export function ServiceHealthPanel() {
   return (
     <Card className="aura-panel rounded-2xl">
       <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
-          <CardTitle>Service health</CardTitle>
-          <CardDescription>
-            Live probes plus the Mini PC heartbeat. Heartbeat
-            {beatAge ? ` ${beatAge}` : ""}
-            {beat?.checked_at ? "" : " — none recorded yet"}.
-          </CardDescription>
-        </div>
+        {/* Title only.
+
+            The heartbeat age was here as a description and read as a run-on:
+            "Live probes plus the Mini PC heartbeat. Heartbeat — none recorded
+            yet." The useful part was buried in a sentence about itself, and the
+            em-dash made it worse.
+
+            The heartbeat age is not lost. It is reported on its own line at the
+            bottom of the card, next to the check time, where it reads as a fact
+            rather than as a subtitle. */}
+        <CardTitle>Service health</CardTitle>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={busy}>
           <RefreshCw className={busy ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
           Refresh
@@ -174,6 +177,7 @@ export function ServiceHealthPanel() {
         {checkedAt && (
           <p className="mt-4 text-xs text-aura-muted">
             Checked {new Date(checkedAt).toLocaleTimeString()}
+            {beat?.checked_at ? ` · Last heartbeat ${beatAge}` : " · No heartbeat recorded"}
           </p>
         )}
       </CardContent>

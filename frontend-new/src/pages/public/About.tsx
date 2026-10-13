@@ -9,7 +9,7 @@ import { DrawRule, Reveal, Stagger, StaggerItem } from "@/components/Reveal"
    Wording stays descriptive, not diagnostic: this is what sounds are associated
    with in a screened population, not a criterion for calling it in a patient. */
 const CONDITIONS: { icon: LucideIcon; name: string; desc: string }[] = [
-  { icon: HeartPulse, name: "Healthy", desc: "Clear acoustic patterns — no signs of respiratory abnormality." },
+  { icon: HeartPulse, name: "Healthy", desc: "Clear acoustic patterns no signs of respiratory abnormality." },
   { icon: Wind, name: "COPD", desc: "Prolonged expiration with low-pitched wheezing and diminished breath sounds, as air trapping narrows the airway." },
   { icon: Waves, name: "Pneumonia", desc: "Fine crackles and bronchial breathing over consolidated lung, with breath sounds reduced on the affected side." },
 ]
@@ -48,7 +48,7 @@ export function About() {
   return (
     <PageShell>
       <PageHero title="About the system" centered>
-        Breathing is not random noise. Its acoustic shape carries information about the airway that produced it. AURA-Dx — the Acoustic Unit for Respiratory Assessment — is built to read that signature.
+        Breathing is not random noise. Its acoustic shape carries information about the airway that produced it. AURA-Dx the Acoustic Unit for Respiratory Assessment is built to read that signature.
       </PageHero>
 
       {/* Flow */}
@@ -130,13 +130,13 @@ export function About() {
 
             <div className="flex flex-col gap-10">
               <Reveal delay={0.1}>
-                <h3 className="font-display text-lg font-bold text-aura-text">Stage 1 — the healthy screen</h3>
+                <h3 className="font-display text-lg font-bold text-aura-text">Stage 1: The Healthy Screen</h3>
                 <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
-                  A gradient-boosted model reads a 153-value summary of each breath cycle — 13 MFCCs and their first and second derivatives, plus spectral centroid, bandwidth, contrast, flatness, zero-crossing rate and energy — collapsed across cycles by mean, maximum and spread. Confidently normal breathing stops here and never reaches the second stage.
+                  A gradient-boosted model reads a 153-value summary of each breath cycle 13 MFCCs and their first and second derivatives, plus spectral centroid, bandwidth, contrast, flatness, zero-crossing rate and energy collapsed across cycles by mean, maximum and spread. Confidently normal breathing stops here and never reaches the second stage.
                 </p>
               </Reveal>
               <Reveal delay={0.2}>
-                <h3 className="font-display text-lg font-bold text-aura-text">Stage 2 — COPD against pneumonia</h3>
+                <h3 className="font-display text-lg font-bold text-aura-text">Stage 2: COPD against pneumonia</h3>
                 <p className="mt-2 max-w-[56ch] text-sm leading-relaxed text-aura-muted">
                   Anything Stage 1 flags as abnormal is converted to a 64-band log-Mel spectrogram and handed to a convolutional network, which scores the likelihood of pneumonia. A single breath cycle is one training example, so longer takes are scored in overlapping windows and the highest reading is kept.
                 </p>

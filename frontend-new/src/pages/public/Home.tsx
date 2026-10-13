@@ -20,7 +20,7 @@ const STEPS = [
 ]
 
 const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
-  { icon: Stethoscope, title: "Digital stethoscope", desc: "Capture high-fidelity breathing sounds from standard auscultation points: posterior, anterior, and lateral." },
+  { icon: Stethoscope, title: "Digital stethoscope", desc: "Capture high fidelity breathing sounds from standard auscultation points: posterior, anterior, and lateral." },
   { icon: FileAudio, title: "WAV upload", desc: "Analyze an existing recording from any compatible digital stethoscope." },
   { icon: ShieldCheck, title: "Clinician portal", desc: "Review the spectrogram, confidence score, and a suggested next step for every session." },
 ]
@@ -28,7 +28,7 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
 const FAQS = [
   {
     q: "Does an AURA-Dx test result constitute a medical diagnosis?",
-    a: "No. AURA-Dx is a screening-support tool, not a certified diagnostic device. A result is a suggested next step, not a diagnosis, and should not replace evaluation by a licensed physician.",
+    a: "No. AURA-Dx is a screening support tool, not a certified diagnostic device. A result is a suggested next step, not a diagnosis, and should not replace evaluation by a licensed physician.",
   },
   {
     q: "What happens to my recording and results?",
@@ -36,7 +36,7 @@ const FAQS = [
   },
   {
     q: "Who can see my screening history?",
-    a: "Only you and logged-in clinicians can review screening results. The full Screening Dashboard, which lists results across patients, is restricted to approved doctor/nurse accounts.",
+    a: "Only you and logged in clinicians can review screening results. The full Screening Dashboard, which lists results across patients, is restricted to approved doctor/nurse accounts.",
   },
   {
     q: "What conditions does AURA-Dx screen for?",
@@ -146,7 +146,7 @@ export function Home() {
           <div>
             <SectionHeading>Built for the clinic</SectionHeading>
             <Reveal as="p" delay={0.1} className="mt-5 max-w-[42ch] text-justify text-[1.05rem] leading-relaxed text-aura-muted">
-              No special hardware needed — AURA-Dx runs in any modern browser. Clinicians capture a breathing sample and get structured, reviewable results in seconds.
+              No special hardware needed AURA-Dx runs in any modern browser. Clinicians capture a breathing sample and get structured, reviewable results in seconds.
             </Reveal>
           </div>
           <Stagger as="ul" className="m-0 list-none divide-y divide-aura-border border-y border-aura-border p-0">

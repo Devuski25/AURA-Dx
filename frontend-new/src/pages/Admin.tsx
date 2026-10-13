@@ -127,6 +127,30 @@ const MotionTableRow = motion(TableRow)
    dot and its flash check within one commit. One definition, two layouts.
    --------------------------------------------------------------------------- */
 
+/** Shared column-header styling for the users table.
+
+    Three things were wrong at tablet widths, all visible in the same screenshot:
+
+      * "STATUS" broke into "STAT / US" and "Clinician" into "Clinic / ian" --
+        nothing forbade wrapping, so the browser broke wherever it had to.
+        `whitespace-nowrap` on the header plus a `w-*` on the narrow columns
+        fixes both.
+      * `text-[14.5px]` with `tracking-[0.08em]` in uppercase is very wide for a
+        column header. 13px and 0.06em is still legible and buys back ~20px of
+        column width, which is what the content below actually needed.
+      * Each header repeated the same class string, so a fix to one that missed
+        the others would be invisible in review. */
+const ADMIN_TABLE_HEAD =
+  "h-10 whitespace-nowrap px-3 font-mono text-[13px] font-semibold uppercase tracking-[0.06em] text-aura-muted"
+
+/* Cell padding, shared so the table and the mobile cards stay in step.
+
+   The shadcn primitive defaults to `p-4`, which set every row at about 64px --
+   tall enough that four users filled the card and the list read as mostly
+   whitespace. `py-2.5` keeps a 44px row, which is still comfortable to hit on a
+   touch screen, without the table looking sparse. */
+const ADMIN_CELL = "px-3 py-2.5 align-middle"
+
 type AdminUser = {
   id: string
   full_name: string
@@ -141,7 +165,7 @@ function UserMonogram({ user }: { user: AdminUser }) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 font-display text-[14.5px] font-bold tracking-tight",
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 font-display text-[13px] font-bold tracking-tight",
         user.role === "super_admin"
           ? "border-aura-pine/40 bg-aura-pine/10 text-aura-pine"
           : "border-aura-forest/25 bg-aura-sage text-aura-forest"
@@ -156,13 +180,17 @@ function UserMonogram({ user }: { user: AdminUser }) {
   )
 }
 
-/** Role badge: Clinician / Admin. */
+/** Role badge: Clinician / Admin.
+
+    `whitespace-nowrap` because "Clinician" breaking to "Clinic / ian" was the
+    single most visible defect in the table. The badge sizes itself to content
+    now, so it needs the header's fixed column width to fit inside. */
 function UserRoleBadge({ role }: { role: string }) {
   return (
     <Badge
       variant="outline"
       className={cn(
-        "h-7 px-3 text-sm font-semibold capitalize",
+        "h-6 whitespace-nowrap rounded-full px-2 text-xs font-semibold capitalize",
         role === "super_admin"
           ? "border-aura-pine/25 bg-aura-pine/10 text-aura-pine"
           : "border-aura-forest/15 bg-aura-sage text-aura-forest"
@@ -176,6 +204,9 @@ function UserRoleBadge({ role }: { role: string }) {
 /**
  * Status pill. Keyed on status so it crossfades in place when an approval lands,
  * with the check drawing itself in. Text is unchanged.
+ *
+ * `whitespace-nowrap` for the same reason as the role badge: "approved" was
+ * breaking to "app / rove / d".
  */
 function UserStatusPill({
   user,
@@ -195,7 +226,7 @@ function UserStatusPill({
         exit={reduceMotion ? undefined : { opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.18, ease: EASE_OUT }}
         className={cn(
-          "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold",
+          "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full border px-2 text-xs font-semibold capitalize",
           user.status === "approved" && "border-transparent bg-aura-pine text-white",
           user.status === "pending" && "border-sky-200 bg-sky-50 text-sky-800",
           user.status === "rejected" && "border-transparent bg-destructive text-white",
@@ -841,7 +872,7 @@ export function Admin() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-aura-muted transition-colors duration-200 group-focus-within:text-aura-forest" aria-hidden="true" />
                   <Input
                     type="search"
-                    placeholder="Name or email→·"
+                    placeholder="Name or email"
                     aria-label="Search users by name or email"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
@@ -943,11 +974,11 @@ export function Admin() {
                       className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10 bg-white backdrop-blur-md"
                     >
                       <TableRow className="align-middle border-b-0 hover:bg-transparent">
-                        <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted">Name</TableHead>
-                        <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted">Email</TableHead>
-                        <TableHead className="px-3 text-center font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted">Role</TableHead>
-                        <TableHead className="px-3 text-center font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted">Status</TableHead>
-                        <TableHead className="w-20 px-3 text-center font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-label="Row actions" />
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Name</TableHead>
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Email</TableHead>
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[6.5rem] text-center")}>Role</TableHead>
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[7.5rem] text-center")}>Status</TableHead>
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-20 text-center")} aria-label="Row actions" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -970,7 +1001,7 @@ export function Admin() {
                             flashState.ids.has(u.id) && "bg-aura-pine/15"
                           )}
                         >
-                          <TableCell className="relative px-3 text-left align-middle">
+                          <TableCell className={cn(ADMIN_CELL, "relative text-left")}>
                             {/* Monogram ringed in the role tone, plus the hover
                                 accent bar. The bar lives inside the first cell
                                 because a bare <span> as a direct child of <tr>
@@ -978,24 +1009,24 @@ export function Admin() {
                                 which breaks column alignment. */}
                             <span
                               aria-hidden="true"
-                              className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
+                              className="pointer-events-none absolute inset-y-2 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                             />
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2.5">
                               <UserMonogram user={u} />
-                              <span className="truncate text-base font-medium">{u.full_name}</span>
+                              <span className="truncate text-sm font-medium">{u.full_name}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="px-3 text-left align-middle">
-                            <div className="whitespace-nowrap text-base text-aura-muted">{u.email}</div>
+                          <TableCell className={ADMIN_CELL}>
+                            <div className="whitespace-nowrap text-sm text-aura-muted">{u.email}</div>
                           </TableCell>
-                          <TableCell className="px-3 text-center align-middle">
+                          <TableCell className={cn(ADMIN_CELL, "text-center")}>
                             {/* Faint tinted fill instead of a bare outline; the
                                 label sits at 12.4:1 on its own wash. */}
                             <div className="flex justify-center">
                               <UserRoleBadge role={u.role} />
                             </div>
                           </TableCell>
-                          <TableCell className="px-3 text-center align-middle">
+                          <TableCell className={cn(ADMIN_CELL, "text-center")}>
                             <div className="flex justify-center">
                               <UserStatusPill
                                 user={u}
@@ -1004,7 +1035,7 @@ export function Admin() {
                               />
                             </div>
                           </TableCell>
-                          <TableCell className="px-3 text-center align-middle">
+                          <TableCell className={cn(ADMIN_CELL, "text-center")}>
                             {/* Row actions collapse into a single trigger so the
                                 column stays a fixed ~80px. Four inline icons
                                 needed ~170px and overflowed their own width. */}
@@ -1046,7 +1077,7 @@ export function Admin() {
                   both without changes. `md:hidden` rather than `hidden md:block`
                   on the card so the card markup is the one carrying the
                   breakpoint. */}
-              <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+              <ul className="m-0 flex list-none flex-col gap-2.5 p-0 md:hidden">
                 <AnimatePresence initial={false}>
                   {filteredUsers.map((u, idx) => (
                     <motion.li
@@ -1058,7 +1089,7 @@ export function Admin() {
                       exit={ROW_EXIT}
                       transition={{ layout: { duration: 0.28, ease: EASE_OUT } }}
                       className={cn(
-                        "rounded-xl border border-aura-forest/10 bg-white p-4 transition-colors duration-150 focus-within:bg-aura-mint-wash/60",
+                        "rounded-xl border border-aura-forest/10 bg-white p-3.5 transition-colors duration-150 focus-within:bg-aura-mint-wash/60",
                         // Faint sky tint marks rows still awaiting a decision.
                         u.status === "pending" && "bg-sky-50/50",
                         // Brief green flash after a status change lands.
@@ -1066,10 +1097,10 @@ export function Admin() {
                       )}
                     >
                       {/* Top row: who they are, and whether they are in yet. */}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
                           <UserMonogram user={u} />
-                          <span className="min-w-0 truncate text-base font-semibold">
+                          <span className="min-w-0 truncate text-sm font-semibold">
                             {u.full_name}
                           </span>
                         </div>
@@ -1085,17 +1116,23 @@ export function Admin() {
                           is the same word-wrap anywhere, and an ellipsis hides
                           exactly the part that distinguishes two similar
                           addresses. */}
-                      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                        <span className="min-w-0 break-all text-sm text-aura-muted">
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                        <span className="min-w-0 break-all text-xs text-aura-muted">
                           {u.email}
                         </span>
                         <UserRoleBadge role={u.role} />
                       </div>
 
-                      {/* Actions. Full-width row on mobile: the 32px trigger is
-                          well under the 44px floor once the menu opens upward
-                          into the rest of the list. */}
-                      <div className="mt-3 flex justify-end border-t border-aura-forest/10 pt-3">
+                      {/* Actions.
+
+                          Inline on the right of the second row rather than on a
+                          third row of its own. As a full-width row it cost ~44px
+                          and a horizontal rule per card, so three users filled
+                          the screen and the list read as mostly empty boxes. The
+                          trigger keeps its `touch-target` class, which is what
+                          actually satisfies the 44px floor -- the row it sits in
+                          does not need to be 44px tall itself. */}
+                      <div className="mt-1 flex justify-end -mb-1 -mr-1">
                         <UserActionsMenu
                           user={u}
                           currentUserRole={user?.role}
@@ -1159,7 +1196,7 @@ export function Admin() {
                       <FormLabel>Password</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Input type={showPassword ? "text" : "password"} placeholder="→·→·→·→·→·→·→·→·" autoComplete="new-password" {...field} className="pr-10" />
+                          <Input type={showPassword ? "text" : "password"} placeholder="New password" autoComplete="new-password" {...field} className="pr-10" />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}

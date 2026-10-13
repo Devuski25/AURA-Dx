@@ -18,11 +18,11 @@ function LegalSection({ id, title, children }: { id: string; title: string; chil
 
 const LAWS = [
   {
-    name: "R.A. 10173 — Data Privacy Act of 2012",
+    name: "R.A. 10173: Data Privacy Act of 2012",
     text: "Requires informed consent before collecting personal data, limits use to the stated purpose, and grants data subjects the right to access, correct, and erase their information.",
   },
   {
-    name: "R.A. 10175 — Cybercrime Prevention Act of 2012",
+    name: "R.A. 10175: Cybercrime Prevention Act of 2012",
     text: "Criminalizes unauthorized access to computer systems and data, and illegal interception of data in transit. Applies to audio uploads, portal access, and all data transmitted to and from the system.",
   },
 ]
@@ -38,7 +38,7 @@ export function Legal() {
   return (
     <PageShell>
       <PageHero title="Legal & patient privacy" centered>
-        AURA-Dx processes breathing audio and screening results, which qualify as personal — and in some contexts sensitive personal — information under Philippine law. This page explains what is collected, why, and what rights you hold over it.
+        AURA-Dx processes breathing audio and screening results, which qualify as personal and in some contexts sensitive personal information under Philippine law. This page explains what is collected, why, and what rights you hold over it.
       </PageHero>
 
       <div className="mx-auto max-w-6xl px-6 py-14 md:py-16">
@@ -57,7 +57,7 @@ export function Legal() {
               Research prototype, not a medical device
             </h2>
             <p className="mx-auto mt-3 max-w-[58ch] text-sm leading-relaxed text-aura-legal-text md:text-[0.9375rem]">
-              AURA-Dx is a thesis-stage research prototype developed at the University of Rizal System — Morong Campus. It demonstrates a screening-support workflow and is not a certified diagnostic medical device. Screening results should not replace evaluation by a licensed physician.
+              AURA-Dx is a thesis-stage research prototype developed at the University of Rizal System — Morong Campus. It demonstrates a screening support workflow and is not a certified diagnostic medical device. Screening results should not replace evaluation by a licensed physician.
             </p>
           </aside>
         </Reveal>
@@ -75,7 +75,7 @@ export function Legal() {
 
         <LegalSection id="consent" title="Consent">
           <p className="max-w-[68ch] leading-relaxed text-aura-legal-text">
-            Every screening session — live microphone or uploaded file — is gated behind an explicit consent step before any audio is captured or processed. Declining consent stops the flow at that point; no data is retained.
+            Every screening session live microphone or uploaded file is gated behind an explicit consent step before any audio is captured or processed. Declining consent stops the flow at that point; no data is retained.
           </p>
         </LegalSection>
 
