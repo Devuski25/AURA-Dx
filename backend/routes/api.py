@@ -453,22 +453,55 @@ async def update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     update_data = update.model_dump(exclude_unset=True)
+
+    # --- Authority: who may modify whom ---------------------------------
+    # This is the whole permission model for editing an account, enforced here
+    # rather than in the UI. The UI hides the affordance so nobody is offered
+    # an action that will fail, but the UI is a client and this is the check
+    # that counts.
+    target_role = target.data.get("role")
+    viewer_role = user.get("role")
+
+    # 1. Super admins are not editable by anyone, including another super
+    #    admin. Seeded via CLI, never through this route.
+    if target_role == "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot modify super admin account",
+        )
+
+    # 2. A rejected account is closed -- not editable, and not re-statusable
+    #    through this route either.
+    #
+    #    This was a real hole: a rejected clinician could be edited, its role
+    #    changed to admin, and it would then sit there as role=admin with
+    #    status=rejected -- an account simultaneously refused entry and holding
+    #    admin authority.
+    if target.data.get("status") == "rejected":
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot modify a rejected account",
+        )
+
+    # 3. Admins manage clinicians. Editing a peer admin, or escalating one, is
+    #    a super-admin action. Mirrors the existing rule on DELETE, which
+    #    already scoped admins to clinicians -- edit simply never had it.
+    if viewer_role == "admin" and target_role != "clinician":
+        raise HTTPException(
+            status_code=403,
+            detail="Admins can only modify clinician accounts",
+        )
+
+    # --- Authority: what may be changed ---------------------------------
     # Prevent role escalation: only super_admin can change roles, and nobody
     # can grant super_admin (must be seeded via CLI).
     if "role" in update_data and update_data["role"] == "super_admin":
         raise HTTPException(status_code=403, detail="Cannot assign super_admin role via API")
-    if "role" in update_data and user.get("role") != "super_admin":
+    if "role" in update_data and viewer_role != "super_admin":
         raise HTTPException(status_code=403, detail="Only super_admin can change user roles")
 
-    if user.get("role") != "super_admin" and target.data.get("clinic_id") != clinic_id:
+    if viewer_role != "super_admin" and target.data.get("clinic_id") != clinic_id:
         raise HTTPException(status_code=403, detail="Cannot modify user from another clinic")
-
-    # Prevent modifying super_admin
-    if target.data.get("role") == "super_admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot modify super admin account"
-        )
 
     password = update_data.pop("password", None) if update_data else None
     previous_status = target.data.get("status")

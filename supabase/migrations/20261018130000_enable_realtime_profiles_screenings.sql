@@ -51,9 +51,17 @@ END $$;
 -- guard in 20261018120000. A subscription that quietly matches nothing is
 -- indistinguishable from a quiet database, and that is how the missing
 -- publication survived unnoticed.
+--
+-- FOREACH, not `FOR t IN SELECT unnest(ARRAY[...]) LOOP`. That form is a syntax
+-- error -- a FOR-IN-SELECT loop needs a row variable or a list of scalars, and
+-- bare `unnest(...)` returns a set of anonymous scalars rather than a table,
+-- so PostgreSQL rejects it with 42601. FOREACH walks an array directly and is
+-- the construct that was wanted here all along.
 DO $$
+DECLARE
+  t TEXT;
 BEGIN
-  FOR t IN SELECT unnest(ARRAY['profiles', 'screenings']) LOOP
+  FOREACH t IN ARRAY ARRAY['profiles', 'screenings'] LOOP
     IF NOT EXISTS (
       SELECT 1 FROM pg_publication_tables
       WHERE pubname = 'supabase_realtime'

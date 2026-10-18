@@ -256,6 +256,32 @@ function UserStatusPill({
   )
 }
 
+/**
+ * May the signed-in user edit this account?
+ *
+ * Single source of truth for the Edit affordance, mirroring the guards in
+ * PATCH /api/users/{id}. The route is what actually enforces this; the UI hiding
+ * the button is a courtesy, so nobody is offered an action that will 403. But
+ * offering an Edit that fails is worse than not offering it, so both sides
+ * carry the same rule -- and it lives in one named function because it is
+ * needed in two places (the row menu, and the guard on opening the dialog).
+ *
+ *   super admins  - not editable by anyone
+ *   rejected      - closed
+ *   admin         - manages clinicians only
+ *   super_admin   - manages admins and clinicians
+ */
+function canEditUser(
+  viewerRole: string | undefined,
+  target: { role?: string | null; status?: string | null },
+): boolean {
+  if (target.role === "super_admin") return false
+  if (target.status === "rejected") return false
+  if (viewerRole === "super_admin") return true
+  if (viewerRole === "admin") return target.role === "clinician"
+  return false
+}
+
 /** The three-dot action menu. Same contents in the table and the card. */
 function UserActionsMenu({
   user,
@@ -276,6 +302,7 @@ function UserActionsMenu({
   onDelete: (user: AdminUser) => void
   align?: "start" | "center" | "end"
 }) {
+  const editable = canEditUser(currentUserRole, user)
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -313,14 +340,22 @@ function UserActionsMenu({
             <DropdownMenuSeparator />
           </>
         )}
-        <DropdownMenuItem onSelect={() => onEdit(user)} className="gap-2">
-          <Edit className="h-4 w-4" aria-hidden="true" />
-          Edit
-        </DropdownMenuItem>
+        {/* Edit -- hidden, not disabled, for accounts this role may not modify.
+            A greyed-out Edit invites the question "why?"; an absent one is just
+            the truth about what this role can do here. */}
+        {editable && (
+          <DropdownMenuItem onSelect={() => onEdit(user)} className="gap-2">
+            <Edit className="h-4 w-4" aria-hidden="true" />
+            Edit
+          </DropdownMenuItem>
+        )}
         {/* Delete — super_admin only, not self, not other super_admins */}
         {currentUserRole === "super_admin" && user.role !== "super_admin" && user.id !== currentUserId && (
           <>
-            <DropdownMenuSeparator />
+            {/* Only draw the rule when something precedes it, or a
+                super_admin looking at a rejected account gets a menu that opens
+                straight onto a divider. */}
+            {editable && <DropdownMenuSeparator />}
             <DropdownMenuItem
               onSelect={() => onDelete(user)}
               className="gap-2 text-aura-coral-strong focus:text-aura-coral-strong focus:bg-aura-coral-soft"
@@ -695,6 +730,21 @@ export function Admin() {
   )
 
   const openEditDialog = useCallback((u: any) => {
+    /* Re-checked here as well as in the menu. The menu is hidden by React state
+       that can be one render behind -- an approval or a realtime refresh can
+       land between the click and the handler -- and the route would answer 403
+       anyway. Better to refuse to open the dialog than to open it onto a form
+       that cannot be submitted. */
+    if (!canEditUser(user?.role, u)) {
+      toast.error(
+        u.role === "super_admin"
+          ? "The super admin account cannot be edited"
+          : u.status === "rejected"
+            ? "A rejected account cannot be edited"
+            : "You can only edit clinician accounts"
+      )
+      return
+    }
     setEditingUser(u)
     setShowPassword(false)
     form.reset({
@@ -707,7 +757,7 @@ export function Admin() {
       password: "",
     })
     setDialogOpen(true)
-  }, [form])
+  }, [form, user?.role])
 
   const openCreateDialog = useCallback(() => {
     setEditingUser(null)
