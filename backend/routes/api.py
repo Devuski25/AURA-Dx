@@ -42,6 +42,8 @@ from auth import get_current_user, get_current_user_id, require_role
 from database import supabase, supabase_anon
 from config import settings
 from email_service import send_verification_email
+# Same wording source as the React result screen. See pdf_copy.py.
+from pdf_copy import result_copy, status_label, disclosure, confidence_label
 
 router = APIRouter()
 
@@ -699,6 +701,10 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
 
     fused = inference_res.get("respiratory_result") or {}
     fusion = inference_res.get("fusion") or {}
+    # Produced by inference_service.interpret_fusion. Every field is optional at
+    # the storage layer so a screening recorded against an older model (or an
+    # inference service that predates the interpretation layer) still saves.
+    interp = fused.get("interpretation") or {}
 
     data = {
         "patient_id": screening.patient_id,
@@ -718,6 +724,23 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
         "respiratory_confidence": fused.get("confidence"),
         "respiratory_probabilities": fused.get("probabilities"),
         "cascade_path": fusion.get("method") or "mean_then_safety_override",
+        # Interpretation. `recommendation_code` is a key into
+        # shared/clinical_copy.json rather than prose, so rewording a
+        # clinician-facing message never needs a migration.
+        "interpretation_status": interp.get("status"),
+        "confidence_level": interp.get("confidence_level"),
+        "recommendation_code": (
+            f"{interp['status']}_{interp['confidence_level']}"
+            if interp.get("status") and interp.get("confidence_level")
+            else None
+        ),
+        "decision_rule": interp.get("decision_rule"),
+        "decision_detail": interp.get("decision_detail"),
+        "band_metric": interp.get("band_metric"),
+        "band_position": interp.get("band_position"),
+        "low_agreement": interp.get("low_agreement"),
+        "recordings_total": interp.get("recordings_total"),
+        "recordings_flagged": interp.get("recordings_flagged"),
         "model_version": inference_res["model_version"],
         "status": "completed"
     }
@@ -823,6 +846,8 @@ async def list_screenings(
             "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
             "clinic_name,clinician_name,"
             "respiratory_result,respiratory_confidence,cascade_path,"
+            "interpretation_status,confidence_level,low_agreement,"
+            "recordings_total,recordings_flagged,"
             "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
             "audio_duration_sec,created_at"
         )
@@ -953,7 +978,10 @@ async def download_screening_pdf(
             "respiratory_result,respiratory_confidence,respiratory_probabilities,"
             "recording_paths,recording_scores,"
             "cascade_path,model_version,status,reviewed_by_name,reviewed_at,review_notes,"
-            "audio_duration_sec,created_at,clinic_id,clinician_id"
+            "audio_duration_sec,created_at,clinic_id,clinician_id,"
+            "interpretation_status,confidence_level,recommendation_code,decision_rule,"
+            "decision_detail,band_metric,band_position,low_agreement,"
+            "recordings_total,recordings_flagged"
         ).eq("id", screening_id).single().execute()
     except Exception:
         screening = supabase.table("screenings").select("*").eq("id", screening_id).single().execute()
@@ -1119,9 +1147,96 @@ async def download_screening_pdf(
     resp_conf = data.get("respiratory_confidence")
     resp_probs = data.get("respiratory_probabilities", {})
     
+    # Clinical interpretation, read from the same shared/clinical_copy.json the
+    # React result screen uses. Printed above the raw classification because it
+    # is what the report is for -- the numbers are the evidence.
+    #
+    # Absent on rows written before the interpretation layer; the legacy
+    # classification block below still renders for those.
+    interp_status = data.get("interpretation_status")
+    interp_level = data.get("confidence_level")
+    if interp_status and interp_level:
+        headline, message, recommendation = result_copy(interp_status, interp_level)
+        resp_color = {
+            "HEALTHY": colors.HexColor('#16a34a'),
+            "COPD": colors.HexColor('#ca8a04'),
+            "PNEUMONIA": colors.HexColor('#dc2626'),
+            "ATYPICAL_OOD": colors.HexColor('#4b5563'),
+        }.get(interp_status, colors.HexColor('#6b7280'))
+
+        story.append(Paragraph("Screening Result", heading_style))
+        story.append(Paragraph(
+            f"<b>{status_label(interp_status)}</b> &mdash; {confidence_label(interp_level)}",
+            ParagraphStyle('InterpVerdict', parent=small_style,
+                           fontSize=13, textColor=resp_color, spaceAfter=4),
+        ))
+        story.append(Paragraph(
+            headline,
+            ParagraphStyle('InterpHeadline', parent=body_style,
+                           fontSize=11, leading=15, spaceAfter=6),
+        ))
+        story.append(Paragraph(message, body_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            f"<b>Suggested next step:</b> {recommendation}",
+            ParagraphStyle('InterpRec', parent=body_style, leading=14),
+        ))
+
+        # How the verdict was reached, so the report explains itself.
+        bits = []
+        total_rec = data.get("recordings_total")
+        flagged_rec = data.get("recordings_flagged")
+        if total_rec and flagged_rec is not None:
+            bits.append(f"{flagged_rec} of {total_rec} recordings reached the disease screen")
+        rule = data.get("decision_rule")
+        if rule == "safety_override":
+            bits.append("decided by a single recording rather than the average")
+        elif rule in ("conditional_copd_high", "conditional_copd_moderate", "conditional_undecidable"):
+            bits.append("averaged across the recordings that reached the disease screen")
+        elif rule in ("borderline_healthy", "majority_healthy", "majority_healthy_confident"):
+            bits.append("majority of recordings assessed as normal")
+        if bits:
+            story.append(Paragraph(
+                "<i>" + "; ".join(bits) + ".</i>",
+                ParagraphStyle('InterpBasis', parent=small_style, spaceBefore=4),
+            ))
+
+        detail = data.get("decision_detail")
+        if detail:
+            story.append(Paragraph(detail, ParagraphStyle('InterpDetail', parent=small_style, spaceBefore=2)))
+
+        # Specific, different situations get their own line rather than being
+        # folded into one generic caveat.
+        if rule == "safety_override":
+            story.append(Paragraph(
+                f"<i>{disclosure('override')}</i>",
+                ParagraphStyle('InterpWarn', parent=small_style,
+                               textColor=colors.HexColor('#b91c1c'), spaceBefore=4),
+            ))
+        if data.get("low_agreement"):
+            story.append(Paragraph(
+                f"<i>{disclosure('lowAgreement')}</i>",
+                ParagraphStyle('InterpWarn2', parent=small_style,
+                               textColor=colors.HexColor('#b91c1c'), spaceBefore=2),
+            ))
+        if (flagged_rec or 0) > 0 and interp_status == "HEALTHY":
+            story.append(Paragraph(
+                f"<i>{disclosure('borderlineCount')}</i>",
+                ParagraphStyle('InterpWarn3', parent=small_style, spaceBefore=2),
+            ))
+
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            disclosure('scope'),
+            ParagraphStyle('InterpScope', parent=small_style,
+                           textColor=colors.HexColor('#6b7280'),
+                           borderPadding=(4, 0, 4, 0), spaceBefore=4),
+        ))
+        story.append(Spacer(1, 10))
+
     if resp_result:
         story.append(Paragraph("Respiratory Classification", heading_style))
-        
+
         resp_colors = {"Healthy": colors.HexColor('#16a34a'), "Pneumonia": colors.HexColor('#dc2626'), "COPD": colors.HexColor('#ca8a04')}
         resp_recs = {
             "Healthy": "No urgent action required. Routine follow-up as clinically indicated.",
@@ -1130,7 +1245,7 @@ async def download_screening_pdf(
         }
         resp_color = resp_colors.get(resp_result, colors.HexColor('#6b7280'))
         resp_rec = resp_recs.get(resp_result, "")
-        
+
         resp_data = [
             ["Result", resp_result, "Confidence", f"{resp_conf * 100:.1f}%" if resp_conf else "N/A"],
         ]

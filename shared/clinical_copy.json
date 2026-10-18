@@ -1,0 +1,89 @@
+{
+  "_comment": [
+    "Single source of truth for the wording of a screening result.",
+    "",
+    "Read by frontend-new/src/lib/clinical-copy.ts (Vite import) AND by",
+    "backend/pdf_copy.py (json.load). It exists because the React badges and the",
+    "ReportLab PDF generator would otherwise each hold their own copy, and",
+    "nothing enforces that they agree -- a patient whose screen says one thing",
+    "and whose printed report says another is worse than either alone.",
+    "",
+    "Rewording a message is a one-line edit here and needs no migration, which",
+    "is why the database stores `recommendation_code` rather than prose.",
+    "",
+    "SCOPE DISCIPLINE: this system was trained on three classes only -- healthy,",
+    "COPD, pneumonia. It has no output for asthma, bronchitis, URTI, heart",
+    "failure or anything else. No string here may imply another condition was",
+    "considered and ruled out. 'Features consistent with' describes a match to a",
+    "trained class; it is not a diagnosis, and the absence of a name is not the",
+    "absence of a disease."
+  ],
+
+  "version": "1.0.0",
+
+  "status": {
+    "HEALTHY": {
+      "label": "Healthy",
+      "badgeTone": "green"
+    },
+    "COPD": {
+      "label": "COPD",
+      "badgeTone": "amber"
+    },
+    "PNEUMONIA": {
+      "label": "Pneumonia",
+      "badgeTone": "red"
+    },
+    "ATYPICAL_OOD": {
+      "label": "Atypical / out of scope",
+      "badgeTone": "slate"
+    }
+  },
+
+  "confidence": {
+    "HIGH": "High confidence",
+    "MODERATE": "Moderate confidence",
+    "LOW": "Low confidence"
+  },
+
+  "headline": {
+    "HEALTHY_HIGH": "Normal respiratory sounds detected",
+    "HEALTHY_MODERATE": "Mostly normal respiratory sounds",
+    "HEALTHY_LOW": "Recording was not confidently normal",
+    "COPD_HIGH": "Features consistent with a chronic obstructive pattern",
+    "COPD_MODERATE": "Findings lean toward a chronic obstructive pattern",
+    "PNEUMONIA_HIGH": "Features consistent with an acute pattern",
+    "PNEUMONIA_MODERATE": "Findings lean toward an acute pattern",
+    "ATYPICAL_OOD_LOW": "Abnormal sounds outside this system's training scope"
+  },
+
+  "message": {
+    "HEALTHY_HIGH": "The recordings did not show acoustic features associated with the conditions this system evaluates.",
+    "HEALTHY_MODERATE": "Most recordings did not show features associated with the conditions this system evaluates, but the readings were not fully consistent.",
+    "HEALTHY_LOW": "At least one recording was borderline. This is not a confident finding of normal breathing, and it is not a finding of disease.",
+    "COPD_HIGH": "The recordings showed acoustic features resembling those this system associates with a chronic obstructive pattern.",
+    "COPD_MODERATE": "The recordings leaned toward a chronic obstructive pattern, but not decisively.",
+    "PNEUMONIA_HIGH": "The recordings showed acoustic features resembling those this system associates with an acute pattern.",
+    "PNEUMONIA_MODERATE": "The recordings leaned toward an acute pattern, but not decisively.",
+    "ATYPICAL_OOD_LOW": "Abnormal sounds were detected, but they did not resolve clearly onto either condition this system evaluates."
+  },
+
+  "recommendation": {
+    "HEALTHY_HIGH": "Routine monitoring as clinically indicated.",
+    "HEALTHY_MODERATE": "Correlate with clinical assessment. Repeat the recording if the patient is symptomatic.",
+    "HEALTHY_LOW": "Repeat the recording. Assess clinically if the patient is symptomatic; this result does not exclude a respiratory condition.",
+    "COPD_HIGH": "Correlate with spirometry and clinical history.",
+    "COPD_MODERATE": "Correlate with spirometry and clinical history. Repeat the recording to confirm.",
+    "PNEUMONIA_HIGH": "Prompt clinical review. Correlate with observations, vital signs and imaging.",
+    "PNEUMONIA_MODERATE": "Clinical review advised. Correlate with observations, vital signs and imaging.",
+    "ATYPICAL_OOD_LOW": "Direct auscultation and diagnostic workup are required. This system cannot characterise findings outside the conditions it was trained on."
+  },
+
+  "disclosure": {
+    "_comment": "Shown on every result regardless of status.",
+    "scope": "Screening support only. This system evaluates COPD and pneumonia and cannot assess other causes of abnormal breathing sounds. A result is not a diagnosis.",
+    "override": "This result was set by a single recording rather than the average. One recording reached the alert threshold on its own.",
+    "lowAgreement": "The individual recordings disagreed with each other, so confidence was reduced independently of the score.",
+    "borderlineCount": "One or more recordings was borderline and did not clear the disease screen."
+  }
+}

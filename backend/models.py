@@ -183,6 +183,19 @@ class ScreeningResponse(BaseModel):
     camera_data: Optional[Dict[str, Any]] = None
     cascade_path: str
     model_version: str
+    # Interpretation of the fused scores. All optional: rows created before the
+    # interpretation layer have them as NULL and are read as legacy, so the UI
+    # falls back to showing the raw class without a confidence level.
+    interpretation_status: Optional[str] = None
+    confidence_level: Optional[str] = None
+    recommendation_code: Optional[str] = None
+    decision_rule: Optional[str] = None
+    decision_detail: Optional[str] = None
+    band_metric: Optional[str] = None
+    band_position: Optional[float] = None
+    low_agreement: Optional[bool] = None
+    recordings_total: Optional[int] = None
+    recordings_flagged: Optional[int] = None
     status: ScreeningStatus
     reviewed_by: Optional[str]
     reviewed_at: Optional[datetime]

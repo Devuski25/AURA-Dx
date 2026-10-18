@@ -20,6 +20,7 @@ import { getApiUrl } from "@/lib/api"
 import { invalidate } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
 import { Textarea } from "@/components/ui/textarea"
+import { InterpretationPanel } from "@/components/InterpretationPanel"
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,19 @@ interface ScreeningDetail {
   recording_scores: { per_clip?: ClipScore[]; fusion?: Record<string, unknown> } | null
   model_version: string
   status: string
+  // Interpretation of the fused scores. Nullable throughout: rows written
+  // before the interpretation layer carry NULL and render without the clinical
+  // panel rather than with a fabricated confidence level.
+  interpretation_status: string | null
+  confidence_level: string | null
+  recommendation_code: string | null
+  decision_rule: string | null
+  decision_detail: string | null
+  band_metric: string | null
+  band_position: number | null
+  low_agreement: boolean | null
+  recordings_total: number | null
+  recordings_flagged: number | null
   reviewed_by: string | null
   reviewed_at: string | null
   review_notes: string | null
@@ -611,6 +625,28 @@ export function ScreeningDetail() {
         </div>
       </InfoCard>
       </motion.div>
+
+      {/* Clinical interpretation — what the verdict means and what to do next.
+          Above the classifier card because it is the part a clinician acts on;
+          the probability bars below are the evidence for it. */}
+      {screening.interpretation_status && screening.confidence_level && (
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22, ...sectionSpring }}
+        >
+          <InterpretationPanel
+            className="mt-6"
+            status={screening.interpretation_status}
+            level={screening.confidence_level}
+            decisionRule={screening.decision_rule}
+            decisionDetail={screening.decision_detail}
+            lowAgreement={screening.low_agreement}
+            recordingsTotal={screening.recordings_total}
+            recordingsFlagged={screening.recordings_flagged}
+          />
+        </motion.div>
+      )}
 
       {/* Respiratory classifier */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, ...sectionSpring }}>

@@ -8,6 +8,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Files shared with the Python side (clinical_copy.json) live outside
+      // frontend-new so the backend can read the same bytes. An alias rather
+      // than a relative path, so a move of src/ does not silently break it.
+      '@shared': path.resolve(__dirname, '../shared'),
     },
   },
   server: {

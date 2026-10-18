@@ -158,6 +158,44 @@ STAGE2_PNEUMONIA_THRESHOLD = 0.47
 # high-confidence finding rather than on borderline noise.
 STAGE2_OVERRIDE_THRESHOLD = 0.60
 
+# --------------------------------------------------------------------------
+# Interpretation: three model classes -> one clinically-shaped verdict
+#
+# Everything below is PRESENTATION of the scores above, never a new
+# measurement. No threshold here can turn a COPD score into a Pneumonia score;
+# it only decides how the existing numbers are worded and how much the caller
+# should trust them. See DECISION_LOGIC.md for the reasoning and the worked
+# scenarios.
+# --------------------------------------------------------------------------
+
+# Stage 1 bands. Below HEALTHY_LOWER_POINT the averaged take is not normal at
+# all and the disease split decides the verdict. Between it and
+# STAGE1_HEALTHY_THRESHOLD the majority leaned healthy but not convincingly,
+# which is reported as a Low-confidence Healthy rather than silently folded
+# into a confident one.
+HEALTHY_HIGH_POINT = 0.85
+HEALTHY_LOWER_POINT = 0.45
+
+# Stage 2 bands, read against CONDITIONAL_COPD_BOUNDARY.
+#
+# The split is evaluated on the recordings that actually reached Stage 2, not on
+# the fused vector -- see `interpret_fusion` for why those two differ. That
+# makes the boundary exactly 0.5 and the bands symmetric around it, which is why
+# 0.40/0.60 lands where it does rather than being an arbitrary pair of numbers.
+CONDITIONAL_COPD_BOUNDARY = 0.50
+COPD_HIGH_POINT = 0.60          # cond_copd >  -> COPD, High
+PNEUMONIA_HIGH_POINT = 0.40     # cond_copd <  -> Pneumonia, High
+# Between those sits the undecidable band, flanked by a shoulder on each side:
+#   (0.60, 0.55] -> COPD Moderate
+#   [0.45, 0.55) -> Atypical, Low   <- the model cannot separate the two classes
+#   [0.40, 0.45) -> Pneumonia Moderate
+
+# Recordings that disagree by more than this get one confidence level removed.
+# Distinct from a low model score: this is the *recordings* contradicting each
+# other, which points at technique, site placement or an unstable patient rather
+# than at the model being unsure.
+DISAGREEMENT_STD_LIMIT = 0.20
+
 MAX_RECORDINGS = 5
 MIN_RECORDINGS = 3
 
@@ -511,6 +549,154 @@ def score_single_clip(audio: np.ndarray, index: int) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Interpretation
+# --------------------------------------------------------------------------
+
+def interpret_fusion(fused: dict, clip_results: List[dict]) -> dict:
+    """Turn the fused scores into a verdict a clinician can act on.
+
+    Returns the status, a confidence level, and -- importantly -- which rule
+    produced them, so the UI and the PDF can explain the result rather than
+    only asserting it.
+
+    Why the Stage 2 split is read from the Stage 2 recordings alone
+    ---------------------------------------------------------------
+    A recording that Stage 1 calls Healthy contributes (1.0, 0.0, 0.0): it
+    never reached Stage 2, so it has no opinion on COPD versus pneumonia. Folding
+    those zeroes into an average dilutes the pathological classes in proportion
+    to how many recordings happened to look normal.
+
+    With three normal and two strongly-COPD recordings the fused COPD figure is
+    0.28 -- which against a single-take threshold of 0.60 would read as
+    "pneumonia". The actual class decision is unaffected, because
+
+        mean_pneumonia > mean_copd
+      <=> sum(pneumonia) > sum(1 - pneumonia) over the Stage 2 recordings
+      <=> mean(pneumonia | Stage 2) > 0.5
+
+    so the conditional average has exactly the same 0.5 boundary as the fused
+    comparison, while sitting on a scale that means the same thing as a single
+    recording's. That is the value the bands below are calibrated against.
+    """
+    total = len(clip_results)
+    stage2 = [c for c in clip_results if c["stage1_routed_to_stage2"]]
+
+    mean_healthy = float(np.mean([c["healthy_prob"] for c in clip_results]))
+
+    # Averaged only over the recordings that were actually asked the question.
+    cond_pneumonia = (
+        float(np.mean([c["pneumonia_prob"] for c in stage2])) if stage2 else 0.0
+    )
+    cond_copd = 1.0 - cond_pneumonia
+
+    spread = float(np.std([c["pneumonia_prob"] for c in stage2])) if len(stage2) > 1 else 0.0
+    low_agreement = len(stage2) > 1 and spread > DISAGREEMENT_STD_LIMIT
+
+    flagged = len(stage2)
+    override = fused["fusion"].get("override_applied")
+
+    def downgrade(level: str) -> str:
+        """One level down when the recordings disagree with each other."""
+        return {"HIGH": "MODERATE", "MODERATE": "LOW", "LOW": "LOW"}[level]
+
+    if override:
+        # Checked first and deliberately un-averaged. Lung pathology audible at
+        # one auscultation site is routinely inaudible at another, so four
+        # reassuring recordings must not be able to bury one alarming one.
+        status = "PNEUMONIA"
+        level = "HIGH"
+        rule = "safety_override"
+        metric = "override_copd"
+        position = float(fused["confidence"])
+        detail = (
+            f"Recording {fused['fusion']['override_triggered_by_clip']} reached "
+            f"{position:.0%} confidence for an acute pattern on its own, which "
+            f"overrides the average of the other recordings."
+        )
+    elif mean_healthy >= STAGE1_HEALTHY_THRESHOLD:
+        status = "HEALTHY"
+        metric = "fused_healthy"
+        position = mean_healthy
+        if mean_healthy >= HEALTHY_HIGH_POINT:
+            level, rule = "HIGH", "majority_healthy_confident"
+        else:
+            level, rule = "MODERATE", "majority_healthy"
+        detail = (
+            f"{total - flagged} of {total} recordings were assessed as normal."
+        )
+        if flagged:
+            detail += (
+                f" {flagged} were borderline and did not clear the disease "
+                f"screen, so the overall reading is reported with reduced "
+                f"confidence."
+            )
+    elif mean_healthy >= HEALTHY_LOWER_POINT:
+        # The band the user asked for. Not confidently normal, not confidently
+        # abnormal. It stops here rather than being forced into a class.
+        status = "HEALTHY"
+        level = "LOW"
+        metric = "fused_healthy"
+        position = mean_healthy
+        rule = "borderline_healthy"
+        detail = (
+            f"{total - flagged} of {total} recordings were normal but "
+            f"{flagged} were borderline. This is not a confident finding of "
+            f"normal breathing."
+        )
+    else:
+        metric = "conditional_copd"
+        position = cond_copd
+        if cond_copd > COPD_HIGH_POINT:
+            status, level, rule = "COPD", "HIGH", "conditional_copd_high"
+        elif cond_copd >= 0.55:
+            status, level, rule = "COPD", "MODERATE", "conditional_copd_moderate"
+        elif cond_copd >= 0.45:
+            status, level, rule = "ATYPICAL_OOD", "LOW", "conditional_undecidable"
+        elif cond_copd > PNEUMONIA_HIGH_POINT:
+            status, level, rule = "PNEUMONIA", "MODERATE", "conditional_copd_moderate"
+        else:
+            status, level, rule = "PNEUMONIA", "HIGH", "conditional_copd_high"
+
+        # The recordings disagreed. Say so and stop trusting the number as much.
+        if low_agreement and status != "ATYPICAL_OOD":
+            level = downgrade(level)
+
+        detail = (
+            f"{flagged} of {total} recordings reached the disease screen. "
+            f"{position:.0%} of that group leaned "
+            f"{'chronic obstructive' if cond_copd >= 0.5 else 'acute'}."
+        )
+        if status == "ATYPICAL_OOD":
+            detail += (
+                " The result is too close to the decision boundary to separate "
+                "the two conditions."
+            )
+        if low_agreement:
+            detail += (
+                f" The individual recordings disagreed (spread "
+                f"{spread:.0%}), which lowers confidence independently of the "
+                f"score itself."
+            )
+
+    if status == "HEALTHY" and flagged and level != "LOW" and not override:
+        # Never let a borderline recording hide behind a confident Healthy.
+        level = downgrade(level)
+
+    return {
+        "status": status,
+        "confidence_level": level,
+        "decision_rule": rule,
+        "decision_detail": detail,
+        "band_metric": metric,
+        "band_position": round(position, 4),
+        "low_agreement": low_agreement,
+        "agreement_std": round(spread, 4),
+        "recordings_total": total,
+        "recordings_flagged": flagged,
+    }
+
+
+# --------------------------------------------------------------------------
 # Cross-recording fusion
 # --------------------------------------------------------------------------
 def fuse_clips(clip_results: List[dict]) -> dict:
@@ -568,7 +754,7 @@ def fuse_clips(clip_results: List[dict]) -> dict:
     if total > 0:
         probabilities = {k: round(v / total, 4) for k, v in probabilities.items()}
 
-    return {
+    fused = {
         "label": label,
         "confidence": round(float(confidence), 4),
         "probabilities": probabilities,
@@ -585,6 +771,8 @@ def fuse_clips(clip_results: List[dict]) -> dict:
             "stage2_pneumonia_threshold": STAGE2_PNEUMONIA_THRESHOLD,
         },
     }
+    fused["interpretation"] = interpret_fusion(fused, clip_results)
+    return fused
 
 
 # --------------------------------------------------------------------------
