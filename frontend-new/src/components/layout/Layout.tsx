@@ -107,7 +107,7 @@ export function Layout() {
           onSignOut={handleSignOut}
           user={user}
         />
-        <div className="flex h-[100dvh] min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="aura-scroll flex h-[100dvh] min-w-0 flex-1 flex-col overflow-y-auto">
           {/* The page title bar was removed. The mobile drawer trigger stays
               as a bare button below `lg` — without it the sidebar would be
               unreachable on small screens. Nothing renders at desktop widths,

@@ -886,29 +886,62 @@ def _enrich_screening(s):
     """Add joined field names to a screening row (fallback when screening_history_view is missing)."""
     s = dict(s)
     s["patient_name"] = None
+    s["patient_dob"] = None
+    s["patient_gender"] = None
+    s["age_bracket"] = None
     s["clinic_name"] = None
     s["clinician_name"] = None
-    s["age_bracket"] = None
-    s["patient_gender"] = None
     s["reviewed_by_name"] = None
     s["reviewed_by"] = s.get("reviewed_by")
     s["reviewed_at"] = s.get("reviewed_at")
     s["review_notes"] = s.get("review_notes")
+
     # best-effort enrichment
     sid = s.get("patient_id")
     cid = s.get("clinic_id")
     clin_id = s.get("clinician_id")
     rev_id = s.get("reviewed_by")
-    ids = [x for x in [sid, clin_id, rev_id] if x]
-    if ids:
+
+    # The patient lives in `patients`, NOT `profiles`.
+    #
+    # This looked up `profiles` by patient_id, and a patients row id is not a
+    # profiles row id, so the lookup silently missed every time and the UI fell
+    # back to "Anonymous Screening" for a patient whose name was sitting in the
+    # table the whole time. The miss was invisible because the query succeeded --
+    # it just returned no matching row, which is not an error to raise on.
+    #
+    # dob and gender come along for the ride, because the result page reads
+    # patient_dob to compute the age and patient_gender to display it. Neither
+    # was ever populated here, so the age rendered from an undefined date and
+    # the gender rendered blank.
+    if sid:
         try:
-            profs = supabase.table("profiles").select("id,full_name").in_("id", ids).execute()
+            p = (
+                supabase.table("patients")
+                .select("id,full_name,date_of_birth,gender")
+                .eq("id", sid)
+                .single()
+                .execute()
+                .data
+            )
+            if p:
+                s["patient_name"] = p.get("full_name")
+                s["patient_dob"] = p.get("date_of_birth")
+                s["patient_gender"] = p.get("gender")
+                s["age_bracket"] = _calc_age_bracket(p.get("date_of_birth"))
+        except Exception:
+            pass
+
+    prof_ids = [x for x in [clin_id, rev_id] if x]
+    if prof_ids:
+        try:
+            profs = supabase.table("profiles").select("id,full_name").in_("id", prof_ids).execute()
             pmap = {p["id"]: p["full_name"] for p in (profs.data or [])}
-            s["patient_name"] = pmap.get(sid)
             s["clinician_name"] = pmap.get(clin_id)
             s["reviewed_by_name"] = pmap.get(rev_id)
         except Exception:
             pass
+
     if cid:
         try:
             c = supabase.table("clinics").select("name").eq("id", cid).single().execute()
@@ -917,6 +950,41 @@ def _enrich_screening(s):
         except Exception:
             pass
     return s
+
+
+def _screening_row(row: dict) -> ScreeningResponse:
+    """Build a ScreeningResponse from a screening_history_view row.
+
+    The routes used to hand-maintain an explicit PostgREST column list, which
+    had quietly drifted from ScreeningResponse: six required fields
+    (clinic_id, clinician_id, audio_file_path, respiratory_probabilities,
+    reviewed_by, updated_at) were never selected. Pydantic then rejected every
+    row, the `except` fell through to the base-table fallback, and
+    _enrich_screening looked the patient up in `profiles` using a `patients`
+    table id -- a lookup that can never match. The result was that every
+    screening in the product displayed as "Anonymous Screening" with no date of
+    birth, from data that was present and correct the whole time.
+
+    A required field being absent failed *silently* because the fallback was
+    written to be quiet. Selecting the view wholesale removes the drift: the
+    view is a superset of the model, so new fields arrive by default instead of
+    needing a second commit that nobody remembers to make.
+
+    The two renames are the remaining half of the same bug. The view exposes the
+    patient's date of birth and sex as `date_of_birth` and `gender`, while the
+    model and the UI both call them `patient_dob` and `patient_gender`. Since
+    the model marks both Optional with a None default, pydantic cannot tell a
+    renamed field from a missing one -- it silently accepted the row and the
+    page rendered a blank gender and an age computed from an undefined date.
+    Alias them here rather than in the query, because PostgREST cannot rename a
+    column inside a `*` selection.
+    """
+    row = dict(row)
+    if row.get("patient_dob") is None and row.get("date_of_birth") is not None:
+        row["patient_dob"] = row["date_of_birth"]
+    if row.get("patient_gender") is None and row.get("gender") is not None:
+        row["patient_gender"] = row["gender"]
+    return ScreeningResponse(**row)
 
 
 @router.get("/screenings", response_model=List[ScreeningResponse])
@@ -932,15 +1000,7 @@ async def list_screenings(
     user_id = user.get("sub")
 
     try:
-        query = supabase.table("screening_history_view").select(
-            "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,"
-            "respiratory_result,respiratory_confidence,cascade_path,"
-            "interpretation_status,confidence_level,low_agreement,"
-            "recordings_total,recordings_flagged,"
-            "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
-            "audio_duration_sec,created_at"
-        )
+        query = supabase.table("screening_history_view").select("*")
         if role == "clinician":
             query = query.eq("clinician_id", user_id)
         elif role != "super_admin":
@@ -951,7 +1011,7 @@ async def list_screenings(
             query = query.eq("respiratory_result", respiratory_result)
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
         res = query.execute()
-        return [ScreeningResponse(**s) for s in (res.data or [])]
+        return [_screening_row(s) for s in (res.data or [])]
     except Exception as e:
         # View missing/unreadable -> fall back to the base table.  This block is
         # NOT allowed to raise unhandled: a 500 here would leave the response
@@ -984,13 +1044,7 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
     user_id = user.get("sub")
 
     try:
-        query = supabase.table("screening_history_view").select(
-            "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,recording_paths,recording_scores,"
-            "respiratory_result,respiratory_confidence,cascade_path,"
-            "model_version,status,reviewed_by_name,reviewed_at,review_notes,"
-            "audio_duration_sec,created_at"
-        ).eq("id", screening_id)
+        query = supabase.table("screening_history_view").select("*").eq("id", screening_id)
         if role == "clinician":
             query = query.eq("clinician_id", user_id)
         elif role != "super_admin":
@@ -998,7 +1052,7 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
         res = query.single().execute()
         if not res.data:
             raise HTTPException(status_code=404, detail="Screening not found")
-        return ScreeningResponse(**res.data)
+        return _screening_row(res.data)
     except Exception:
         # Fallback: use base screenings table
         query = supabase.table("screenings").select("*").eq("id", screening_id)
@@ -1062,17 +1116,7 @@ async def download_screening_pdf(
 ):
     """Generate and download PDF report for a screening."""
     try:
-        screening = supabase.table("screening_history_view").select(
-            "id,patient_id,patient_name,age_bracket,gender,smoking_history,"
-            "clinic_name,clinician_name,"
-            "respiratory_result,respiratory_confidence,respiratory_probabilities,"
-            "recording_paths,recording_scores,"
-            "cascade_path,model_version,status,reviewed_by_name,reviewed_at,review_notes,"
-            "audio_duration_sec,created_at,clinic_id,clinician_id,"
-            "interpretation_status,confidence_level,recommendation_code,decision_rule,"
-            "decision_detail,band_metric,band_position,low_agreement,"
-            "recordings_total,recordings_flagged"
-        ).eq("id", screening_id).single().execute()
+        screening = supabase.table("screening_history_view").select("*").eq("id", screening_id).single().execute()
     except Exception:
         screening = supabase.table("screenings").select("*").eq("id", screening_id).single().execute()
     if not screening.data:
@@ -1081,6 +1125,14 @@ async def download_screening_pdf(
     # Enrich with join data if from base table (not the view)
     if "patient_name" not in data:
         data = _enrich_screening(data)
+
+    # The view exposes the patient's date of birth and sex as `date_of_birth`
+    # and `gender`; the report and the UI both call them patient_dob and
+    # patient_gender. Same aliases as _screening_row.
+    if data.get("patient_dob") is None and data.get("date_of_birth") is not None:
+        data["patient_dob"] = data["date_of_birth"]
+    if data.get("patient_gender") is None and data.get("gender") is not None:
+        data["patient_gender"] = data["gender"]
 
     # Joined fields (patient_name, gender, age_bracket, ...) can legitimately be
     # None for orphaned records; .get(key, default) does NOT help because the key
@@ -1106,6 +1158,13 @@ async def download_screening_pdf(
     heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=13, spaceAfter=6, spaceBefore=12, textColor=colors.HexColor('#1f2937'))
     subheading_style = ParagraphStyle('Subheading', parent=styles['Heading3'], fontSize=11, spaceAfter=4, textColor=colors.HexColor('#374151'))
     normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, spaceAfter=2)
+    # Body copy for the interpretation section. Referenced by name at the
+    # interpretation block below, but never defined -- the PDF raised
+    # NameError: name 'body_style' is not defined the moment a screening had an
+    # interpretation_status and confidence_level, which is every screening the
+    # interpretation layer has ever written. Download PDF was a flat 500.
+    body_style = ParagraphStyle('Body', parent=styles['BodyText'], fontSize=10,
+                                leading=15, spaceAfter=6)
     bold_style = ParagraphStyle('Bold', parent=normal_style, fontName='Helvetica-Bold')
     small_style = ParagraphStyle('Small', parent=normal_style, fontSize=8, textColor=colors.grey)
     
@@ -1115,9 +1174,27 @@ async def download_screening_pdf(
     story.append(Paragraph(f"Screening ID: {screening_id}", subtitle_style))
     story.append(Spacer(1, 10))
     
+    # Age in whole years from the date of birth.
+
+    # The report used to print the age *bracket* ("13-21") in the Age column,
+    # which is a coarse band the model consumes rather than a measurement of
+    # the person, and it paired with a blank Date of Birth row right below.
+    # Both are wrong in a clinical document: it printed a band where a number
+    # belongs and omitted the field a reader would check that number against.
+    _dob = data.get("patient_dob")
+    _age = "N/A"
+    if _dob:
+        try:
+            _b = datetime.fromisoformat(str(_dob).replace("Z", "+00:00"))
+            _today = datetime.utcnow()
+            _years = _today.year - _b.year - ((_today.month, _today.day) < (_b.month, _b.day))
+            _age = f"{_years} years" if 0 <= _years < 130 else "N/A"
+        except Exception:
+            _age = "N/A"
+
     patient_data = [
-        ["Patient Name", data.get("patient_name", "N/A"), "Age / Gender", f"{data.get('age_bracket', 'N/A')} / {data.get('patient_gender', 'N/A').capitalize()}"],
-        ["Date of Birth", data.get("patient_dob", "N/A"), "Clinic", data.get("clinic_name", "N/A")],
+        ["Patient Name", data.get("patient_name", "N/A"), "Age", _age],
+        ["Date of Birth", data.get("patient_dob", "N/A"), "Gender", str(data.get("patient_gender", "N/A")).capitalize()],
         ["Clinician", data.get("clinician_name", "N/A"), "Screening Date", data.get("created_at", "N/A")[:19].replace("T", " ")],
     ]
     patient_table = Table(patient_data, colWidths=[1.2*inch, 2.3*inch, 1.2*inch, 2.3*inch])

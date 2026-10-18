@@ -95,10 +95,12 @@ export function InterpretationPanel({
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-aura-muted">
             Screening result
           </p>
-          <h3 className="mt-1.5 font-display text-xl font-semibold leading-tight text-aura-ink sm:text-2xl">
+          <h3 className="mt-1.5 font-display text-lg font-semibold leading-tight text-balance text-aura-ink sm:text-2xl">
             {statusLabel(status)}
           </h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-aura-text">{copy.headline}</p>
+          <p className="mt-1.5 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
+            {copy.headline}
+          </p>
         </div>
         <span
           className={cn(
@@ -117,7 +119,9 @@ export function InterpretationPanel({
         </span>
       </div>
 
-      <p className="mt-3 text-sm leading-relaxed text-aura-text">{copy.message}</p>
+      <p className="mt-3 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
+        {copy.message}
+      </p>
 
       {/* What to do next. The most prominent line on the panel. */}
       <div
@@ -129,11 +133,13 @@ export function InterpretationPanel({
         <p className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-75">
           Suggested next step
         </p>
-        <p className="mt-1 text-sm font-medium leading-relaxed">{copy.recommendation}</p>
+        <p className="mt-1 text-[13.5px] font-medium leading-relaxed text-pretty sm:text-sm">
+          {copy.recommendation}
+        </p>
       </div>
 
       {/* How the verdict was reached */}
-      <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <dl className="mt-4 grid gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-2 sm:text-sm">
         {totalCount > 0 && (
           <div className="flex items-baseline justify-between gap-3 sm:block">
             <dt className="text-aura-muted">Recordings</dt>

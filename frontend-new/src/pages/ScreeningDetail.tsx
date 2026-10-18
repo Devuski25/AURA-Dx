@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckCircle,
   Download,
-  Printer,
   AlertCircle,
   Check,
 } from "lucide-react"
@@ -267,7 +266,7 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
       initial={reduceMotion ? false : { opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className={cn("mb-6 flex items-center gap-4 rounded-2xl border border-t-[3px] p-5 shadow-[0_2px_4px_rgba(15,61,51,0.08),0_16px_32px_-12px_rgba(15,61,51,0.30)]", cfg.container)}
+      className={cn("mb-6 flex items-center gap-3 rounded-2xl border border-t-[3px] p-4 shadow-[0_2px_4px_rgba(15,61,51,0.08),0_16px_32px_-12px_rgba(15,61,51,0.30)] sm:gap-4 sm:p-5", cfg.container)}
     >
       <div className={cn("relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm")}>
         {/* Severity pulse — only for flagged results */}
@@ -283,8 +282,8 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
         {cfg.icon}
       </div>
       <div>
-        <p className={cn("aura-pop-in font-display text-xl font-bold leading-tight tracking-wide", cfg.title)}>{cfg.label}</p>
-        <p className={cn("mt-1 font-mono text-[13px] uppercase tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
+        <p className={cn("aura-pop-in font-display text-lg font-bold leading-tight tracking-wide text-balance sm:text-xl", cfg.title)}>{cfg.label}</p>
+        <p className={cn("mt-1 font-mono text-[11px] uppercase leading-relaxed tracking-[0.14em] sm:text-[13px]", cfg.sub)}>{cfg.detail}</p>
       </div>
     </motion.div>
   )
@@ -359,23 +358,34 @@ function TierCard({
         </div>
         <TierStatusPill ok={!flagged} label={statusLabel} />
       </div>
-      <div className="grid gap-6 px-4 py-5 sm:gap-8 sm:px-6 sm:py-6 sm:grid-cols-[200px_1fr]">
-        <div className="flex flex-col items-center gap-4 sm:items-start">
+      {/* Ring beside the distribution, not above it, at every width.
+
+          This was `sm:grid-cols-[200px_1fr]`, so below 640px it collapsed to
+          one column and the phone got a full-width ring with the bars pushed
+          below the fold -- the least useful ordering, because the numbers are
+          what a clinician reads. A 132px ring plus a 150px track fits inside a
+          375px screen, so the two-column layout now starts at the smallest
+          breakpoint and only widens the track on larger screens.
+
+          The left column carries the ring and a stack of small labels, so its
+          type is stepped down on mobile rather than being allowed to wrap. */}
+      <div className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 px-4 py-5 sm:grid-cols-[200px_1fr] sm:gap-8 sm:px-6 sm:py-6">
+        <div className="flex flex-col items-start gap-3 sm:items-start sm:gap-4">
           <ConfidenceRing value={confidence ?? 0} flagged={flagged} />
           {modelVersion && (
             <div>
               <FieldLabel>Model Version</FieldLabel>
-              <div className="font-mono text-[12.5px] font-medium text-aura-ink">{modelVersion}</div>
+              <div className="font-mono text-[11px] font-medium text-aura-ink sm:text-[12.5px]">{modelVersion}</div>
             </div>
           )}
           {decisions?.map((d, i) => (
             <div key={i}>
               <FieldLabel>{d.label}</FieldLabel>
-              <div className="text-[13px] font-medium text-aura-ink">{d.value}</div>
+              <div className="text-[12px] font-medium leading-snug text-aura-ink sm:text-[13px]">{d.value}</div>
             </div>
           ))}
         </div>
-        <div className="max-w-2xl">{children}</div>
+        <div className="max-w-2xl min-w-0">{children}</div>
       </div>
     </div>
   )
@@ -501,7 +511,7 @@ export function ScreeningDetail() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-4xl pb-10">
+      <div className="mx-auto w-full max-w-4xl pb-16">
         <ScreeningSkeleton />
       </div>
     )
@@ -509,21 +519,31 @@ export function ScreeningDetail() {
 
   if (!screening || error) {
     return (
-      <div className="mx-auto w-full max-w-4xl pb-10">
+      <div className="mx-auto w-full max-w-4xl pb-16">
         <ScreeningError message={error ?? undefined} />
       </div>
     )
   }
 
+  /* Age from the patient's date of birth.
+
+   Returns null rather than a number when there is no usable DOB. It used to
+   return whatever `today.getFullYear() - NaN` produced and render it
+   unconditionally, which is how a screening with no DOB on the payload
+   displayed an age instead of admitting it did not know. The API only began
+   returning date_of_birth as part of fixing the anonymous-name bug, so any row
+   fetched before that had nothing to compute from. */
   const patientAge = (() => {
-    const today = new Date()
+    if (!screening.patient_dob) return null
     const birthDate = new Date(screening.patient_dob)
+    if (Number.isNaN(birthDate.getTime())) return null
+    const today = new Date()
     let age = today.getFullYear() - birthDate.getFullYear()
     const monthDiff = today.getMonth() - birthDate.getMonth()
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--
     }
-    return age
+    return age >= 0 && age < 130 ? age : null
   })()
 
   /* Tier flagging */
@@ -538,7 +558,7 @@ export function ScreeningDetail() {
       : null
 
   return (
-    <div className="mx-auto w-full max-w-4xl pb-10">
+    <div className="mx-auto w-full max-w-4xl pb-[calc(3rem+env(safe-area-inset-bottom))]">
       {/* Prompt status banner above the title */}
       <ResultBanner screening={screening} />
 
@@ -565,37 +585,50 @@ export function ScreeningDetail() {
             <Download className="h-4 w-4" />
             Download PDF
           </Button>
-          <Button variant="outline" onClick={() => window.print()} className="gap-2">
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
+          {/* Print removed at the owner's request. The PDF download covers the
+              same need and produces a consistent clinical document; a print
+              dialog produced whatever the browser's default margins happened to
+              be, which is not something a screening record should depend on. */}
         </div>
       </motion.div>
 
-      {/* Patient Information */}
+      {/* Patient Information
+
+          Age and Gender are separate, and the age bracket is gone. Brackets
+          existed to give the model a coarse band; showing "13-21" beside an
+          exact "21 years" is redundant. The clinic is dropped for the same
+          reason -- there is one clinic, so a field reading "Default Clinic"
+          tells a clinician nothing, while the clinician who performed the
+          screening does.
+
+          Two columns on a phone rather than one: Name spans the full width and
+          Age / Gender / Clinician sit beneath it. A single column on a 375px
+          screen pushed the reading below the fold for no reason. */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, ...sectionSpring }}>
       <InfoCard title="Patient Information">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-          <div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:gap-8 lg:grid-cols-4 lg:gap-6">
+          <div className="col-span-2 sm:col-span-1">
             <FieldLabel>Name</FieldLabel>
             <div className={cn("text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
               {screening.patient_name || "Anonymous Screening"}
             </div>
           </div>
           <div>
-            <FieldLabel>Age / Gender</FieldLabel>
-            <div className="text-[13.5px] font-medium text-aura-ink">{patientAge} years · {screening.patient_gender}</div>
+            <FieldLabel>Age</FieldLabel>
+            <div className="text-[13.5px] font-medium tabular-nums text-aura-ink">
+              {patientAge !== null ? `${patientAge} years` : "—"}
+            </div>
           </div>
           <div>
-            <FieldLabel>Age Bracket</FieldLabel>
-            <div className="text-[13.5px] font-medium text-aura-ink">{screening.age_bracket}</div>
+            <FieldLabel>Gender</FieldLabel>
+            <div className="text-[13.5px] font-medium capitalize text-aura-ink">
+              {screening.patient_gender || "—"}
+            </div>
           </div>
           <div>
-            <FieldLabel>Clinic / Clinician</FieldLabel>
+            <FieldLabel>Clinician</FieldLabel>
             <div className="text-[13.5px] font-medium leading-snug text-aura-ink">
-              {screening.clinic_name}
-              <br />
-              {screening.clinician_name}
+              {screening.clinician_name || "—"}
             </div>
           </div>
         </div>
@@ -749,8 +782,63 @@ export function ScreeningDetail() {
             blank.
           </p>
 
-          {/* Horizontal scroll rather than a squeezed table on 375px. */}
-          <div className="overflow-x-auto">
+          {/* Mobile: one compact block per take.
+
+              The desktop table below sets a fixed minimum width inside a
+              horizontal scroller, so on a 375px screen the Stage 2 column sits
+              off the right edge and a clinician sees only Stage 1 -- which is
+              the half that is usually blank. Scrolling sideways to read
+              per-take evidence is the wrong trade on a phone, so below `md`
+              each take becomes a two-line card that fits the width and carries
+              all four numbers.
+
+              Both render the same rows from the same source, so they cannot
+              disagree. */}
+          <ul className="m-0 list-none space-y-2 p-0 md:hidden">
+            {perTakeRows.map((c) => (
+              <li
+                key={c.index}
+                className={cn(
+                  "rounded-lg border border-aura-border-soft bg-white px-3 py-2.5",
+                  c.index === overrideTakeIndex && "border-aura-coral/30 bg-aura-coral-soft/40"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-semibold text-aura-ink">
+                    Take {c.index + 1}
+                  </span>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      c.clip_label === "Healthy" && "bg-aura-mint-soft text-aura-pine",
+                      c.clip_label === "COPD" && "bg-amber-100 text-amber-800",
+                      c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral"
+                    )}
+                  >
+                    {c.clip_label}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12px] tabular-nums text-aura-muted">
+                  <span>{c.duration_sec.toFixed(1)}s</span>
+                  <span>
+                    <span className="text-aura-muted/80">S1</span>{" "}
+                    <span className="font-medium text-aura-ink">
+                      {c.stage1_healthy_prob.toFixed(2)}
+                    </span>
+                  </span>
+                  <span>
+                    <span className="text-aura-muted/80">S2</span>{" "}
+                    <span className="font-medium text-aura-ink">
+                      {c.stage2_pneumonia_prob === null ? "—" : c.stage2_pneumonia_prob.toFixed(2)}
+                    </span>
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop: the table. */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-aura-border-soft text-left">

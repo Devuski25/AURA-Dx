@@ -579,6 +579,56 @@ body {
   background-color: color-mix(in srgb, var(--color-aura-forest) 65%, transparent);
 }
 
+/* Main app scroll container (Layout).
+ *
+ * Three separate complaints fixed here, one per declaration.
+ *
+ * 1. Visible scrollbar. The result page scrolls a long way on a phone with no
+ *    affordance at all that there is more below -- the panel simply ends at the
+ *    fold. A permanent thin thumb says "there is more" without stealing width
+ *    from a 375px screen the way a classic scrollbar does. `scrollbar-gutter:
+ *    stable` reserves the gutter on desktop so nothing shifts when a page
+ *    becomes scrollable.
+ *
+ * 2. Content clipped when scrolling back up from the bottom. This container is
+ *    `h-[100dvh]`, and dvh *changes* -- a mobile browser grows it when its URL
+ *    bar retracts and shrinks it when the bar comes back. The scroll offset is
+ *    preserved across that change while the viewport moves underneath it, so at
+ *    the bottom of the page the last card ends up below the scroll end and
+ *    cannot be reached by scrolling further. `overscroll-behavior: contain`
+ *    stops the rubber-band chaining to the document that made the offset drift
+ *    in the first place, and the padding-bottom on the page wrapper supplies
+ *    the slack that absorbs the remaining drift.
+ *
+ * 3. Horizontal clipping. Entry animations animate `y`, and a transformed
+ *    element contributes to its ancestor's scrollable overflow. `overflow-x:
+ *    clip` contains that without creating a scroll container of its own the way
+ *    `hidden` would. */
+.aura-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-aura-forest) 40%, transparent) transparent;
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: contain;
+  overflow-x: clip;
+  -webkit-overflow-scrolling: touch;
+}
+.aura-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.aura-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.aura-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-aura-forest) 40%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 9999px;
+}
+.aura-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-aura-forest) 65%, transparent);
+}
+
 /* Sticky table header: the separation shadow only appears once rows have
    scrolled underneath it. The scroll handler flips data-scrolled directly on
    the node, so no React re-render is involved. */
