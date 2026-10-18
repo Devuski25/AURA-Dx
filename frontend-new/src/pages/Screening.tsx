@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import { getApiUrl } from "@/lib/api"
 import { probe } from "@/lib/service-status"
-import { useAudioInput, DeviceBanner, LevelMeter } from "@/components/AudioCapture"
+import { useAudioInput, DeviceBanner, LevelMeter, StethoscopeCheck } from "@/components/AudioCapture"
 import { RecordingProtocolCard, SitePrompt, SiteChip } from "@/components/RecordingProtocol"
 import {
   AUSCULTATION_SITES,
@@ -967,6 +967,23 @@ export function Screening() {
                 onRefresh={() => void audioInput.refreshDevices()}
               />
 
+              {/* Prove it before trusting it. The banner can only read the device
+                  label; this records five seconds and plays it back so the
+                  clinician hears a chest or a room. Nothing is saved or
+                  uploaded. Placed before the recorder so it is read as part of
+                  setting up, not as an optional extra. */}
+              {!recording && !atMaxTakes && (
+                <StethoscopeCheck
+                  devices={audioInput.devices}
+                  device={audioInput.device}
+                  permission={audioInput.permission}
+                  selectedId={audioInput.selectedId}
+                  level={audioInput.level}
+                  onSelect={audioInput.setSelectedId}
+                  onRefresh={() => void audioInput.refreshDevices()}
+                />
+              )}
+
               {/* Site for this take. Suggested, never enforced. */}
               {!recording && !atMaxTakes && (
                 <div>
@@ -1033,7 +1050,7 @@ export function Screening() {
                 <Button
                   onClick={startRecording}
                   size="lg"
-                  disabled={atMaxTakes || audioInput.permission === "denied"}
+                  disabled={atMaxTakes || !audioInput.ready}
                   className="w-full gap-3"
                 >
                   <Mic className="h-5 w-5" />
@@ -1043,6 +1060,25 @@ export function Screening() {
               {atMaxTakes && !recording && (
                 <p className="text-center text-sm text-aura-muted">
                   Maximum of {MAX_TAKES} takes reached. Remove one to record a replacement.
+                </p>
+              )}
+
+              {/* Why the record button is disabled. Without this the button is
+                  simply inert and looks broken rather than blocked.
+                  `ready` is false either because permission was refused or
+                  because no input has been chosen -- and the second case is the
+                  one that matters, since an unchosen input means the browser
+                  would quietly use the system default, which on a laptop is the
+                  built-in microphone. */}
+              {!recording && !atMaxTakes && !audioInput.ready && (
+                <p className="text-center text-sm font-medium text-amber-800">
+                  {audioInput.permission === "denied"
+                    ? "Microphone access is blocked. Allow it in your browser settings to record."
+                    : audioInput.permission === "unsupported"
+                      ? "This browser does not provide audio input, so recording is unavailable."
+                      : audioInput.devices.length === 0
+                        ? "No audio input found. Connect the stethoscope, then press refresh."
+                        : "Choose your stethoscope from Audio input above before recording."}
                 </p>
               )}
               {recording && (

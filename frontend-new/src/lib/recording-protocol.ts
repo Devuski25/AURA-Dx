@@ -44,34 +44,45 @@ export const AUSCULTATION_SITES = [
     code: "Ar",
     name: "Anterior right",
     where: "3rd right intercostal space, mid-clavicular line",
-    how: "Above the right nipple, roughly level with the breastbone.",
+    how: "Patient sitting upright, facing you. Place the diaphragm flat against "
+       + "the chest, just below the collarbone on the RIGHT, roughly level with "
+       + "the breastbone and a little to the side of the nipple. Slide it "
+       + "sideways rather than angling it.",
   },
   {
     code: "Al",
     name: "Anterior left",
     where: "3rd left intercostal space, mid-clavicular line",
-    how: "Above the left nipple, roughly level with the breastbone.",
+    how: "The mirror of the right side. Same height, just below the LEFT "
+       + "collarbone and level with the nipple. Keep the diaphragm flat and "
+       + "sealed against the skin.",
   },
   {
     code: "Pr",
     name: "Posterior right",
     where: "Between the right scapula and the spine",
-    how: "Have the patient sit up and lean forward. Listen between the shoulder "
-       + "blade and the spine, on the right.",
+    how: "Patient leans forward, arms crossed in front. Reach round from "
+       + "behind and place the diaphragm between the RIGHT shoulder blade and "
+       + "the spine, about level with the middle of the blade. Skin contact "
+       + "matters more than the exact centimetre here.",
   },
   {
     code: "Pl",
     name: "Posterior left",
     where: "Between the left scapula and the spine",
-    how: "Same position, mirror side. Most of the lower lobes are heard from "
-       + "behind.",
+    how: "Same position, mirrored: between the LEFT shoulder blade and the "
+       + "spine with the patient leaning forward. Most of the lower lobes are "
+       + "heard from behind, so these two carries a lot of the result.",
   },
   {
     code: "Tr",
     name: "Trachea (midline)",
     where: "Centre of the neck, just below the Adam's apple",
-    how: "Breath sounds here are central and louder. This reading breaks up a "
-       + "set that otherwise came from one side.",
+    how: "Hold the bell or diaphragm flat against the front of the neck, "
+       + "centred, a finger's width under the Adam's apple. Use the bell if the "
+       + "stethoscope has one -- breath sounds here are central and louder, and "
+       + "this reading breaks up a set that otherwise came from one side. Last, "
+       + "because it is the midline and not a left/right comparison.",
   },
 ] as const
 

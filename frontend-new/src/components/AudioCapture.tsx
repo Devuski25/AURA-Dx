@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { AlertTriangle, Mic, MicOff, RefreshCw } from "lucide-react"
+import { AlertTriangle, Loader2, Mic, MicOff, Play, RefreshCw, Volume2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
@@ -53,13 +53,31 @@ export function useAudioInput() {
     }
     const list = await navigator.mediaDevices.enumerateDevices()
     const inputs = list.filter((d) => d.kind === "audioinput")
-    setDevices(
-      inputs.map((d, i) => ({
-        deviceId: d.deviceId,
-        label: d.label || `Audio input ${i + 1}`,
-        looksLikeStethoscope: STETHOSCOPE_HINTS.test(d.label),
-      }))
-    )
+    const mapped = inputs.map((d, i) => ({
+      deviceId: d.deviceId,
+      label: d.label || `Audio input ${i + 1}`,
+      looksLikeStethoscope: STETHOSCOPE_HINTS.test(d.label),
+    }))
+    setDevices(mapped)
+
+    /* Pick something, but never "nothing".
+     *
+     * A stethoscope-shaped label wins. Failing that, if there is exactly one
+     * input it is almost certainly the stethoscope, so take it. With two or
+     * more and no identifiable label, leave the choice to the clinician rather
+     * than guessing -- because guessing wrong here is how a take gets recorded
+     * from the laptop microphone instead.
+     *
+     * Previously selectedId started empty and stayed empty until someone used
+     * the dropdown, so the default input was used for every capture. */
+    setSelectedId((prev) => {
+      if (prev && mapped.some((d) => d.deviceId === prev)) return prev
+      const hinted = mapped.find((d) => d.looksLikeStethoscope)
+      if (hinted) return hinted.deviceId
+      if (mapped.length === 1) return mapped[0].deviceId
+      return ""
+    })
+
     return inputs
   }, [])
 
@@ -181,6 +199,26 @@ export function useAudioInput() {
 
   const device = devices.find((d) => d.deviceId === selectedId)
 
+  /* Which input are we actually going to record from?
+   *
+   * Until something is chosen here, this is empty -- and an empty selection
+   * means getUserMedia picks the SYSTEM DEFAULT, which on a laptop is the
+   * built-in microphone. That is the failure this whole component exists to
+   * prevent: a clinician records three to five takes of room noise, the model
+   * classifies it confidently, and nothing anywhere says the stethoscope was
+   * never plugged in.
+   *
+   * So the default is never used for capture. A stethoscope-looking input is
+   * selected automatically; failing that, a lone input is. When two or more
+   * are present and none is identifiable, `ready` stays false and the record
+   * button stays disabled until the clinician picks -- which is a deliberate
+   * thirty seconds of friction in exchange for not silently recording the
+   * wrong thing. */
+  /* `ready` is the gate that matters: without an explicit device chosen,
+   * capture would silently fall back to the system default input. */
+  const ready = permission === "granted" && !!device
+  const activeLabel = device?.label ?? null
+
   return {
     devices,
     device,
@@ -192,6 +230,12 @@ export function useAudioInput() {
     refreshDevices,
     open,
     close,
+    /** True when an explicit input has been chosen and capture may start. */
+    ready,
+    /** The label of the input actually being recorded from. */
+    activeLabel,
+    /** No device was chosen, so capture would fall back to the system default. */
+    needsDeviceChoice: permission === "granted" && devices.length > 0 && !device,
   }
 }
 
@@ -353,6 +397,270 @@ export function LevelMeter({
           Too loud — move the stethoscope
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * Prove the audio is coming from the stethoscope.
+ *
+ * Software cannot tell a stethoscope from a laptop microphone -- both arrive as
+ * an opaque `MediaStreamTrack` labelled only by whatever the OS called them, and
+ * `looksLikeStethoscope` is a regex over that label, so it is a guess. A
+ * confident guess is worse than an honest check.
+ *
+ * So this does the one thing that genuinely settles it: records five seconds
+ * from the selected input and plays it back. A clinician hears a chest through
+ * the stethoscope, or hears a room. Nobody has to take the label on faith, and
+ * nobody has to trust a regex.
+ *
+ * Deliberately not a take. Nothing is added to the screening and nothing is
+ * uploaded -- it never leaves the browser.
+ *
+ * Shown on phone, tablet and desktop alike. On a phone this matters most: a
+ * built-in mic is the default input everywhere, and on a phone the laptop-mic
+ * mistake is the easiest one to make by accident.
+ */
+export function StethoscopeCheck({
+  devices,
+  device,
+  permission,
+  selectedId,
+  level,
+  onSelect,
+  onRefresh,
+}: {
+  devices: InputDevice[]
+  device?: InputDevice
+  permission: string
+  selectedId: string
+  level: number
+  onSelect: (id: string) => void
+  onRefresh: () => void
+}) {
+  const [testing, setTesting] = useState(false)
+  const [remaining, setRemaining] = useState(0)
+  const [takeUrl, setTakeUrl] = useState<string | null>(null)
+  const ctxRef = useRef<AudioContext | null>(null)
+  const timerRef = useRef<number | null>(null)
+
+  const TEST_SEC = 5
+
+  // Object URLs are per-recording; releasing the previous one matters because
+  // this panel can be used several times in a session and each holds the whole
+  // clip in memory.
+  useEffect(() => {
+    return () => {
+      if (takeUrl) URL.revokeObjectURL(takeUrl)
+      if (timerRef.current) window.clearInterval(timerRef.current)
+      void ctxRef.current?.close()
+    }
+  }, [takeUrl])
+
+  const stop = useCallback(() => {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    void ctxRef.current?.close()
+    ctxRef.current = null
+  }, [])
+
+  const runTest = useCallback(async () => {
+    if (!selectedId || testing) return
+    stop()
+    if (takeUrl) {
+      URL.revokeObjectURL(takeUrl)
+      setTakeUrl(null)
+    }
+    setTesting(true)
+    setRemaining(TEST_SEC)
+
+    let stream: MediaStream
+    try {
+      // Always an explicit deviceId. An empty one falls back to the system
+      // default, which is the exact situation this panel exists to rule out.
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: { exact: selectedId },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      })
+    } catch {
+      setTesting(false)
+      setRemaining(0)
+      return
+    }
+
+    const ctx = new AudioContext()
+    ctxRef.current = ctx
+
+    /* MediaRecorder rather than tapping the PCM buffers.
+     *
+     * ScriptProcessorNode is deprecated, and its AudioBuffer is not a BlobPart,
+     * so it would have needed a hand-rolled WAV header to produce anything
+     * playable. MediaRecorder gives a real container directly and the clip only
+     * has to be heard -- never scored, never uploaded. */
+    let recorder: MediaRecorder
+    try {
+      recorder = new MediaRecorder(stream)
+    } catch {
+      void ctx.close()
+      ctxRef.current = null
+      setTesting(false)
+      setRemaining(0)
+      return
+    }
+
+    const parts: BlobPart[] = []
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) parts.push(e.data)
+    }
+    recorder.onstop = () => {
+      const blob = new Blob(parts, { type: recorder.mimeType || "audio/webm" })
+      parts.length = 0
+      setTakeUrl(blob.size > 0 ? URL.createObjectURL(blob) : null)
+    }
+    recorder.start()
+
+    timerRef.current = window.setInterval(() => {
+      setRemaining((r) => {
+        if (r <= 1) {
+          if (timerRef.current) window.clearInterval(timerRef.current)
+          timerRef.current = null
+          try {
+            recorder.stop()
+          } catch {
+            /* already stopped */
+          }
+          stop()
+          setTesting(false)
+          return 0
+        }
+        return r - 1
+      })
+    }, 1000)
+  }, [selectedId, testing, stop, takeUrl])
+
+  const hasDevice = !!device
+  const tone = !hasDevice
+    ? "border-amber-200 bg-amber-50"
+    : device?.looksLikeStethoscope
+      ? "border-aura-pine/25 bg-aura-pine/5"
+      : "border-amber-200 bg-amber-50"
+
+  return (
+    <div className={cn("rounded-lg border p-3.5", tone)}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-aura-ink">Stethoscope check</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-aura-muted">
+            {permission === "denied"
+              ? "Allow microphone access in the browser to run this check."
+              : !hasDevice
+                ? "Choose your stethoscope from Audio input below first."
+                : "Record five seconds and play it back. You should hear the chest through the stethoscope, not the room."}
+          </p>
+        </div>
+      </div>
+
+      {/* The device that will actually be used, named. */}
+      <div className="mt-3 rounded-md bg-white/70 px-2.5 py-2">
+        <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+          Recording from
+        </p>
+        <p className="mt-0.5 break-words text-sm font-medium text-aura-ink">
+          {device?.label ?? "No input selected"}
+        </p>
+        {hasDevice && !device?.looksLikeStethoscope && (
+          <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-800">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            This does not look like a stethoscope. Play the test recording back —
+            if you hear a room, the wrong input is selected.
+          </p>
+        )}
+      </div>
+
+      {/* Live level, so silence is visibly different from a dead connection. */}
+      <div className="mt-2.5">
+        <LevelMeter level={level} clipped={false} active={hasDevice} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void runTest()}
+          disabled={!hasDevice || testing}
+          className="inline-flex h-11 items-center gap-2 rounded-lg bg-aura-forest px-3.5 text-sm font-semibold text-white transition-colors hover:bg-aura-pine focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest disabled:opacity-50"
+        >
+          {testing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Recording… {remaining}s
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4" aria-hidden="true" />
+              Record 5s test
+            </>
+          )}
+        </button>
+
+        {takeUrl && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = new Audio(takeUrl)
+              void el.play()
+            }}
+            className="inline-flex h-11 items-center gap-2 rounded-lg border border-aura-border bg-white px-3.5 text-sm font-semibold text-aura-ink transition-colors hover:bg-aura-mint-wash focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+          >
+            <Volume2 className="h-4 w-4" aria-hidden="true" />
+            Play it back
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="ml-auto rounded-md p-2 text-aura-muted transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+          aria-label="Refresh audio inputs"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      {devices.length > 1 && (
+        <div className="mt-3">
+          <label
+            htmlFor="aura-check-device"
+            className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
+          >
+            Audio input
+          </label>
+          <select
+            id="aura-check-device"
+            value={selectedId}
+            onChange={(e) => onSelect(e.target.value)}
+            className="mt-1.5 h-11 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+          >
+            <option value="">Choose…</option>
+            {devices.map((d) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label}
+                {d.looksLikeStethoscope ? " — stethoscope" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <p className="mt-2.5 text-[0.6875rem] leading-relaxed text-aura-muted">
+        This test is never saved and never uploaded. It only plays back here, in
+        your browser.
+      </p>
     </div>
   )
 }
