@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 import asyncio
-import httpx
 import uuid
 import os
 import io
@@ -42,6 +41,7 @@ from auth import get_current_user, get_current_user_id, require_role
 from database import supabase, supabase_anon
 from config import settings
 from email_service import send_verification_email
+from httpx_client import get_client
 # Same wording source as the React result screen. See pdf_copy.py.
 from pdf_copy import result_copy, status_label, disclosure, confidence_label
 
@@ -265,9 +265,8 @@ async def health_check():
 
     async def check_inference() -> str:
         try:
-            async with httpx.AsyncClient() as client:
-                r = await client.get(f"{settings.inference_service_url}/health", timeout=5)
-                return "healthy" if r.status_code == 200 else "unhealthy"
+            r = await get_client().get(f"{settings.inference_service_url}/health", timeout=5)
+            return "healthy" if r.status_code == 200 else "unhealthy"
         except Exception:
             return "unhealthy"
 
@@ -354,19 +353,18 @@ async def list_users(
     # Filter out users with unconfirmed emails (fake emails)
     # Fetch auth users to check email_confirmed_at — parallel with profiles fetch
     try:
-        async with httpx.AsyncClient() as client:
-            auth_res = await client.get(
-                f"{settings.supabase_url}/auth/v1/admin/users",
-                headers={
-                    "Authorization": f"Bearer {settings.supabase_service_key}",
-                    "apikey": settings.supabase_anon_key,
-                },
-                timeout=10.0
-            )
-            auth_data = auth_res.json()
-            auth_users = auth_data.get("users", [])
-            confirmed_emails = {u["email"] for u in auth_users if u.get("email_confirmed_at")}
-            profiles = [p for p in profiles if p["email"] in confirmed_emails]
+        auth_res = await get_client().get(
+            f"{settings.supabase_url}/auth/v1/admin/users",
+            headers={
+                "Authorization": f"Bearer {settings.supabase_service_key}",
+                "apikey": settings.supabase_anon_key,
+            },
+            timeout=10.0
+        )
+        auth_data = auth_res.json()
+        auth_users = auth_data.get("users", [])
+        confirmed_emails = {u["email"] for u in auth_users if u.get("email_confirmed_at")}
+        profiles = [p for p in profiles if p["email"] in confirmed_emails]
     except Exception as e:
         print(f"[list_users] Failed to filter unconfirmed emails: {e}")
         # Fallback: return all profiles if auth check fails
@@ -763,22 +761,27 @@ async def run_inference(audio_file_paths: List[str], audio_duration_sec: Optiona
     headers = {}
     if settings.inference_api_key:
         headers["X-API-Key"] = settings.inference_api_key
-    async with httpx.AsyncClient(timeout=120) as client:
-        opened = []
-        try:
-            files = []
-            for path in audio_file_paths:
-                handle = open(path, "rb")
-                opened.append(handle)
-                files.append(("audios", (os.path.basename(path), handle, "audio/wav")))
-            r = await client.post(
-                f"{settings.inference_service_url}/api/inference",
-                files=files,
-                headers=headers,
-            )
-        finally:
-            for handle in opened:
-                handle.close()
+    # The shared client defaults to a 150s timeout, which covers the worst-case
+    # 5-take batch on the Mini PC's CPU. This is the slowest call in the system
+    # and it sits on the critical path of a screening submission, so it keeps a
+    # warm connection to the inference service rather than rebuilding a client
+    # (and its TLS context) per screening.
+    client = get_client()
+    opened = []
+    try:
+        files = []
+        for path in audio_file_paths:
+            handle = open(path, "rb")
+            opened.append(handle)
+            files.append(("audios", (os.path.basename(path), handle, "audio/wav")))
+        r = await client.post(
+            f"{settings.inference_service_url}/api/inference",
+            files=files,
+            headers=headers,
+        )
+    finally:
+        for handle in opened:
+            handle.close()
     if r.status_code >= 400:
         detail = None
         try:

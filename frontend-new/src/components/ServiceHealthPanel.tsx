@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { Activity, Database, RefreshCw, Server, Waypoints } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { useAdaptivePoll } from "@/hooks/useAdaptivePoll"
 import { getApiUrl } from "@/lib/api"
 import { supabase } from "@/lib/supabase"
-import { describeLastSeen, isFresh, type ServiceStatus } from "@/lib/service-status"
+import {
+  describeLastSeen,
+  isFresh,
+  type Availability,
+  type ServiceStatus,
+} from "@/lib/service-status"
 
 interface Check {
   label: string
@@ -44,18 +50,23 @@ export function ServiceHealthPanel() {
   const [checkedAt, setCheckedAt] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<Availability> => {
     setBusy(true)
+    let next: Availability
     try {
       const res = await fetch(getApiUrl("/api/status"), { cache: "no-store" })
       if (res.ok) {
-        setLive((await res.json()) as ServiceStatus)
+        const payload = (await res.json()) as ServiceStatus
+        setLive(payload)
         setReachable(true)
+        next = payload.database === "up" && payload.inference === "up" ? "online" : "degraded"
       } else {
         setReachable(false)
+        next = "offline"
       }
     } catch {
       setReachable(false)
+      next = "offline"
     }
 
     try {
@@ -71,13 +82,15 @@ export function ServiceHealthPanel() {
 
     setCheckedAt(new Date().toISOString())
     setBusy(false)
+    // Drives the poll's backoff. Reported before the Supabase read above so a
+    // slow heartbeat lookup cannot delay the first result.
+    return next
   }, [])
 
-  useEffect(() => {
-    void refresh()
-    const id = setInterval(refresh, 30_000)
-    return () => clearInterval(id)
-  }, [refresh])
+  // Backoff applies here too, and matters more than in the other two: this is
+  // the screen an administrator opens *because* something is broken, so it is
+  // the one most likely to be left open staring at a dead backend.
+  useAdaptivePoll(refresh)
 
   const beatAge = beat?.checked_at ? describeLastSeen(beat.checked_at) : ""
   const beatFresh = isFresh(beat?.checked_at)

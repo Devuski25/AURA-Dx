@@ -6,7 +6,6 @@ import { Login } from "@/pages/Login"
 import { Register } from "@/pages/Register"
 import { AuthCallback } from "@/pages/AuthCallback"
 import { ResetPassword } from "@/pages/ResetPassword"
-import { Dashboard } from "@/pages/Dashboard"
 import { Home } from "@/pages/public/Home"
 import { About } from "@/pages/public/About"
 import { Team } from "@/pages/public/Team"
@@ -19,6 +18,18 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { useAuth } from "@/hooks/useAuth"
 
 // Lazy loaded heavy components
+/* Dashboard is lazy even though it is not one of the original five.
+
+   It is authenticated, so a signed-out visitor can never render it -- yet as an
+   eager import its code shipped inside the entry chunk and was downloaded by
+   everyone, including the Login page, on every cold load. The other eager pages
+   (Home, About, Team, Legal, Login, Register) are public and genuinely needed
+   by a first-time visitor, so they stay eager; trading marketing-page polish
+   for login-page speed is a call for the owner, not a silent default.
+
+   No UX cost either way: PrivateRoute already shows a full-screen spinner while
+   auth resolves, and the route sits inside the existing <Suspense>. */
+const Dashboard = lazy(() => import("@/pages/Dashboard").then(m => ({ default: m.Dashboard })))
 const Screening = lazy(() => import("@/pages/Screening").then(m => ({ default: m.Screening })))
 const PatientRecords = lazy(() => import("@/pages/PatientRecords").then(m => ({ default: m.PatientRecords })))
 const PatientDetail = lazy(() => import("@/pages/PatientDetail").then(m => ({ default: m.PatientDetail })))

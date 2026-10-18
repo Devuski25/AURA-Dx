@@ -1,6 +1,7 @@
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 from typing import Optional
 
 # Resolve the env file relative to THIS file, not the process cwd.  If it were
@@ -43,6 +44,39 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8-sig"
         case_sensitive = False
         extra = "ignore"
+
+    @field_validator("inference_service_url")
+    @classmethod
+    def _pin_loopback_to_ipv4(cls, v: str) -> str:
+        """Rewrite a `localhost` inference URL to `127.0.0.1`.
+
+        On Windows `localhost` resolves to `::1` first and `127.0.0.1` second,
+        but uvicorn is started with `--host 0.0.0.0`, which binds IPv4 only.
+        Nothing is listening on `::1`, so every call to the inference service
+        opened a connection to a dead address, waited for it to fail, and only
+        then retried over IPv4. Measured cost of that detour: ~290 ms.
+
+        Normalised here rather than at each call site, so `run_inference`, the
+        health probes and the heartbeat all inherit the fix and a future call
+        site cannot reintroduce it by writing `settings.inference_service_url`
+        into a new file.
+
+        Only the literal host `localhost` is rewritten. A real hostname -- which
+        is how the service is reached if the inference server is ever moved off
+        this machine -- is left exactly as configured.
+        """
+        v = v.strip()
+        parts = urlsplit(v)
+        if parts.hostname != "localhost":
+            return v
+
+        # Rebuilt from the split components rather than by string replacement,
+        # so a `localhost` appearing in a path or query cannot be mangled.
+        # An IPv6 literal would have to be bracketed to survive as a netloc;
+        # that cannot arise here, but emitting a bare one would be invalid.
+        host = "127.0.0.1"
+        port = f":{parts.port}" if parts.port else ""
+        return urlunsplit((parts.scheme, f"{host}{port}", parts.path, parts.query, parts.fragment))
 
     @property
     def is_production(self) -> bool:

@@ -11,7 +11,7 @@ import { Reveal, Stagger, StaggerItem, DrawRule } from "@/components/Reveal"
 import { Logo } from "@/components/layout/Logo"
 import { SectionHeading } from "@/components/SectionHeading"
 import { SplitHeading } from "@/components/SplitHeading"
-import WebdesHero from "@/assets/public/webdes.png"
+import WebdesHero from "@/assets/public/webdes.webp"
 
 const STEPS = [
   { title: "Give consent", desc: "Nothing records until explicit, informed consent is given." },
@@ -96,7 +96,17 @@ export function Home() {
               animate={reduceMotion ? undefined : { y: [0, -9, 0] }}
               transition={{ duration: 7, ease: "easeInOut", repeat: Infinity, delay: 2.2 }}
             >
-              <img src={WebdesHero} alt="AURA-Dx respiratory screening" className="block w-full rounded-2xl object-contain" loading="eager" decoding="async" width={640} height={480} />
+              {/* width/height left at 640x480 deliberately, even though the
+                  source is 823x768. With `w-full` and no CSS height, the
+                  height attribute is what sets the box, and `object-contain`
+                  letterboxes inside it. "Correcting" them to the intrinsic size
+                  would change the rendered height, which is a design change
+                  and not a performance one.
+
+                  fetchPriority is the one addition: this is the largest
+                  contentful element on the page, so the browser is told to
+                  start it ahead of the rest rather than merely not-defer it. */}
+              <img src={WebdesHero} alt="AURA-Dx respiratory screening" className="block w-full rounded-2xl object-contain" loading="eager" fetchPriority="high" decoding="async" width={640} height={480} />
             </motion.div>
           </motion.div>
         </motion.div>

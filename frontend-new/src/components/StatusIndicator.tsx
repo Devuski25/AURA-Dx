@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { useAdaptivePoll } from "@/hooks/useAdaptivePoll"
 import {
   connectivity,
   describeLastSeen,
@@ -44,38 +45,44 @@ export function StatusIndicator({ className }: { className?: string }) {
   const [detail, setDetail] = useState<string | null>(null)
   const [status, setStatus] = useState<ServiceStatus | null>(null)
 
+  // Guards the state writes below against an in-flight probe resolving after
+  // unmount. A ref rather than a `cancelled` flag inside an effect, because the
+  // polling itself now lives in useAdaptivePoll and owns its own lifecycle.
+  const mounted = useRef(true)
   useEffect(() => {
-    let cancelled = false
-
-    const run = async () => {
-      const { availability: next, detail: payload } = await probe()
-      if (cancelled) return
-      setAvailability(next)
-      setStatus(payload)
-
-      if (next !== "offline") {
-        setDetail(null)
-        return
-      }
-      // The probe failed. Ask Supabase when the backend last checked in.
-      //
-      // Always shown, fresh or stale, because the two cases point at different
-      // faults and both are worth naming:
-      //   fresh  -> the Mini PC is alive and talking to Supabase but unreachable
-      //             from here, so the tunnel or the network is at fault
-      //   stale  -> the Mini PC itself has been gone for a while
-      const beat = await lastHeartbeat()
-      if (cancelled) return
-      setDetail(describeLastSeen(beat?.last_seen) || null)
-    }
-
-    void run()
-    const id = setInterval(run, 30_000)
+    mounted.current = true
     return () => {
-      cancelled = true
-      clearInterval(id)
+      mounted.current = false
     }
   }, [])
+
+  const run = useCallback(async (): Promise<Availability> => {
+    const { availability: next, detail: payload } = await probe()
+    if (!mounted.current) return next
+    setAvailability(next)
+    setStatus(payload)
+
+    if (next !== "offline") {
+      setDetail(null)
+      return next
+    }
+    // The probe failed. Ask Supabase when the backend last checked in.
+    //
+    // Always shown, fresh or stale, because the two cases point at different
+    // faults and both are worth naming:
+    //   fresh  -> the Mini PC is alive and talking to Supabase but unreachable
+    //             from here, so the tunnel or the network is at fault
+    //   stale  -> the Mini PC itself has been gone for a while
+    const beat = await lastHeartbeat()
+    if (!mounted.current) return next
+    setDetail(describeLastSeen(beat?.last_seen) || null)
+    return next
+  }, [])
+
+  // Self-scheduling with backoff rather than setInterval: an offline Mini PC
+  // is checked at 30s, 60s, 120s, 240s, then every 5 minutes, and this tab
+  // being hidden means no requests at all.
+  useAdaptivePoll(run)
 
   const tone = TONE[availability]
   const link = connectivity(status)

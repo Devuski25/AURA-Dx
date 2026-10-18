@@ -6,18 +6,34 @@ from collections import defaultdict
 from time import time
 import traceback
 from routes.api import router as api_router
-from routes.status import register_heartbeat
+from routes.status import register_heartbeat, warm_status_caches
 from routes.status import router as status_router
 from config import settings
+from httpx_client import aclose_client, get_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting AURA-Dx FastAPI Backend...")
+    # Build the pooled client now rather than on the first request. Constructing
+    # one costs ~550 ms because it builds an SSL context, and whoever asks for
+    # /api/status first after a restart would otherwise be the one who waits for
+    # it. Doing it during startup moves that cost somewhere nobody is watching.
+    get_client()
+    # Spends the remaining first-probe cost -- Supabase's cold connection pool,
+    # measured at ~1.2 s for a process's first probe against ~120 ms for every
+    # one after it. See routes.status.warm_status_caches for why that cost
+    # belongs to startup rather than to the clinician on the Login page.
+    await warm_status_caches()
     # Publishes liveness to Supabase on an interval so the frontend can tell
     # "switched off" from "crashed" even while this process is gone.
     register_heartbeat(app)
     yield
+    # Releases the pooled httpx client. Not closing it would not break anything
+    # -- the sockets die with the process -- but `--reload` cycles this lifespan
+    # frequently, and closing is what keeps each cycle from leaving a pool
+    # behind.
+    await aclose_client()
     print("Shutting down AURA-Dx FastAPI Backend...")
 
 

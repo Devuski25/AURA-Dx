@@ -144,3 +144,40 @@ export function isFresh(iso: string | null | undefined): boolean {
    so the map has no consumer. Left in place it would be the kind of thing that
    looks authoritative and quietly goes stale against the component that actually
    renders. Add state copy next to the component instead. */
+
+/* ---------------------------------------------------------------- polling ---
+ * Three components poll `/api/status` on a timer: the Login indicator, the
+ * in-session watchdog, and the admin health panel. All three did it at a flat
+ * 30 seconds, including while the backend was down.
+ *
+ * A flat interval is the wrong shape for an unhealthy system. When the Mini PC
+ * is off, the Mini PC is off -- asking twice as often does not make it come
+ * back sooner, it just doubles the traffic at the exact moment the network is
+ * least able to carry it. So a failure backs off exponentially, and recovery
+ * returns straight to the normal interval.
+ */
+
+/** Interval while healthy. Fast enough that a screening is never started
+ *  against a backend that has just gone. */
+export const POLL_BASE_MS = 30_000
+
+/** Ceiling on the backoff. Bounded so a backend that comes back is noticed
+ *  within a reasonable time rather than after an hour of quiet. */
+export const POLL_MAX_MS = 300_000
+
+/**
+ * How long to wait before the next poll, given how many unhealthy checks have
+ * happened in a row.
+ *
+ * 30s, 60s, 120s, 240s, 300s, 300s...
+ *
+ * Pure and exported so the schedule can be reasoned about without a browser.
+ */
+export function pollDelayMs(
+  consecutiveFailures: number,
+  baseMs: number = POLL_BASE_MS,
+  maxMs: number = POLL_MAX_MS,
+): number {
+  if (consecutiveFailures <= 0) return baseMs
+  return Math.min(baseMs * 2 ** (consecutiveFailures - 1), maxMs)
+}

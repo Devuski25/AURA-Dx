@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { useAdaptivePoll } from "@/hooks/useAdaptivePoll"
 import { probe, type Availability } from "@/lib/service-status"
 
 /**
@@ -15,7 +16,6 @@ import { probe, type Availability } from "@/lib/service-status"
  *
  * Mount once, inside the authenticated shell.
  */
-const CHECK_INTERVAL_MS = 30_000
 
 export function BackendWatchdog() {
   const { user } = useAuth()
@@ -28,12 +28,14 @@ export function BackendWatchdog() {
     if (!user) {
       previous.current = null
       announced.current = false
-      return
     }
+  }, [user])
 
-    const run = async () => {
-      if (document.visibilityState === "hidden") return
-
+  // Self-scheduling with backoff, and gated on a session existing. An outage is
+  // the one situation where this matters most, and it is also the one where a
+  // flat 30s interval spends the most traffic to learn the least.
+  useAdaptivePoll(
+    async (): Promise<Availability> => {
       const { availability } = await probe()
       const before = previous.current
       previous.current = availability
@@ -51,20 +53,10 @@ export function BackendWatchdog() {
         announced.current = false
         toast.success("Reconnected to the AURA-Dx service", { duration: 4000 })
       }
-    }
-
-    void run()
-    const id = setInterval(run, CHECK_INTERVAL_MS)
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void run()
-    }
-    document.addEventListener("visibilitychange", onVisible)
-
-    return () => {
-      clearInterval(id)
-      document.removeEventListener("visibilitychange", onVisible)
-    }
-  }, [user])
+      return availability
+    },
+    { enabled: !!user },
+  )
 
   return null
 }

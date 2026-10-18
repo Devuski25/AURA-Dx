@@ -5,11 +5,11 @@ import { PageShell } from "@/components/PageShell"
 import { SectionHeading } from "@/components/SectionHeading"
 import { Stagger, StaggerItem } from "@/components/Reveal"
 import { EASE_OUT, VIEWPORT } from "@/lib/fine-motion"
-import DesireeImg from "@/assets/public/team/desiree-mejes.jpg"
-import AhldousImg from "@/assets/public/team/ahldous-argayoso.jpg"
-import RheinImg from "@/assets/public/team/rhein-cama.jpg"
-import MichaelImg from "@/assets/public/team/michael-nepomuceno.jpg"
-import MarkImg from "@/assets/public/team/mark-pesuelo.jpg"
+import DesireeImg from "@/assets/public/team/desiree-mejes.webp"
+import AhldousImg from "@/assets/public/team/ahldous-argayoso.webp"
+import RheinImg from "@/assets/public/team/rhein-cama.webp"
+import MichaelImg from "@/assets/public/team/michael-nepomuceno.webp"
+import MarkImg from "@/assets/public/team/mark-pesuelo.webp"
 
 /* ── Data ─────────────────────────────────────────────────────────────── */
 
