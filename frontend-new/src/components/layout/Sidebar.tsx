@@ -158,7 +158,19 @@ export function Sidebar({
         className={cn(
           "flex flex-col border-r border-[#16382b] bg-gradient-to-b from-[#2f6b54] via-[#255c46] to-[#1b4535] text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.07)] print:hidden",
           isMobile
-            ? "fixed inset-y-0 left-0 z-50 shadow-[12px_0_40px_rgba(0,0,0,0.15)]"
+            ? /* h-[100dvh], not inset-y-0.
+
+               `inset-y-0` on a fixed box resolves against the *layout*
+               viewport, which on a phone is taller than what is actually on
+               screen once browser chrome and the home indicator are accounted
+               for. The drawer therefore ran taller than the visible area, and
+               its last row fell under the system UI -- the account card and the
+               sign-out button with it.
+
+               dvh tracks the viewport as chrome collapses and expands, so the
+               drawer is exactly as tall as the space the user can see. Same
+               unit Layout.tsx already uses for the main scrollport. */
+              "fixed left-0 top-0 z-50 h-[100dvh] shadow-[12px_0_40px_rgba(0,0,0,0.15)]"
             // z-30 on desktop, and it has to be here.
             //
             // Framer animates `width` on this element, which applies a
@@ -174,15 +186,25 @@ export function Sidebar({
             //
             // z-30 clears the page content (z-10) and stays under the route
             // progress bar (z-[70]) and the mobile drawer (z-50).
-            : "sticky top-0 z-30 h-screen shrink-0"
+            //
+            // h-[100dvh] rather than h-screen: 100vh counts the classic
+            // scrollbar gutter, so the sidebar could be a few pixels taller than
+            // the scrollport it is pinned beside. Identical to 100vh on desktop
+            // (no dynamic toolbar), correct everywhere else.
+            : "sticky top-0 z-30 h-[100dvh] shrink-0"
         )}
       >
         {/* The drawer is full-bleed on a phone, so it has to clear the notch on
             the left and the gesture bar at the bottom itself. Without this the
             top logo sits under the camera cutout on an iPhone in landscape. */}
+        {/* shrink-0: this spacer carries the notch clearance on a phone. It has
+            no content of its own, so as a flex item it was free to be squashed
+            by the same min-height:auto pressure that was pushing the footer
+            out -- exactly when the viewport was shortest and the notch clearance
+            mattered most. */}
         <div
           aria-hidden="true"
-          className={cn(isMobile && "pt-[var(--aura-safe-top)] pl-[var(--aura-safe-left)]")}
+          className={cn("shrink-0", isMobile && "pt-[var(--aura-safe-top)] pl-[var(--aura-safe-left)]")}
           style={isMobile ? undefined : { display: "none" }}
         />
         <div className="flex shrink-0 items-center justify-between border-b border-white/15 px-3 pb-2 pt-2">
@@ -246,7 +268,42 @@ export function Sidebar({
           </motion.button>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 pb-3 pt-1 pb-[max(0.75rem,var(--aura-safe-bottom))]">
+        {/* min-h-0 is what keeps the sign-out button on screen.
+
+            This is a flex column: header, nav, footer. `flex-1` alone was not
+            enough, because a flex item's default `min-height: auto` refuses to
+            shrink below its content's intrinsic height. The nav could therefore
+            never be smaller than its links plus padding, so once header + nav +
+            footer exceeded the sidebar's height the nav just pushed the footer
+            down and out of the box -- nothing stopped it. The account card and
+            the sign-out button went below the bottom edge, and the only way to
+            reach them was to scroll the page, which moved the whole aside and
+            made it read as "scrolled away" rather than "clipped".
+
+            `min-h-0` removes that floor. `overflow-y-auto` then lets the nav
+            scroll inside itself when the viewport really is too short, so the
+            footer stays pinned instead of the sidebar overflowing. That matters
+            most in landscape on a phone, and on a tablet with the keyboard up.
+
+            All three are mobile-only, and deliberately so. On the desktop
+            rail the nav carries a tooltip positioned `left-full`, outside the
+            nav's own box; a scroll container here would clip it. Setting
+            `overflow-y` to anything but `visible` makes `overflow-x` compute to
+            `auto` per spec, so `overflow-y-auto` on the desktop nav would
+            silently swallow those tooltips. The desktop rail carries three
+            links against a full-height column and never overflows anyway -- it
+            only ever had the problem in the short viewports this branch covers.
+
+            The bottom safe-area padding moved to the footer below: it belongs to
+            the bottom-most element, and here it was reserving room for the home
+            indicator ABOVE the footer rather than below it -- so the very row
+            that needed the clearance was the one sitting in it. */}
+        <nav
+          className={cn(
+            "flex-1 space-y-1 px-3 pb-3 pt-1",
+            isMobile && "min-h-0 overflow-y-auto overscroll-contain"
+          )}
+        >
           {items.map((item) => {
             const isActive =
               item.href === "/dashboard"
@@ -359,7 +416,15 @@ export function Sidebar({
           })}
         </nav>
 
-          <div className="shrink-0 border-t border-white/15 p-3">
+          {/* Pinned to the bottom of the sidebar and never scrolled: `shrink-0` plus the
+            nav's `min-h-0` above is what guarantees the account card and the
+            sign-out button stay visible at every viewport height, for both
+            roles. This is the row that used to fall off the bottom.
+
+            Padding is written out per-edge rather than as `p-3` so the bottom
+            is unambiguous: `max(0.75rem, safe-bottom)` clears the iOS home
+            indicator and the Android gesture bar, which `p-3` alone did not. */}
+        <div className="shrink-0 border-t border-white/15 px-3 pt-3 pb-[max(0.75rem,var(--aura-safe-bottom))]">
           {showLabels ? (
             <div className="flex items-start gap-3 rounded-xl border border-white/20 bg-white/10 p-3 transition-[background-color,transform] duration-200 hover:bg-white/15 motion-safe:hover:-translate-y-px">
               <Avatar className="h-9 w-9 shrink-0">

@@ -6,7 +6,7 @@ from collections import defaultdict
 from time import time
 import traceback
 from routes.api import router as api_router
-from routes.status import register_heartbeat, warm_status_caches
+from routes.status import start_heartbeat, stop_heartbeat, warm_status_caches
 from routes.status import router as status_router
 from config import settings
 from httpx_client import aclose_client, get_client
@@ -27,14 +27,27 @@ async def lifespan(app: FastAPI):
     await warm_status_caches()
     # Publishes liveness to Supabase on an interval so the frontend can tell
     # "switched off" from "crashed" even while this process is gone.
-    register_heartbeat(app)
-    yield
-    # Releases the pooled httpx client. Not closing it would not break anything
-    # -- the sockets die with the process -- but `--reload` cycles this lifespan
-    # frequently, and closing is what keeps each cycle from leaving a pool
-    # behind.
-    await aclose_client()
-    print("Shutting down AURA-Dx FastAPI Backend...")
+    #
+    # Started from HERE, inside the lifespan context. It used to be registered
+    # with app.router.add_event_handler("startup", ...), and Starlette never ran
+    # it -- Router.lifespan executes lifespan_context only, and on_startup
+    # handlers belong to the deprecated path taken when an app is built without
+    # a lifespan=. See routes.status.start_heartbeat.
+    #
+    # The task is held in this frame so it stays strongly referenced (asyncio
+    # holds only a weak one, and a collected task stops without a trace) and can
+    # be cancelled cleanly below.
+    heartbeat = start_heartbeat()
+    try:
+        yield
+    finally:
+        await stop_heartbeat(heartbeat)
+        # Releases the pooled httpx client. Not closing it would not break
+        # anything -- the sockets die with the process -- but --reload cycles
+        # this lifespan frequently, and closing is what keeps each cycle from
+        # leaving a pool behind.
+        await aclose_client()
+        print("Shutting down AURA-Dx FastAPI Backend...")
 
 
 app = FastAPI(

@@ -306,6 +306,7 @@ async def _heartbeat_loop() -> None:
     timestamp it publishes describe a moment before the write.
     """
     await asyncio.sleep(10)  # let startup finish before the first write
+    consecutive_failures = 0
     while True:
         try:
             checks = await _probe_live()
@@ -320,15 +321,71 @@ async def _heartbeat_loop() -> None:
                     "inference_version": checks["inference_version"],
                 }).execute()
             )
+            if consecutive_failures:
+                log.info(
+                    "heartbeat recovered after %d failed attempt(s)",
+                    consecutive_failures,
+                )
+                consecutive_failures = 0
         except Exception as exc:
             # Never let a heartbeat failure take the API down. A missing row is
             # the signal in that case, which is the correct outcome anyway.
-            log.debug("heartbeat failed: %r", exc)
+            #
+            # The first failure is a WARNING, not debug. A heartbeat that
+            # cannot write looks identical from every other angle -- the API
+            # serves requests, /api/status reports healthy, and the only
+            # symptom is a `last_seen` that quietly stops advancing. At debug
+            # level that is invisible, which is exactly how the loop went
+            # missing for so long after the migration landed. Subsequent
+            # failures stay at debug so a permanent outage is one line, not
+            # one line a minute for as long as it lasts.
+            consecutive_failures += 1
+            if consecutive_failures == 1:
+                log.warning("heartbeat write failed, will retry: %r", exc)
+            else:
+                log.debug("heartbeat failed again (%d): %r", consecutive_failures, exc)
         await asyncio.sleep(HEARTBEAT_INTERVAL_SEC)
 
 
-def register_heartbeat(app) -> None:
-    app.router.add_event_handler("startup", lambda: asyncio.create_task(_heartbeat_loop()))
+def start_heartbeat() -> asyncio.Task:
+    """Start the heartbeat task and hand it back so the caller can cancel it.
+
+    Was `register_heartbeat(app)`, which did:
+
+        app.router.add_event_handler("startup", lambda: asyncio.create_task(...))
+
+    and that never ran. Starlette's Router.lifespan -- the code that executes
+    when the app is started -- runs `self.lifespan_context` and nothing else.
+    `on_startup` handlers are only invoked by `_DefaultLifespan`, which is used
+    when an app is created WITHOUT a `lifespan=` argument. `main.py` passes one,
+    so the branch that would have called the handler was unreachable.
+
+    The failure was completely silent: no error, no log line, no request failed.
+    `service_status` simply kept whatever the migration seeded into it, so
+    "last seen 4 minutes ago" on the Login page was a frozen timestamp from
+    install day rather than an observation. The migration could have been
+    applied and re-applied and nothing would ever have looked different.
+
+    Returns the Task rather than only creating it, for two reasons. The caller
+    must be able to cancel it on shutdown -- an orphaned loop outliving the
+    process it reports on is its own small lie. And asyncio only holds a weak
+    reference to a running task, so without a strong one held here the loop can
+    be garbage collected mid-flight and stop without a trace.
+    """
+    return asyncio.create_task(_heartbeat_loop())
+
+
+async def stop_heartbeat(task: Optional[asyncio.Task]) -> None:
+    """Cancel the heartbeat task and wait for it to actually stop."""
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        log.debug("heartbeat shutdown raised", exc_info=True)
 
 
 async def warm_status_caches() -> None:
