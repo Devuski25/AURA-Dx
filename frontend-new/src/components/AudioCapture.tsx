@@ -41,19 +41,61 @@ export interface InputDevice {
   isBareEndpoint: boolean
 }
 
+/* Model names and vendor terms for the stethoscope itself.
+ *
+ * The HM-9250 is what the clinic uses, and it enumerates under whatever the
+ * host OS decides -- observed as "5- USB PnP Audio Device (0c76:1695)" on a
+ * phone with an OTG hub, and as an HM-9250 string on Windows. Matching on the
+ * model number and the generic transport words therefore has to happen
+ * together: no single substring identifies it across both. */
 const STETHOSCOPE_HINTS =
-  /steth|echo|eko|littmann|3m|electronic|thinklabs|mount|dsp|amplifier/i
+  /steth|hm[-\s]?9250|\b9250\b|eko|littmann|thinklabs|electronic|dsp|amplifier/i
 
-/* Built-in microphones. Matched case-insensitively against the label with the
- * audio-mode prefix already stripped, so "Default - Built-in Microphone" does
- * not sneak past on the strength of "Default". */
-const BUILTIN_HINTS = /built.?in|internal|laptop|macbook|webcam|microphone array|rear input/i
+/* Transport words that indicate a peripheral rather than the host device's own
+ * microphone. Per the spec: USB, External, Stethoscope, Audio Input. */
+const EXTERNAL_HINTS = /\busb\b|pnp|otg|external|audio\s*input/i
+
+/* Built-in microphones. Matched against the label with the audio-mode prefix
+ * already stripped, so "Default - Built-in Microphone" does not sneak past on
+ * the strength of "Default". */
+const BUILTIN_HINTS =
+  /built.?in|internal|laptop|macbook|webcam|microphone array|rear input/i
+
+/* The placeholder this module assigns to inputs the browser has not named yet.
+ * Those must never be treated as a stethoscope just because the phrase "audio
+ * input" appears -- it was put there by us, not reported by the device. */
+const PLACEHOLDER_LABEL = /^audio input \d+$/i
 
 /** Strip the "Default - " / "Communications - " audio-mode prefix. */
 function stripAudioMode(label: string): { bare: string; isBare: boolean } {
   const m = /^(default|communications|communications-mode)\s*[-–]\s*(.+)$/i.exec(label.trim())
   return m ? { bare: m[2].trim(), isBare: false } : { bare: label.trim(), isBare: true }
 }
+
+/**
+ * Does this label describe a peripheral rather than the host's own microphone?
+ *
+ * Positive keywords win over the absence of a built-in keyword, because the
+ * phone's own mic is often labelled plainly "Microphone" with nothing to give
+ * it away, while the stethoscope almost always carries a transport word or its
+ * model number.
+ */
+export function isExternalInput(label: string): boolean {
+  if (PLACEHOLDER_LABEL.test(label.trim())) return false
+  if (BUILTIN_HINTS.test(label)) return false
+  if (STETHOSCOPE_HINTS.test(label)) return true
+  if (EXTERNAL_HINTS.test(label)) return true
+  // Nothing identifying either way. Treated as external so a lone unlabelled
+  // USB stethoscope is still usable; the stethoscope check catches a wrong
+  // guess, which is what it is for.
+  return true
+}
+
+/** Shown when no peripheral is present. Says what to do, not just what is wrong. */
+export const NO_STETHOSCOPE_MESSAGE =
+  "Digital stethoscope not detected. Plug the HM-9250 into the phone or tablet " +
+  "with the Type-C cable, turn on OTG if the device asks for it, then press " +
+  "refresh and record again."
 
 /**
  * Browser labels are empty strings until permission has been granted once, so
@@ -109,7 +151,7 @@ export function useAudioInput() {
     for (const d of inputs) {
       const raw = d.label || "Audio input"
       const { bare, isBare } = stripAudioMode(raw)
-      const external = !BUILTIN_HINTS.test(bare)
+      const external = isExternalInput(bare)
       const key = bare.toLowerCase()
       const existing = byHardware.get(key)
       const candidate: InputDevice = {
@@ -287,6 +329,59 @@ export function useAudioInput() {
 
   const device = devices.find((d) => d.deviceId === selectedId)
 
+  /* Re-enumerate, then open on a verified stethoscope.
+   *
+   * This is the path taken when the record button is pressed, and it does the
+   * enumeration again rather than trusting the list built at page load. A
+   * clinician plugs the stethoscope in after the page is already open -- which
+   * is the normal sequence, since the tab is usually left open between
+   * patients -- and `devicechange` is not delivered reliably on every platform.
+   * Re-listing costs a millisecond and removes the case where a connected
+   * stethoscope is invisible because the page was loaded before it was plugged
+   * in.
+   *
+   * Returns a discriminated result rather than throwing, so the caller can show
+   * the right message for "not plugged in" versus "the browser refused". */
+  const openOnStethoscope = useCallback(async (): Promise<
+    { ok: true; stream: MediaStream } | { ok: false; reason: "missing" }
+  > => {
+    await refreshDevices()
+    /* State updates are async, so `devices` in this closure is still the
+     * previous render's value. Re-enumerate rather than reading it, or the
+     * just-plugged-in stethoscope would be missed -- which is the whole reason
+     * this function exists instead of a plain open(selectedId). */
+    const inputs = (await navigator.mediaDevices.enumerateDevices()).filter(
+      (d) => d.kind === "audioinput"
+    )
+    const byHardware = new Map<string, InputDevice>()
+    for (const d of inputs) {
+      const { bare, isBare } = stripAudioMode(d.label || "Audio input")
+      const candidate: InputDevice = {
+        deviceId: d.deviceId,
+        label: bare,
+        looksLikeStethoscope: STETHOSCOPE_HINTS.test(bare),
+        isExternal: isExternalInput(bare),
+        isBareEndpoint: isBare,
+      }
+      const key = bare.toLowerCase()
+      const existing = byHardware.get(key)
+      if (!existing || (isBare && !existing.isBareEndpoint)) byHardware.set(key, candidate)
+    }
+    const external = [...byHardware.values()].filter((d) => d.isExternal)
+    if (external.length === 0) return { ok: false, reason: "missing" }
+
+    const chosen =
+      selectedId && external.some((d) => d.deviceId === selectedId)
+        ? selectedId
+        : (external.find((d) => d.isBareEndpoint && d.looksLikeStethoscope) ??
+           external.find((d) => d.isBareEndpoint) ??
+           external[0]).deviceId
+
+    setSelectedId(chosen)
+    const stream = await open(chosen)
+    return { ok: true, stream }
+  }, [selectedId, open, refreshDevices])
+
   /* Only the stethoscope is offered.
    *
    * When any external input is present, the device's own microphone is removed
@@ -335,6 +430,7 @@ export function useAudioInput() {
     deviceMismatch,
     refreshDevices,
     open,
+    openOnStethoscope,
     close,
     /** True when an explicit input has been chosen and capture may start. */
     ready,

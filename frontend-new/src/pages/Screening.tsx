@@ -16,7 +16,13 @@ import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import { getApiUrl } from "@/lib/api"
 import { probe } from "@/lib/service-status"
-import { useAudioInput, DeviceBanner, LevelMeter, StethoscopeCheck } from "@/components/AudioCapture"
+import {
+  useAudioInput,
+  DeviceBanner,
+  LevelMeter,
+  StethoscopeCheck,
+  NO_STETHOSCOPE_MESSAGE,
+} from "@/components/AudioCapture"
 import { RecordingProtocolCard, SitePrompt, SiteChip } from "@/components/RecordingProtocol"
 import {
   AUSCULTATION_SITES,
@@ -359,10 +365,24 @@ export function Screening() {
   // --- Audio Recording ---
   const startRecording = async () => {
     try {
-      // Opens through the shared input hook so the level meter is wired to the
-      // exact stream being captured. Previously the meter could not exist at
-      // all, which is why the bars animated on a timer instead.
-      const stream = await audioInput.open(audioInput.selectedId || undefined)
+      /* Opens through the shared input hook so the level meter is wired to the
+       * exact stream being captured. Previously the meter could not exist at
+       * all, which is why the bars animated on a timer instead.
+       *
+       * openOnStethoscope re-runs enumerateDevices and then opens on a verified
+       * external input with `deviceId: { exact: ... }`. Passing no deviceId at
+       * all is what made MediaRecorder fall back to the phone's own microphone,
+       * so the exact-match constraint is the whole point and there is no path
+       * here that can omit it. */
+      const opened = await audioInput.openOnStethoscope()
+      if (!opened.ok) {
+        toast.error("Digital stethoscope not detected", {
+          description: NO_STETHOSCOPE_MESSAGE,
+          duration: 9000,
+        })
+        return
+      }
+      const stream = opened.stream
       audioChunksRef.current = []
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
