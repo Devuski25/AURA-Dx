@@ -17,7 +17,7 @@ import { toast } from "sonner"
 type FaqItem = { q: string; a: string }
 type FaqCategory = { id: string; label: string; icon: typeof ShieldCheck; items: FaqItem[] }
 
-const SUPPORT_EMAIL = "support@auradx.xyz"
+const SUPPORT_EMAIL = "supportauradx@gmail.com"
 
 const categories: FaqCategory[] = [
   {
@@ -50,11 +50,11 @@ const categories: FaqCategory[] = [
     items: [
       {
         q: "How do I capture a breathing sample?",
-        a: "1) Connect your compatible digital stethoscope via USB/Bluetooth. 2) Open the Screening page and pair the device. 3) Place the stethoscope on standard auscultation points (posterior bases, anterior bases, lateral). 4) Press Capture and have the patient breathe normally for 1–2 full cycles per point. 5) Review the waveforms, then Submit. Consent is required before capture starts.",
+        a: "1) Connect your digital stethoscope via USB or Bluetooth. 2) Open the Screening page and pair the device. 3) Work through the five suggested sites in order — anterior right, anterior left, posterior right, posterior left, then trachea. 4) Press Capture and have the patient breathe normally for 5–8 full breaths at each site (roughly 15–25 seconds). 5) Review the waveforms, then Submit. Consent is required before capture starts.",
       },
       {
         q: "What are the tips for a good recording?",
-        a: "• Quiet room (no fans, TV, background conversation). • Ensure good skin contact with stethoscope diaphragm. • Standard auscultation points: posterior lower lobes, anterior bases, right middle lobe, lingula. • Patient sits upright, breathes naturally through mouth. • Avoid clothing rustle or patient movement. • Capture 1–2 full breathing cycles per point.",
+        a: "• Quiet room — no fans, TV or background conversation. • Good skin contact with the stethoscope diaphragm. • Use the five standard sites (see below) rather than repeating one spot. • Patient sits upright and breathes naturally, not deliberately deep. • Avoid clothing rustle and patient movement. • Capture 5–8 full breaths per site, about 15–25 seconds. Anything under 10 seconds has too few breaths to analyse.",
       },
       {
         q: "What do the results mean?",
@@ -66,7 +66,7 @@ const categories: FaqCategory[] = [
       },
       {
         q: "What are the standard auscultation points I should capture?",
-        a: "Capture 1–2 full breathing cycles at each standard point: Posterior — lower lobes (bilateral), right middle lobe, lingula. Anterior — upper lobes (bilateral), right middle lobe, lingula. Lateral — lower lobes (bilateral). Minimum: 6 points (posterior bases + anterior bases). More points = better classification confidence.",
+        a: "Five sites, covering both axes and the midline: Anterior right — 3rd right intercostal space, mid-clavicular line. Anterior left — 3rd left intercostal space, mid-clavicular line. Posterior right — between the right shoulder blade and the spine. Posterior left — between the left shoulder blade and the spine. Trachea — centre of the neck, just below the Adam's apple. Capture 5–8 breaths at each, trachea last. Five separate sites is the point, not five recordings of one spot: the takes are combined, and five takes from the same place tell the model nothing the first one did not. The sites are a suggestion — record wherever is clinically right.",
       },
     ],
   },
@@ -77,7 +77,7 @@ const categories: FaqCategory[] = [
     items: [
       {
         q: "My digital stethoscope isn't detected. What should I do?",
-        a: "1) Check connection: USB cable firmly seated, or Bluetooth paired in OS settings. 2) Allow device permission in browser (lock icon in address bar). 4) Use HTTPS (required for device APIs). 5) Use Chrome 100+, Edge 100+, Firefox 98+, Safari 15+. 6) Close other apps using the device. 6) Test device in OS sound settings first. 7) Check manufacturer drivers/firmware are up to date.",
+        a: "1) Check the connection — USB cable firmly seated, or Bluetooth paired in your OS settings. 2) Allow device permission in the browser (the lock icon in the address bar). 3) Make sure you are on HTTPS — device APIs require a secure origin. 4) Use a supported browser: Chrome 100+, Edge 100+, Firefox 98+, Safari 15+. 5) Close any other app that may be holding the device. 6) Test the device in your OS sound settings first. 7) Check that manufacturer drivers and firmware are up to date.",
       },
       {
         q: "Which browsers are supported?",

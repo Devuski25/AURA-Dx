@@ -444,9 +444,34 @@ body {
 }
 
 /* 3px forest top edge for the large content cards (tables, panels). Stat
-   cards do not get this — they carry tone via their icon chip and numeral. */
+   cards do not get this — they carry tone via their icon chip and numeral.
+
+   Drawn as an inset bar rather than a 3px `border-top`. The two are not
+   equivalent: a border is painted along the border box and reads as a
+   square-capped rule at the card's top corners, while the card's *background*
+   is clipped by border-radius, which is why the bottom corners curve and the
+   top ones did not. An absolutely-positioned ::before sits in the padding box,
+   so `overflow: hidden` clips it with the same radius and the top corners
+   follow exactly the same curve as the bottom ones.
+
+   `overflow: hidden` is declared here rather than left to call sites because
+   without it the bar is not clipped and the whole effect does nothing.
+   Screenings.tsx and Admin.tsx were already passing it by hand; this makes the
+   pair intrinsic so the next card cannot get it wrong. Every current user of
+   this class holds static content (tables, lists, waveform tiles) and none
+   contains a popover, dropdown or tooltip that would be clipped. */
 .aura-panel-edge {
-  border-top: 3px solid var(--color-aura-forest);
+  position: relative;
+  overflow: hidden;
+}
+
+.aura-panel-edge::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background-color: var(--color-aura-forest);
 }
 
 /* Hairline divider matching the tile tone, for rules inside a panel. */
