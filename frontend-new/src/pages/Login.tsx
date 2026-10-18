@@ -219,9 +219,13 @@ export function Login() {
             than part of the form. `sm:right-8` / `md:right-10` line it up with
             the input fields below it at both breakpoints.
 
+            `sm:top-6` rather than `sm:top-10`: the panel is two lines tall now,
+            so sitting it on the content edge put the second line on top of the
+            first field.
+
             In flow below `sm`: absolutely positioning it on a 375px screen
             puts it on top of the first field rather than beside it. */}
-        <StatusIndicator className="mb-5 sm:absolute sm:right-8 sm:top-10 sm:mb-0 md:right-10" />
+        <StatusIndicator className="mb-5 sm:absolute sm:right-8 sm:top-6 sm:mb-0 md:right-10" />
 
         {/* The form owns the shake transform, so the field stagger lives on an
             inner wrapper — two transform sources on one element fight. */}

@@ -15,6 +15,14 @@ import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import { getApiUrl } from "@/lib/api"
+import { useAudioInput, DeviceBanner, LevelMeter } from "@/components/AudioCapture"
+import { RecordingProtocolCard, SitePrompt, SiteChip } from "@/components/RecordingProtocol"
+import {
+  AUSCULTATION_SITES,
+  MIN_TAKE_SEC,
+  durationAdvice,
+  takeQuality,
+} from "@/lib/recording-protocol"
 import { useCachedData, invalidate } from "@/hooks/useCachedData"
 import { NewPatientModal } from "@/components/NewPatientModal"
 
@@ -31,6 +39,8 @@ type Take = {
   url: string
   blob: Blob
   durationSec: number
+  /** Auscultation site, when the clinician picked one. Never required. */
+  siteCode?: string
 }
 
 const dobDateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" })
@@ -89,6 +99,41 @@ export function Screening() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const recordingStartTimeRef = useRef<number>(0)
+  /* Peak level reached during the current take, read once when it stops. The
+     live meter is a momentary value; this is what the warning needs. */
+  const peakLevelRef = useRef<number>(0)
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const [selectedSite, setSelectedSite] = useState<string>(AUSCULTATION_SITES[0].code)
+  const selectedSiteRef = useRef<string>(AUSCULTATION_SITES[0].code)
+
+  // The site is read inside MediaRecorder's onstop closure, which is created
+  // when recording starts. A ref keeps it current without restarting the
+  // recorder every time the clinician changes their mind.
+  useEffect(() => {
+    selectedSiteRef.current = selectedSite
+  }, [selectedSite])
+
+  const audioInput = useAudioInput()
+
+  // Keep the peak tracked from the live meter.
+  useEffect(() => {
+    if (recording && audioInput.level > peakLevelRef.current) {
+      peakLevelRef.current = audioInput.level
+    }
+  }, [recording, audioInput.level])
+
+  /* Ticks only while recording. A running interval on a capture screen would
+     keep re-rendering the whole page once a second for nothing. */
+  useEffect(() => {
+    if (!recording) {
+      setElapsedSec(0)
+      return
+    }
+    const id = window.setInterval(() => {
+      setElapsedSec((Date.now() - recordingStartTimeRef.current) / 1000)
+    }, 200)
+    return () => window.clearInterval(id)
+  }, [recording])
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Result state
@@ -193,7 +238,10 @@ export function Screening() {
   // --- Audio Recording ---
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Opens through the shared input hook so the level meter is wired to the
+      // exact stream being captured. Previously the meter could not exist at
+      // all, which is why the bars animated on a timer instead.
+      const stream = await audioInput.open(audioInput.selectedId || undefined)
       audioChunksRef.current = []
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -208,7 +256,10 @@ export function Screening() {
       mediaRecorderRef.current.onstop = async () => {
         const rawBlob = new Blob(audioChunksRef.current, { type: mimeType })
         const durationSec = (Date.now() - recordingStartTimeRef.current) / 1000
-        stream.getTracks().forEach(t => t.stop())
+        // The hook owns the stream; it is released here rather than by tracking
+        // its tracks in two places, which is how a track used to outlive the
+        // take and leave the meter showing a live level while recording stopped.
+        await audioInput.close()
 
         let blob = rawBlob
         try {
@@ -227,13 +278,39 @@ export function Screening() {
 
         const url = URL.createObjectURL(blob)
         takeUrlsRef.current.add(url)
+
+        // Warn on a take that will not analyse well, but still keep it. A
+        // take is the clinician's decision to discard -- silently dropping
+        // their recording, or refusing to save it, is worse than telling them
+        // it was short and letting them decide.
+        const quality = takeQuality(durationSec)
+        if (quality === "too-short") {
+          toast.warning(
+            `That take was ${durationSec.toFixed(1)}s — under ${MIN_TAKE_SEC}s, `
+            + `so it may not analyse reliably. Record a replacement if you can.`,
+            { duration: 7000 }
+          )
+        }
+        if (peakLevelRef.current > 0.97) {
+          toast.warning(
+            "That take was clipped — the signal was too loud. Move the "
+            + "stethoscope further from the skin and record another.",
+            { duration: 7000 }
+          )
+        }
+
         setTakes(prev => [
           ...prev,
-          { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url, blob, durationSec },
+          {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            url, blob, durationSec,
+            siteCode: selectedSiteRef.current,
+          },
         ])
       }
 
       recordingStartTimeRef.current = Date.now()
+      peakLevelRef.current = 0
       mediaRecorderRef.current.start()
       setRecording(true)
     } catch (error) {
@@ -708,11 +785,64 @@ export function Screening() {
                 </p>
               </div>
 
+              {/* Full protocol, collapsed. Written out once, from the same
+                  constants the live guidance uses. */}
+              <RecordingProtocolCard />
+
+              {/* What is actually plugged in. Without this a clinician cannot
+                  tell the stethoscope from the built-in microphone, and the two
+                  are indistinguishable until the takes come back useless. */}
+              <DeviceBanner
+                devices={audioInput.devices}
+                device={audioInput.device}
+                permission={audioInput.permission}
+                selectedId={audioInput.selectedId}
+                onSelect={audioInput.setSelectedId}
+                onRefresh={() => void audioInput.refreshDevices()}
+              />
+
+              {/* Site for this take. Suggested, never enforced. */}
+              {!recording && !atMaxTakes && (
+                <div>
+                  <SitePrompt
+                    takenCount={takes.length}
+                    lastSiteCode={takes[takes.length - 1]?.siteCode}
+                  />
+                  <div className="mt-2.5">
+                    <label
+                      htmlFor="aura-site"
+                      className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
+                    >
+                      Site for this take
+                    </label>
+                    <select
+                      id="aura-site"
+                      value={selectedSite}
+                      onChange={(e) => setSelectedSite(e.target.value)}
+                      className="mt-1.5 h-10 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+                    >
+                      {AUSCULTATION_SITES.map((s) => (
+                        <option key={s.code} value={s.code}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Level meter. Real signal, so silence looks like silence. */}
+              <LevelMeter
+                level={audioInput.level}
+                clipped={audioInput.clipped}
+                active={recording}
+              />
+
               {!recording && (
                 <Button
                   onClick={startRecording}
                   size="lg"
-                  disabled={atMaxTakes}
+                  disabled={atMaxTakes || audioInput.permission === "denied"}
                   className="w-full gap-3"
                 >
                   <Mic className="h-5 w-5" />
@@ -726,30 +856,22 @@ export function Screening() {
               )}
               {recording && (
                 <>
-                  {/* Live listening equalizer — animates only while recording */}
-                  <div
-                    className="flex h-12 items-end justify-center gap-1.5 rounded-lg border border-aura-border-soft bg-aura-surface-alt px-6 py-2"
-                    role="status"
-                    aria-label="Recording in progress"
-                  >
-                    {[0.9, 0.5, 1.1, 0.7, 1.3, 0.6, 1.0, 0.8, 1.2, 0.5, 0.95, 0.65].map((delay, i) => (
-                      <motion.span
-                        key={i}
-                        aria-hidden="true"
-                        className="w-1.5 rounded-full bg-aura-coral"
-                        animate={
-                          reduceMotion
-                            ? { height: "40%" }
-                            : { height: ["30%", "95%", "45%", "80%", "30%"] }
-                        }
-                        transition={
-                          reduceMotion
-                            ? { duration: 0 }
-                            : { duration: 0.9 + delay * 0.3, repeat: Infinity, ease: "easeInOut", delay }
-                        }
-                        style={{ height: "40%" }}
-                      />
-                    ))}
+                  {/* Live clock and guidance. The numbers come from
+                      recording-protocol.ts, not from a second copy here. */}
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-mono tabular-nums text-aura-ink">
+                      {elapsedSec.toFixed(1)}s
+                    </span>
+                    <span
+                      className={cn(
+                        "text-right text-xs leading-snug",
+                        elapsedSec >= MIN_TAKE_SEC
+                          ? "text-aura-pine"
+                          : "text-amber-700"
+                      )}
+                    >
+                      {durationAdvice(elapsedSec)}
+                    </span>
                   </div>
                   <Button
                     onClick={stopRecording}
@@ -779,10 +901,17 @@ export function Screening() {
                     </Button>
                   </div>
                   <ul className="space-y-2">
-                    {takes.map((take, index) => (
+                    {takes.map((take, index) => {
+                      const quality = takeQuality(take.durationSec)
+                      return (
                       <li
                         key={take.id}
-                        className="flex flex-col gap-3 rounded-lg border border-aura-border-soft bg-aura-surface-alt p-4 sm:flex-row sm:items-center"
+                        className={cn(
+                          "flex flex-col gap-3 rounded-lg border bg-aura-surface-alt p-4 sm:flex-row sm:items-center",
+                          quality === "too-short"
+                            ? "border-amber-300 bg-amber-50"
+                            : "border-aura-border-soft"
+                        )}
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-3">
                           <span
@@ -792,12 +921,19 @@ export function Screening() {
                             {index + 1}
                           </span>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-aura-ink">
+                            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-aura-ink">
                               Take {index + 1}
-                              <span className="ml-2 font-normal text-aura-muted">
+                              <span className="font-normal tabular-nums text-aura-muted">
                                 {take.durationSec.toFixed(1)}s
                               </span>
+                              <SiteChip code={take.siteCode} />
                             </p>
+                            {quality === "too-short" && (
+                              <p className="mt-0.5 text-xs leading-snug text-amber-800">
+                                Too short to analyse reliably — record a replacement
+                                if you can.
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -813,7 +949,8 @@ export function Screening() {
                           </Button>
                         </div>
                       </li>
-                    ))}
+                      )
+                    })}
                   </ul>
                 </div>
               )}

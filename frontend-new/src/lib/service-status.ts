@@ -23,6 +23,8 @@ export interface ServiceStatus {
   database: string
   inference: string
   last_seen?: string | null
+  /** wifi | wired | unknown. The *kind* of link, never the network name. */
+  minipc_link?: string
 }
 
 const PROBE_TIMEOUT_MS = 4000
@@ -52,6 +54,45 @@ export async function probe(): Promise<{ availability: Availability; detail: Ser
     return { availability: "offline", detail: null }
   } finally {
     clearTimeout(timer)
+  }
+}
+
+/**
+ * Is the Mini PC actually on a network?
+ *
+ * Two independent questions, and the UI must not blur them:
+ *
+ *  - "Can the backend answer?" -- answered by `/api/status` at all.
+ *  - "Can the Mini PC reach the internet?" -- answered by the Supabase probe
+ *    succeeding. Google sign-in and the verification email both go through
+ *    hosted services, so this is what decides whether a clinician can get in.
+ *
+ * `database: "up"` already proves connectivity, because reaching Supabase means
+ * the internet works. `minipc_link` is only context -- Wi-Fi or a cable -- and
+ * is never presented as a second liveness signal.
+ *
+ * A machine on Wi-Fi with the cable pulled still passes this test, which is the
+ * intended behaviour: the clinic is expected to run a pocket wifi, and the
+ * indicator should stay green on it.
+ */
+export type LinkKind = "wifi" | "wired" | "unknown"
+
+export interface Connectivity {
+  online: boolean
+  link: LinkKind
+  label: string
+}
+
+export function connectivity(status: ServiceStatus | null): Connectivity {
+  const link = (status?.minipc_link ?? "unknown") as LinkKind
+  // Reaching Supabase is the connectivity proof. The backend answering at all
+  // over a LAN does not imply the internet works.
+  const online = !!status && status.database === "up"
+  const kind = link === "wifi" ? "Wi-Fi" : link === "wired" ? "Wired" : null
+  return {
+    online,
+    link,
+    label: kind ? `Mini PC online · ${kind}` : "Mini PC online",
   }
 }
 

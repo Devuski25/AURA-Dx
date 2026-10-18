@@ -159,7 +159,22 @@ export function Sidebar({
           "flex flex-col border-r border-[#16382b] bg-gradient-to-b from-[#2f6b54] via-[#255c46] to-[#1b4535] text-white shadow-[inset_-1px_0_0_rgba(255,255,255,0.07)] print:hidden",
           isMobile
             ? "fixed inset-y-0 left-0 z-50 shadow-[12px_0_40px_rgba(0,0,0,0.15)]"
-            : "sticky top-0 h-screen shrink-0"
+            // z-30 on desktop, and it has to be here.
+            //
+            // Framer animates `width` on this element, which applies a
+            // transform, and a transform creates a stacking context. The
+            // collapsed-rail tooltip inside is z-50, but that z-50 is scoped
+            // *within* this context -- it cannot lift anything past a sibling
+            // that competes at the root level.
+            //
+            // Without an index here the aside sits at z-index auto, while the
+            // Dashboard hero banner's inner div is z-10. z-10 beats auto, so the
+            // banner painted over the whole sidebar, clipping the tooltip
+            // mid-word behind it on every clinician and admin page.
+            //
+            // z-30 clears the page content (z-10) and stays under the route
+            // progress bar (z-[70]) and the mobile drawer (z-50).
+            : "sticky top-0 z-30 h-screen shrink-0"
         )}
       >
         {/* The drawer is full-bleed on a phone, so it has to clear the notch on
@@ -262,7 +277,11 @@ export function Sidebar({
                   to={item.href}
                   onClick={onClose}
                   aria-label={showLabels ? undefined : item.name}
-                  title={showLabels ? undefined : item.name}
+                  /* No native `title` alongside the custom tooltip. Both were
+                     set, so hovering produced two labels -- the browser's,
+                     which cannot be styled and always paints over the page, and
+                     the styled one. `aria-label` still gives assistive tech the
+                     accessible name. */
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "group relative z-10 flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
