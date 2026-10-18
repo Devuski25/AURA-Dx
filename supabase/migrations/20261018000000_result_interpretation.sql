@@ -18,6 +18,7 @@ ALTER TABLE public.screenings
                OR confidence_level IN ('HIGH', 'MODERATE', 'LOW')),
     ADD COLUMN IF NOT EXISTS recommendation_code TEXT,
     ADD COLUMN IF NOT EXISTS decision_rule TEXT,
+    ADD COLUMN IF NOT EXISTS decision_detail TEXT,
     ADD COLUMN IF NOT EXISTS band_metric TEXT,
     ADD COLUMN IF NOT EXISTS band_position DOUBLE PRECISION,
     ADD COLUMN IF NOT EXISTS low_agreement BOOLEAN,
@@ -38,6 +39,11 @@ COMMENT ON COLUMN public.screenings.decision_rule IS
     'majority_healthy, borderline_healthy, conditional_copd_high, '
     'conditional_copd_moderate or conditional_undecidable. Shown so a result '
     'can explain itself instead of only asserting itself.';
+
+COMMENT ON COLUMN public.screenings.decision_detail IS
+    'Plain-English account of how the verdict was reached, written by the '
+    'inference service. Prose, not a stable key, so it is display-only: never '
+    'parsed, and safe to ignore if the wording changes.';
 
 COMMENT ON COLUMN public.screenings.low_agreement IS
     'True when the individual recordings disagreed (spread > 0.20 on the Stage 2 '
