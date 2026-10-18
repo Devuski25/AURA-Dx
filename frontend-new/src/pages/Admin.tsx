@@ -442,10 +442,18 @@ export function Admin() {
     return metrics.total_requests || 0
   }, [accessToken])
 
+  /* revalidateMs lowered from the 60s default to match the 15s TTL.
+
+     This is a backstop, not the primary mechanism. The realtime subscription
+     below is now real -- `profiles` is in the supabase_realtime publication as
+     of 20261018130000 -- but before that migration it matched no table and the
+     60s poll was the only thing keeping this list alive, which meant an admin
+     who approved someone saw nothing happen for up to a minute. 15s is the
+     floor that makes a missed realtime event cheap rather than confusing. */
   const { data: usersData, isLoading: loading, refresh: refetchUsers } = useCachedData<any[]>(
     !authLoading && user && (user.role === "admin" || user.role === "super_admin") ? "admin-users" : null,
     usersFetcher,
-    { ttlMs: 15_000 },
+    { ttlMs: 15_000, revalidateMs: 15_000 },
   )
   const users = useMemo(() => usersData ?? [], [usersData])
 
@@ -520,8 +528,15 @@ export function Admin() {
 
   useEffect(() => {
     if (!authLoading && (user?.role === "admin" || user?.role === "super_admin")) {
-      // Live updates: refresh the users list whenever profiles change,
-      // debounced so bursts of realtime events don't spam the API.
+      /* Live updates: refresh the users list whenever profiles change,
+         debounced so bursts of realtime events don't spam the API.
+
+         This only started working on 2026-10-18. A table emits change events
+         solely by being in the supabase_realtime publication, and nothing in
+         this repo had added it -- so the channel subscribed cleanly, matched no
+         table, and never fired. It looked live and was not. The migration
+         20261018130000 adds the table; the 15s revalidate above is the backstop
+         if a websocket is ever blocked. */
       let timer: ReturnType<typeof setTimeout> | null = null
       const subscription = supabase
         .channel("public:profiles")

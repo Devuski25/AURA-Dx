@@ -11,6 +11,94 @@ from email.message import EmailMessage
 from config import settings
 
 
+def send_account_status_email(to_email: str, full_name: str, status: str) -> None:
+    """Tell a clinician their account was approved or rejected.
+
+    Exists because the Register page promises it. The confirmation dialog reads
+    "You'll be notified once approved", and there was no code anywhere that sent
+    anything -- an approval flipped a row in `profiles` and the person sat there
+    waiting for an email that was never going to arrive.
+
+    Same transport and the same deliberate no-fallback rule as the verification
+    code: SMTP_FROM must be a real address on the verified domain, and a missing
+    one is a configuration bug that should surface rather than silently become
+    Resend's sandbox sender.
+
+    Raises on failure. The caller decides what to do about that -- a failed
+    notification must not roll back the approval itself, so the route catches it.
+    """
+    if not (settings.smtp_host and settings.resend_api_key):
+        raise RuntimeError("SMTP/Resend is not configured (check RESEND_API_KEY / SMTP_HOST)")
+
+    from_addr = settings.smtp_from
+    if not from_addr:
+        raise RuntimeError(
+            "SMTP_FROM is not set. Set it to a sender on the verified Resend "
+            "domain (e.g. noreply@auradx.xyz)."
+        )
+    if "@" not in from_addr:
+        raise RuntimeError(f"SMTP_FROM is not an email address: {from_addr!r}")
+
+    approved = status == "approved"
+    first_name = (full_name or "").strip().split(" ")[0] or "there"
+
+    if approved:
+        subject = "Your AURA-Dx account has been approved"
+        heading = "Your account is approved"
+        body = (
+            f"Hello {first_name},\n\n"
+            "Your AURA-Dx clinician account has been approved. You can sign in and "
+            "start screening.\n\n"
+            "If you have any questions, reply to supportauradx@gmail.com."
+        )
+        html_body = (
+            "<p>Your AURA-Dx clinician account has been approved. You can "
+            '<a href="https://auradx.xyz/login">sign in</a> and start screening.</p>'
+            "<p>If you have any questions, email "
+            '<a href="mailto:supportauradx@gmail.com">supportauradx@gmail.com</a>.</p>'
+        )
+    else:
+        subject = "Update on your AURA-Dx account"
+        heading = "Your account was not approved"
+        body = (
+            f"Hello {first_name},\n\n"
+            "Thank you for registering for AURA-Dx. An administrator reviewed your "
+            "account and was not able to approve it at this time.\n\n"
+            "If you believe this is a mistake, or you would like to appeal, email "
+            "supportauradx@gmail.com."
+        )
+        html_body = (
+            "<p>Thank you for registering for AURA-Dx. An administrator reviewed "
+            "your account and was not able to approve it at this time.</p>"
+            "<p>If you believe this is a mistake, or you would like to appeal, email "
+            '<a href="mailto:supportauradx@gmail.com">supportauradx@gmail.com</a>.</p>'
+        )
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_email
+
+    msg.set_content(body)
+
+    html = f"""<html><body style="font-family:Arial,sans-serif;color:#1f2937">
+      <div style="max-width:420px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px">
+        <h2 style="color:#3cb87a;margin:0 0 12px">AURA-Dx</h2>
+        <h3 style="margin:0 0 12px">{heading}</h3>
+        {html_body}
+        <p style="color:#6b7280;font-size:12px;margin-top:20px">
+          AURA-Dx is a research prototype and does not provide a medical diagnosis.
+        </p>
+      </div></body></html>"""
+    msg.add_alternative(html, subtype="html")
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+        server.starttls(context=context)
+        server.login(settings.smtp_user or "resend", settings.resend_api_key)
+        server.send_message(msg)
+
+
 def send_verification_email(to_email: str, code: str) -> None:
     if not (settings.smtp_host and settings.resend_api_key):
         raise RuntimeError("SMTP/Resend is not configured (check RESEND_API_KEY / SMTP_HOST)")

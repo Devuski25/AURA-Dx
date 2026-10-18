@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
+import { supabase } from "@/lib/supabase"
 import { useCachedData } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
 import { renderResultBadges, ConfidenceChip } from "@/lib/badge-helpers"
@@ -139,6 +140,38 @@ export function Dashboard() {
   useEffect(() => {
     if (screeningsData) setLastUpdated(new Date())
   }, [screeningsData])
+
+  /* Keep "Recent Screenings" honest when the same account is working in two
+     tabs -- a screening submitted on the wizard tab should appear here without
+     waiting out the cache TTL.
+
+     Only subscribes once a session exists, since RLS filters change events per
+     subscriber and an anonymous channel would simply never match. Guarded on
+     `accessToken` rather than `user` because the fetch is token-authenticated
+     and subscribing earlier would refetch against no credentials. */
+  useEffect(() => {
+    if (!accessToken) return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const channel = supabase
+      .channel("public:screenings")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "screenings" },
+        () => {
+          if (timer) clearTimeout(timer)
+          // Debounced: one screening submission touches the row more than once,
+          // and each event here costs a refetch.
+          timer = setTimeout(() => {
+            void refreshScreenings()
+          }, 250)
+        }
+      )
+      .subscribe()
+    return () => {
+      if (timer) clearTimeout(timer)
+      supabase.removeChannel(channel)
+    }
+  }, [accessToken, refreshScreenings])
 
   const stats: Stats = useMemo(() => {
     return {

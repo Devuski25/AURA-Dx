@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, BackgroundTasks
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 import asyncio
@@ -40,7 +40,7 @@ from models import (
 from auth import get_current_user, get_current_user_id, require_role
 from database import supabase, supabase_anon
 from config import settings
-from email_service import send_verification_email
+from email_service import send_account_status_email, send_verification_email
 from httpx_client import get_client
 # Same wording source as the React result screen. See pdf_copy.py.
 from pdf_copy import result_copy, status_label, disclosure, confidence_label
@@ -438,7 +438,12 @@ async def create_user(user_data: UserCreate, user: dict = Depends(require_role(U
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
-async def update_user(user_id: str, update: UserUpdate, user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+async def update_user(
+    user_id: str,
+    update: UserUpdate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
+):
     clinic_id = user.get("clinic_id")
     try:
         target = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
@@ -466,12 +471,41 @@ async def update_user(user_id: str, update: UserUpdate, user: dict = Depends(req
         )
 
     password = update_data.pop("password", None) if update_data else None
+    previous_status = target.data.get("status")
     if update_data:
         supabase.table("profiles").update(update_data).eq("id", user_id).execute()
     if password:
         supabase.auth.admin.update_user_by_id(user_id, {"password": password})
 
     _log_audit("user_update", user.get("sub"), clinic_id, "user", user_id, update_data)
+
+    # Notify on a TRANSITION into approved/rejected, not on any update that
+    # happens to carry the same status. Without the guard, an admin editing
+    # somebody's phone number while they are approved would send them a fresh
+    # "your account has been approved" email.
+    #
+    # Fire and forget on purpose. The row is already updated and this is the
+    # response the admin is waiting on; a Resend outage must not turn a
+    # successful approval into a 500 that looks like it failed, and must not
+    # leave the account stranded in a half-applied state. The failure is logged
+    # and the admin can see the status flip in the table either way.
+    new_status = (update_data or {}).get("status")
+    if new_status in ("approved", "rejected") and new_status != previous_status:
+        target_email = target.data.get("email")
+        target_name = target.data.get("full_name") or ""
+        if target_email:
+            async def _notify():
+                try:
+                    await asyncio.to_thread(
+                        send_account_status_email, target_email, target_name, new_status
+                    )
+                except Exception as exc:
+                    # Swallowed deliberately, logged loudly. The approval stands.
+                    print(
+                        f"[user_update] approval email to {target_email} failed: {exc!r}"
+                    )
+
+            background_tasks.add_task(_notify)
 
     res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
     return UserResponse(**res.data)
