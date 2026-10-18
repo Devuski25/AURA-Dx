@@ -3,7 +3,10 @@ import {
   AUSCULTATION_SITES,
   MIN_TAKE_SEC,
   MAX_TAKE_SEC,
-  TARGET_TAKE_SEC,
+  TARGET_TAKE_SEC_LOW,
+  TARGET_TAKE_SEC_HIGH,
+  TARGET_CYCLES_LOW,
+  TARGET_CYCLES_HIGH,
   siteByCode,
   suggestedSite,
 } from "@/lib/recording-protocol"
@@ -53,7 +56,7 @@ export function RecordingProtocolCard({ className }: { className?: string }) {
             scores every take separately and compares them, so five recordings
             from one spot carry no more information than one.
           </p>
-          <ol className="mt-2.5 space-y-2">
+          <ol className="mt-2.5 grid gap-2 sm:grid-cols-2">
             {AUSCULTATION_SITES.map((site, i) => (
               <li key={site.code} className="flex gap-2.5 text-sm">
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-aura-forest/10 text-[0.6875rem] font-semibold text-aura-forest">
@@ -79,11 +82,16 @@ export function RecordingProtocolCard({ className }: { className?: string }) {
             2 · How long
           </h4>
           <p className="mt-1.5 text-sm leading-relaxed text-aura-text">
-            Aim for about <strong>{TARGET_TAKE_SEC} seconds</strong> each — roughly
-            3 to 4 full breaths. Under {MIN_TAKE_SEC}s there are too few breathing
-            cycles to analyse reliably, so a very short take gets rejected rather
-            than scored. Nothing stops you going longer, but past{" "}
-            {MAX_TAKE_SEC}s it only adds upload time.
+            Aim for <strong>{TARGET_CYCLES_LOW}–{TARGET_CYCLES_HIGH} full
+            breaths</strong>, roughly {TARGET_TAKE_SEC_LOW}–
+            {TARGET_TAKE_SEC_HIGH} seconds. Count the breaths rather than watching
+            the clock — the clock is there to catch a take that is far too short
+            or far too long, not to hit a number.
+          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-aura-text">
+            Under {MIN_TAKE_SEC}s there are too few breaths to analyse reliably.
+            Nothing stops you going longer, but past {MAX_TAKE_SEC}s it only
+            adds upload time.
           </p>
         </section>
 
@@ -97,8 +105,7 @@ export function RecordingProtocolCard({ className }: { className?: string }) {
             <li>· Seal the chestpiece. Air leaking in is the most common cause of a poor take.</li>
             <li>· Keep the room quiet. Fan, air-conditioning and chatter all show up in the recording.</li>
             <li>· Hold still. Rustling fabric and moving the tube produce sounds that read as abnormal.</li>
-            <li>· Watch the level meter. Flat means nothing is arriving; into the red means it is clipping.</li>
-          </ul>
+            <li>· Watch the level meter. Flat means nothing is arriving; into the red means it is clipping.</li>          </ul>
         </section>
       </div>
     </details>

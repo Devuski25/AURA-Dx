@@ -88,13 +88,33 @@ export function siteByCode(code: string): Site | undefined {
 }
 
 /* --- Duration ------------------------------------------------------------
- * Floor: too few breathing cycles for the features to be meaningful.
- * Target: comfortably inside the training range, and short enough that a
- * clinician will actually hold for it.
- * Ceiling: a long take is not wrong, but it costs upload time for nothing. */
+ * FLOOR: below this there are too few breathing cycles for the feature set to
+ * mean anything. A very short take is not a slightly worse take, it is an
+ * unusable one.
+ *
+ * TARGET: stated as a RANGE, and the instruction is in cycles rather than
+ * seconds. Measured on the training corpus, the median cycle is ~2.6s, so four
+ * cycles is about ten seconds and eight is about twenty.
+ *
+ * Why a range and not a single number: in that corpus every COPD recording was
+ * exactly 20.00s with zero variance, while healthy and pneumonia ran from 8s to
+ * 86s. A fixed 20s target happens to sit at the COPD mode, and Stage 1
+ * aggregates per-cycle features with mean/max/std over however many cycles a
+ * file contains -- so cycle count, and therefore duration, leaks into the
+ * feature vector. Asking for breaths rather than a stopwatch keeps the capture
+ * clinically honest and less sensitive to a confound in the training data.
+ *
+ * CEILING: a long take is not wrong, it just costs upload time for nothing. */
 export const MIN_TAKE_SEC = 10
-export const TARGET_TAKE_SEC = 20
+export const TARGET_TAKE_SEC_LOW = 15
+export const TARGET_TAKE_SEC_HIGH = 25
 export const MAX_TAKE_SEC = 45
+
+/** Median cycle length measured on the training corpus, seconds. */
+const MEDIAN_CYCLE_SEC = 2.6
+
+export const TARGET_CYCLES_LOW = 5
+export const TARGET_CYCLES_HIGH = 8
 
 /** Per-take guidance. Anything other than "good" is a warning, never a block. */
 export type TakeQuality = "too-short" | "good" | "long"
@@ -105,19 +125,25 @@ export function takeQuality(seconds: number): TakeQuality {
   return "good"
 }
 
+/** Rough cycle count for a take of the given length. */
+export function estimateCycles(seconds: number): number {
+  return Math.max(0, Math.floor(seconds / MEDIAN_CYCLE_SEC))
+}
+
 /** Live guidance while recording, before the take is committed. */
 export function durationAdvice(seconds: number): string {
   if (seconds < MIN_TAKE_SEC) {
     const left = Math.ceil(MIN_TAKE_SEC - seconds)
-    return `Keep going — ${left}s more. A take shorter than ${MIN_TAKE_SEC}s `
-      + `has too few breathing cycles to analyse.`
+    return `Keep going — ${left}s more. Too few breaths to analyse.`
   }
-  if (seconds < TARGET_TAKE_SEC) {
-    return `${Math.ceil(TARGET_TAKE_SEC - seconds)}s to go for a full take. `
-      + `This one will work.`
+  if (seconds < TARGET_TAKE_SEC_LOW) {
+    return `${Math.ceil(TARGET_TAKE_SEC_LOW - seconds)}s more for 5–8 breaths.`
+  }
+  if (seconds <= TARGET_TAKE_SEC_HIGH) {
+    return `Good — about ${estimateCycles(seconds)} breaths. Stop when you're ready.`
   }
   if (seconds < MAX_TAKE_SEC) {
-    return `Plenty. Stop whenever you are ready.`
+    return `Plenty. You can stop here.`
   }
   return `${Math.round(seconds)}s — longer than needed. Stopping now saves upload time.`
 }

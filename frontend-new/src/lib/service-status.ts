@@ -68,12 +68,13 @@ export async function probe(): Promise<{ availability: Availability; detail: Ser
  *    hosted services, so this is what decides whether a clinician can get in.
  *
  * `database: "up"` already proves connectivity, because reaching Supabase means
- * the internet works. `minipc_link` is only context -- Wi-Fi or a cable -- and
- * is never presented as a second liveness signal.
+ * the internet works.
  *
- * A machine on Wi-Fi with the cable pulled still passes this test, which is the
- * intended behaviour: the clinic is expected to run a pocket wifi, and the
- * indicator should stay green on it.
+ * The link *kind* is still measured on the server -- a clinic that switches
+ * from a cable to a pocket wifi should not need a code change -- but it is not
+ * surfaced. "Mini PC online" is the fact that matters; whether the link is Wi-Fi
+ * or ethernet is plumbing, and putting it next to the dot reads as a second
+ * piece of status the user is expected to interpret.
  */
 export type LinkKind = "wifi" | "wired" | "unknown"
 
@@ -84,16 +85,12 @@ export interface Connectivity {
 }
 
 export function connectivity(status: ServiceStatus | null): Connectivity {
+  // Kept on the payload for diagnostics; deliberately not rendered.
   const link = (status?.minipc_link ?? "unknown") as LinkKind
   // Reaching Supabase is the connectivity proof. The backend answering at all
   // over a LAN does not imply the internet works.
   const online = !!status && status.database === "up"
-  const kind = link === "wifi" ? "Wi-Fi" : link === "wired" ? "Wired" : null
-  return {
-    online,
-    link,
-    label: kind ? `Mini PC online · ${kind}` : "Mini PC online",
-  }
+  return { online, link, label: online ? "Mini PC online" : "Mini PC offline" }
 }
 
 /**

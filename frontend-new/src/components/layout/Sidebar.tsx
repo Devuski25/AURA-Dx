@@ -295,7 +295,21 @@ export function Sidebar({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.96 }}
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                    className="flex min-w-0 items-center gap-3"
+                    /* gap-3 only when the label is showing.
+
+                       The label stays mounted at width 0 so it can fade without a
+                       layout shift, but a zero-width flex item still consumes the
+                       gap. On the 72px collapsed rail that left the icon centred
+                       within a 32px block -- 20px icon + 12px of dead space --
+                       putting it 6px left of the rail's centre. Half the gap,
+                       and it read as the whole column being misaligned.
+
+                       px-3 is symmetric so it does not contribute to the offset;
+                       the gap was the only asymmetry. */
+                    className={cn(
+                      "flex min-w-0 items-center",
+                      showLabels ? "gap-3" : "gap-0"
+                    )}
                   >
                     <item.icon
                       className={cn(

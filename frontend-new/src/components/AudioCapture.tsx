@@ -283,7 +283,7 @@ export function DeviceBanner({
             id="aura-input-device"
             value={selectedId}
             onChange={(e) => onSelect(e.target.value)}
-            className="mt-1.5 h-10 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+            className="mt-1.5 h-11 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
           >
             {devices.map((d) => (
               <option key={d.deviceId} value={d.deviceId}>
@@ -346,8 +346,11 @@ export function LevelMeter({
       )}
 
       {clipped && active && (
-        <p className="absolute inset-x-0 bottom-1 text-center text-[0.6875rem] font-semibold text-red-700">
-          Too loud — move the stethoscope or speak less
+        /* Full-width strip at the top rather than a centred line at the bottom:
+           on a 375px screen a centred sentence wrapped to three lines and
+           overlapped the meter bar. */
+        <p className="absolute inset-x-0 top-0 bg-red-500/90 px-2 py-0.5 text-center text-[0.6875rem] font-semibold text-white">
+          Too loud — move the stethoscope
         </p>
       )}
     </div>

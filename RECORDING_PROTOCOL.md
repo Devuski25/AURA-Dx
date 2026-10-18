@@ -63,17 +63,41 @@ wherever is clinically right.
 
 ## 2 · How long
 
-| | Seconds | Why |
+**Count breaths, not seconds.** The instruction is **5–8 full breaths**, roughly
+15–25s. The clock is there to catch a take that is far too short or far too long,
+not to hit a number.
+
+| | Value | Why |
 |---|---|---|
-| **Minimum** | 10s | Below this there are too few breathing cycles for the feature set to mean anything. A very short take is not a slightly worse take — it is an unusable one |
-| **Target** | **20s** | Roughly 3–4 full breaths. Comfortably inside the training range |
+| **Floor** | 10s | Too few breaths for the feature set to mean anything. A very short take is not a slightly worse take — it is an unusable one |
+| **Target** | 5–8 breaths (≈15–25s) | Median cycle on the training corpus is ~2.6s, so five cycles ≈ 10s and eight ≈ 20s |
 | **Ceiling** | 45s | Longer isn't wrong, it just costs upload time for nothing |
 
-Training recordings ran **10–90 seconds**, so the app's window sits inside it.
+### Why breaths rather than a stopwatch
 
-The screen shows a live clock and counts down to the target. A take under the
-minimum is **kept but flagged** — discarding a clinician's recording without
-asking is worse than telling them it was short and letting them decide.
+Measured on the training corpus:
+
+```
+copd       mean 20.00s   std 0.00   min 20.00   max 20.00
+healthy    mean 26.54s   std 16.88
+pneumonia  mean 22.89s   std 10.33
+```
+
+**Every COPD recording was exactly 20.00 seconds, with zero variance.** Healthy
+and pneumonia ranged from 8s to 86s.
+
+Stage 1 aggregates per-cycle features with `mean / max / std` over however many
+cycles a file contains, and cycle count scales with duration — 20s yields ~8
+cycles, 86s yields ~34. So duration leaks into the feature vector, and a fixed
+20-second target happens to sit exactly on the COPD mode.
+
+Asking for breaths rather than a stopwatch keeps the capture clinically honest
+and less sensitive to a confound that lives in the training data rather than in
+the patient. See "Known confounds" below.
+
+The screen shows a live clock with a rolling breath count. A take under the floor
+is **kept but flagged** — discarding a clinician's recording without asking is
+worse than telling them it was short and letting them decide.
 
 ---
 
@@ -118,6 +142,69 @@ subtraction to a signal that must stay faithful. Sample rate and channel count
 are not requested either — the capture is resampled to 16 kHz mono downstream,
 and pinning values in the browser only risks it refusing a device that would
 otherwise work.
+
+---
+
+## Known confounds in the training data
+
+Found by auditing the corpus these models were fitted on. **Neither is a bug in
+the app, and neither is fixed here** — they are properties of the training data
+and a research decision, not a code one.
+
+### 1 · Sample rate is confounded with class
+
+```
+sample rate      4000   10000   44100
+copd                 0       0    1565    ← 100% full-band
+healthy            815      61    1985
+pneumonia          201       0    2000
+```
+
+The pipeline bandpasses **100–2000 Hz**. A 4 kHz file has Nyquist at exactly
+2000, so the top of that band is not present in it at all.
+
+**1016 of 6627 files (15.3%) are bandwidth-limited, and none of them are COPD.**
+The model can therefore separate COPD from a slice of the other two classes by
+spectral extent alone, with no reference to pathology.
+
+At deployment this may not hurt — a digital stethoscope records at a high rate
+and so matches the COPD profile — but the **reported accuracy is inflated**, and
+it may bias *toward* COPD.
+
+### 2 · Zero duration variance in COPD
+
+Covered above under "How long". The same leak, one axis further out.
+
+### 3 · Twenty-three subjects span two classes
+
+```
+copd 33 · healthy 94 · pneumonia 24 subjects
+subjects appearing under >1 class: 23
+```
+
+A patient cannot be COPD and healthy simultaneously. Either the label was
+derived per-file rather than per-patient, or those subjects carry combined
+diagnoses. This needs an explanation in the write-up.
+
+`StratifiedGroupKFold(groups=subject_id)` keeps every file from a subject in one
+fold, so there is no leakage *across* the split regardless.
+
+### What is clean
+
+- **No label contamination** — 0 rows fell outside `LABEL_MAP`
+- **Silent zero padding** — 1 cycle of 6627
+- **Subject isolation** — grouping is correct
+- **Duration target** — 20s is the median for all three classes
+
+### Options, if these need addressing
+
+| Option | Removes | Cost |
+|---|---|---|
+| Report as stated limitations | nothing | None. Accuracy stays inflated |
+| Retrain on fixed 20s crops of every file | both shortcuts | Full retrain |
+| Re-band-limit everything to 100–1800 Hz | #1 only | Retrain |
+
+Worth raising with an adviser before touching a trained model.
 
 ---
 

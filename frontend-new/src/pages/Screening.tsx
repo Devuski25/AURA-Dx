@@ -808,25 +808,50 @@ export function Screening() {
                     takenCount={takes.length}
                     lastSiteCode={takes[takes.length - 1]?.siteCode}
                   />
-                  <div className="mt-2.5">
-                    <label
-                      htmlFor="aura-site"
-                      className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
-                    >
-                      Site for this take
-                    </label>
-                    <select
-                      id="aura-site"
-                      value={selectedSite}
-                      onChange={(e) => setSelectedSite(e.target.value)}
-                      className="mt-1.5 h-10 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
-                    >
-                      {AUSCULTATION_SITES.map((s) => (
-                        <option key={s.code} value={s.code}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Stacked on a phone, side by side from sm. Both selects are
+                      short controls; on a 375px screen they need the full width
+                      to stay tappable, and on a tablet they are wasting a row
+                      each. */}
+                  <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="aura-site"
+                        className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
+                      >
+                        Site for this take
+                      </label>
+                      <select
+                        id="aura-site"
+                        value={selectedSite}
+                        onChange={(e) => setSelectedSite(e.target.value)}
+                        className="mt-1.5 h-11 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+                      >
+                        {AUSCULTATION_SITES.map((s) => (
+                          <option key={s.code} value={s.code}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="aura-take-site-history"
+                        className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
+                      >
+                        Covers this take
+                      </label>
+                      {/* Informational, so it stays read-only. Its real job is
+                          making the planned sequence visible at a glance rather
+                          than buried in the collapsed protocol card. */}
+                      <p
+                        id="aura-take-site-history"
+                        className="mt-1.5 flex h-11 items-center rounded-lg border border-aura-border-soft bg-aura-surface-alt px-2.5 text-sm text-aura-muted"
+                      >
+                        {takes.length === 0
+                          ? "First take"
+                          : `Take ${Math.min(takes.length + 1, MAX_TAKES)} of ${MAX_TAKES}`}
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
