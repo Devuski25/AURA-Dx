@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import { getApiUrl } from "@/lib/api"
+import { probe } from "@/lib/service-status"
 import { useAudioInput, DeviceBanner, LevelMeter } from "@/components/AudioCapture"
 import { RecordingProtocolCard, SitePrompt, SiteChip } from "@/components/RecordingProtocol"
 import {
@@ -33,6 +34,107 @@ import { NewPatientModal } from "@/components/NewPatientModal"
    there is not enough evidence for a confident read. */
 const MIN_TAKES = 3
 const MAX_TAKES = 5
+
+/* Analysis progress.
+ *
+ * Three phases, because "Run Analysis" is not one thing. A clinician who clicks
+ * it and sees an unchanging spinner for 40 seconds has no idea whether it is
+ * working, stuck, or about to fail.
+ *
+ * Uploading gets a REAL percentage. XMLHttpRequest fires upload progress as
+ * bytes leave the machine, so this is measured, not invented.
+ *
+ * Analysing gets a bar that approaches 90% and stops. The inference call is a
+ * single POST that returns a verdict with no intermediate events, so there is
+ * nothing to measure -- but pretending to a percentage anyway is worse than
+ * being explicit: a bar that sits at 99% for 30 seconds is indistinguishable
+ * from a hang, and it is exactly the failure people describe as "the website is
+ * broken". Elapsed seconds are shown instead, which is real information about
+ * whether the work is still advancing.
+ *
+ * The 90% ceiling is deliberate. 100% means done, and it is not done. */
+type AnalysisPhase = "idle" | "checking" | "uploading" | "analysing" | "saving"
+
+const PHASE_START_PCT: Record<AnalysisPhase, number> = {
+  idle: 0,
+  checking: 0,
+  uploading: 5,
+  analysing: 45,
+  saving: 92,
+}
+
+const PHASE_LABEL: Record<AnalysisPhase, string> = {
+  idle: "",
+  checking: "Checking the service is ready…",
+  uploading: "Uploading takes…",
+  analysing: "Running the model…",
+  saving: "Saving the result…",
+}
+
+/** Upload with real byte-level progress.
+ *
+ * fetch() cannot report upload progress -- it resolves only once the response
+ * arrives, and it exposes no intermediate events -- so this is the one place in
+ * the app that still uses XMLHttpRequest. A 5-take batch is a few MB, and on a
+ * clinic uplink that is long enough to be worth showing.
+ *
+ * Abort is wired to the same signal the rest of the flow uses, so the existing
+ * cancel path keeps working.
+ */
+function uploadWithProgress(args: {
+  url: string
+  formData: FormData
+  token: string
+  signal: AbortSignal
+  onProgress: (percent: number) => void
+}): Promise<{ ok: boolean; status: number; data: any }> {
+  const { url, formData, token, signal, onProgress } = args
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open("POST", url)
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`)
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    }
+
+    // A cancelled upload rejects with a real AbortError, so the catch block in
+    // submitForAnalysis keeps distinguishing "cancelled" from "failed" on the
+    // same name it already checks for the screening call.
+    const onAbort = () => {
+      xhr.abort()
+      const err = new Error("aborted")
+      err.name = "AbortError"
+      reject(err)
+    }
+    signal.addEventListener("abort", onAbort, { once: true })
+
+    xhr.onload = () => {
+      signal.removeEventListener("abort", onAbort)
+      let data: any = {}
+      try {
+        data = JSON.parse(xhr.responseText || "{}")
+      } catch {
+        data = {}
+      }
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data })
+    }
+    xhr.onerror = () => {
+      signal.removeEventListener("abort", onAbort)
+      reject(new Error("Network error during upload"))
+    }
+    xhr.onabort = () => {
+      signal.removeEventListener("abort", onAbort)
+      const err = new Error("aborted")
+      err.name = "AbortError"
+      reject(err)
+    }
+
+    xhr.send(formData)
+  })
+}
 
 type Take = {
   id: string
@@ -139,6 +241,25 @@ export function Screening() {
   // Result state
   const [result, setResult] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [phase, setPhase] = useState<AnalysisPhase>("idle")
+  const [pct, setPct] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
+
+  /* Elapsed seconds during the analysis phase, plus a bar that creeps toward
+   * the ceiling. The creep is presentation only -- it is not a measurement and
+   * never reaches 100, because 100% is reserved for an actual result. */
+  useEffect(() => {
+    if (!submitting || phase !== "analysing") return
+    const startedAt = Date.now()
+    const id = window.setInterval(() => {
+      const secs = (Date.now() - startedAt) / 1000
+      setElapsed(secs)
+      const creep = PHASE_START_PCT.analysing +
+        (1 - Math.exp(-secs / 12)) * (PHASE_START_PCT.saving - PHASE_START_PCT.analysing)
+      setPct(Math.round(Math.min(creep, PHASE_START_PCT.saving - 1)))
+    }, 250)
+    return () => window.clearInterval(id)
+  }, [submitting, phase])
 
   /* Object URLs are created per take, so they are tracked together and revoked
      when a take is dropped, the set is cleared, or the component unmounts. */
@@ -418,9 +539,40 @@ export function Screening() {
     if (takes.length < MIN_TAKES || !selectedPatient || !accessToken) return
 
     setSubmitting(true)
+    setPhase("checking")
+    setPct(PHASE_START_PCT.checking)
+    setElapsed(0)
     abortControllerRef.current = new AbortController()
 
     try {
+      /* --- Pre-flight --------------------------------------------------
+       *
+       * Ask the backend whether it and the inference service are both up
+       * BEFORE uploading anything.
+       *
+       * This exists because of a real failure mode on this machine: the
+       * inference process can lose its listening socket, keep running with
+       * both models resident, and answer nothing. A clinician who clicks Run
+       * Analysis in that state uploads every take, waits through a 150-second
+       * timeout, and then loses the error in a toast -- having recorded three
+       * or five takes for nothing.
+       *
+       * `/api/status` is the right question because it probes both sides and
+       * is served from a short cache, so this costs a few milliseconds rather
+       * than a round trip per component.
+       */
+      const preflight = await probe()
+      if (preflight.availability === "offline") {
+        throw new Error(
+          "Cannot reach the AURA-Dx service. Your takes are saved on this device — try again once the Mini PC is back."
+        )
+      }
+      if (preflight.availability === "degraded") {
+        throw new Error(
+          "The analysis service is not responding. Your takes are saved on this device — try again in a moment."
+        )
+      }
+
       // Step 1: upload every take as its own file. They are deliberately NOT
       // concatenated: the inference service scores each take separately and
       // then fuses the per-take verdicts, so merging them here would destroy
@@ -430,21 +582,31 @@ export function Screening() {
         uploadFormData.append("audios", take.blob, `take-${i + 1}.wav`)
       })
 
-      const uploadResponse = await fetch(getApiUrl("/api/audio/upload"), {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: uploadFormData,
+      setPhase("uploading")
+      const upload = await uploadWithProgress({
+        url: getApiUrl("/api/audio/upload"),
+        formData: uploadFormData,
+        token: accessToken,
         signal: abortControllerRef.current.signal,
+        // Real byte progress, mapped onto the uploading band's 5-45%.
+        onProgress: (uploaded) =>
+          setPct(
+            Math.round(
+              PHASE_START_PCT.uploading +
+                (uploaded / 100) * (PHASE_START_PCT.analysing - PHASE_START_PCT.uploading)
+            )
+          ),
       })
 
-      if (!uploadResponse.ok) {
-        const error = await uploadResponse.json()
-        throw new Error(error.detail || "Audio upload failed")
+      if (!upload.ok) {
+        throw new Error(upload.data?.detail || "Audio upload failed")
       }
-
-      const { file_paths } = await uploadResponse.json()
+      const { file_paths } = upload.data
 
       // Step 2: Create screening via backend (handles inference + DB save)
+      setPhase("analysing")
+      setPct(PHASE_START_PCT.analysing)
+
       const screeningResponse = await fetch(getApiUrl("/api/screenings"), {
         method: "POST",
         headers: {
@@ -478,6 +640,7 @@ export function Screening() {
 
       // New screening exists now - drop cached lists so all views refetch fresh
       invalidate("screenings")
+      setPct(100)
       setStep("result")
     } catch (error: any) {
       if (error.name === "AbortError") {
@@ -488,6 +651,9 @@ export function Screening() {
       }
     } finally {
       setSubmitting(false)
+      setPhase("idle")
+      setPct(0)
+      setElapsed(0)
       abortControllerRef.current = null
     }
   }
@@ -1003,6 +1169,27 @@ export function Screening() {
                   </>
                 )}
               </Button>
+
+              {/* Progress. Replaces the bare spinner inside the button with
+                  something that says which stage it is on and how far along.
+
+                  The percentage is real for the upload phase and deliberately
+                  capped below 100 for the analysis phase, where the model gives
+                  no intermediate events. Elapsed seconds are shown alongside so
+                  a slow run still tells the clinician it is moving. */}
+              {submitting && (
+                <div className="space-y-2 pt-1" role="status" aria-live="polite">
+                  <Progress value={pct} className="h-2" aria-label="Analysis progress" />
+                  <div className="flex items-baseline justify-between gap-3 text-xs text-aura-muted">
+                    <span>{PHASE_LABEL[phase]}</span>
+                    <span className="tabular-nums">
+                      {phase === "analysing" && elapsed >= 1
+                        ? `${Math.round(pct)}% · ${elapsed.toFixed(0)}s elapsed`
+                        : `${Math.round(pct)}%`}
+                    </span>
+                  </div>
+                </div>
+              )}
               {!hasEnoughTakes && takes.length > 0 && (
                 <p className="text-center text-sm text-aura-muted">
                   {MIN_TAKES - takes.length} more take{MIN_TAKES - takes.length === 1 ? "" : "s"} needed

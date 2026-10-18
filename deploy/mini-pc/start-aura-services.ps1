@@ -75,6 +75,38 @@ function Get-PortPid([int]$Port) {
 
 function Test-Port([int]$Port) { return [bool](Get-PortPid $Port) }
 
+function Get-OrphanPids($Service) {
+    # Processes for this service that are ALIVE but own no listening socket.
+    #
+    # This exists because "is the port listening" and "is the process running"
+    # are different questions, and only the first was being asked. On
+    # 2026-10-18 the inference service lost its socket to a Windows
+    # I/O completion-port failure and kept running:
+    #
+    #     ERROR: asyncio:Accept failed on a socket
+    #     socket: <asyncio.TransportSocket laddr=('0.0.0.0', 8000)>
+    #     OSError: [WinError 64] The specified network name is no longer available
+    #
+    # The process stayed up with both models loaded -- 987 MB, 44 threads --
+    # while answering nothing. Get-PortPid returns nothing for it, so
+    # Stop-PortOwner reported "not running" and skipped it, and the next start
+    # put a SECOND inference service on top of the first.
+    #
+    # Two inferences loaded on an 8 GB box is how the next one dies, and the
+    # cycle repeats: dead socket, orphaned models, no port owner to kill,
+    # another instance, less free memory. Measured on this machine -- free RAM
+    # was 648 MB with one orphaned inference holding ~1 GB, and killing it
+    # returned 1.2 GB immediately.
+    #
+    # Matched on the uvicorn module argument rather than the executable path,
+    # because the venv shim and its real child share one command line and both
+    # must go. taskkill /T then takes the tree.
+    $module = $Service.Args[2]   # "inference_service:app" / "main:app"
+    Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine -match [regex]::Escape($module) } |
+        Select-Object -ExpandProperty ProcessId
+}
+
 function Show-ErrorTail([string]$Name, [string]$LogPath, [int]$Lines = 15) {
     # When a service dies during startup the only useful thing is the reason, and
     # nobody reads a log file under pressure. Print it.
@@ -90,7 +122,7 @@ function Show-ErrorTail([string]$Name, [string]$LogPath, [int]$Lines = 15) {
     Write-Host "  --- full log: $LogPath ---" -ForegroundColor Red
 }
 
-function Stop-PortOwner([int]$Port, [string]$Name) {
+function Stop-PortOwner([int]$Port, [string]$Name, $Svc) {
     # A venv's python.exe is a shim that launches the real interpreter as a
     # CHILD. The process that owns the port is the child, so Stop-Process on the
     # owning PID is not the whole story - and a plain Stop-Process on a shim PID
@@ -103,7 +135,16 @@ function Stop-PortOwner([int]$Port, [string]$Name) {
     # loop - so the port check is filtered first and stderr is silenced for the
     # duration of the call.
     $pid_ = Get-PortPid $Port
-    if (-not $pid_) {
+
+    # Kill any live process for this service that owns no port -- the
+    # dead-socket case Get-OrphanPids documents. Without this the models stay
+    # resident and the next start stacks a second copy on top of them.
+    $orphans = @(Get-OrphanPids $Svc)
+    if ($orphans.Count -gt 0) {
+        Write-Host "  [CLEAN] ${Name}: $($orphans.Count) process(es) alive but not listening (orphaned models)"
+    }
+
+    if (-not $pid_ -and $orphans.Count -eq 0) {
         Write-Host "  [SKIP] $Name not running"
         return
     }
@@ -111,24 +152,36 @@ function Stop-PortOwner([int]$Port, [string]$Name) {
     $prev = $ErrorActionPreference
     $ErrorActionPreference = 'SilentlyContinue'
     try {
-        & taskkill /PID $pid_ /T /F 2>&1 | Out-Null
+        # Port owner first, then any orphans. /T takes each one's tree, so a
+        # shim PID and its real interpreter both die.
+        if ($pid_) { & taskkill /PID $pid_ /T /F 2>&1 | Out-Null }
+        foreach ($op in $orphans) { & taskkill /PID $op /T /F 2>&1 | Out-Null }
     } finally {
         $ErrorActionPreference = $prev
     }
 
     # Confirm rather than assume. A service still listening is worse than one
-    # that failed to start, because nothing will tell you it is there.
+    # that failed to start, because nothing will tell you it is there. The
+    # orphan check matters here too: a port that never listened in the first
+    # place can pass this loop instantly while the process is still resident.
     for ($i = 0; $i -lt 10; $i++) {
-        if (-not (Test-Port $Port)) { break }
+        if (-not (Test-Port $Port) -and @(Get-OrphanPids $Service).Count -eq 0) { break }
         Start-Sleep -Milliseconds 500
     }
 
+    $left = @(Get-OrphanPids $Svc)
     if (Test-Port $Port) {
         $still = Get-PortPid $Port
         Write-Host "  [WARN] ${Name}: port $Port STILL LISTENING (PID $still)" -ForegroundColor Red
         Write-Host "         Something else holds the port, or the process survived the kill." -ForegroundColor Red
+    } elseif ($left.Count -gt 0) {
+        # The dangerous state: nothing answers on the port, so a health check
+        # says "down" and looks fine, while a GB of models stays resident and
+        # starves the next instance. Worth shouting about.
+        Write-Host "  [WARN] ${Name}: port $Port free but $($left.Count) process(es) still resident (PID $($left -join ','))" -ForegroundColor Red
+        Write-Host "         Models are still in memory. A restart may fail from lack of RAM." -ForegroundColor Red
     } else {
-        Write-Host "  [STOP] $Name (port $Port free)"
+        Write-Host "  [STOP] $Name (port $Port free, no resident process)"
     }
 }
 
@@ -256,7 +309,7 @@ function Start-Tunnel {
 
 function Stop-All {
     foreach ($Svc in $Services) {
-        Stop-PortOwner $Svc.Port $Svc.Name
+        Stop-PortOwner $Svc.Port $Svc.Name $Svc
     }
     $svc = Get-Service -Name "cloudflared" -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -eq "Running") {
