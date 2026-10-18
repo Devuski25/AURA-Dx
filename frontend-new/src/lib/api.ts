@@ -53,3 +53,37 @@ export const API_BASE = resolveApiBase()
 export function getApiUrl(path: string): string {
   return `${API_BASE}${path}`
 }
+
+/**
+ * Session expiry, handled once.
+ *
+ * Supabase access tokens last an hour. A tab left open between patients hits
+ * that boundary, and every subsequent request comes back 401. What the user
+ * saw was a stack of failed requests surfacing as "Analysis failed: Not
+ * authenticated" and, once the error detail was passed through, a bare
+ * "internal server error" -- neither of which says the fix is to sign in
+ * again.
+ *
+ * AuthContext listens for this event and tears the session down, so the app
+ * lands on the Login page with a reason rather than silently failing.
+ */
+export const SESSION_EXPIRED_EVENT = "aura:session-expired"
+
+let sessionExpiryAnnounced = false
+
+/** True when a response means "your token is no longer valid". */
+export function isUnauthorized(res: Response): boolean {
+  return res.status === 401
+}
+
+/**
+ * Call on any 401. Announced at most once per page load -- a single expired
+ * session produces a burst of 401s across every cached list, and navigating
+ * five times to Login is worse than one.
+ */
+export function notifySessionExpired(): void {
+  if (sessionExpiryAnnounced) return
+  sessionExpiryAnnounced = true
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+}

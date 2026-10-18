@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
+import { SESSION_EXPIRED_EVENT } from "@/lib/api"
 import type { User } from "@supabase/supabase-js"
 
 interface Profile {
@@ -77,6 +78,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let ignore = false
 
+    /* A 401 anywhere in the app means the access token is gone, which after an
+       hour of an open tab is routine rather than exceptional. Left unhandled it
+       presented as "Analysis failed: Not authenticated" and, with the detail
+       passed through, as a bare internal-server-error toast -- neither of which
+       tells the clinician that signing in again is the whole fix.
+       Tearing the session down here routes them to Login with a reason. */
+    const onSessionExpired = async () => {
+      setUser(null)
+      setAccessToken(null)
+      setLoading(false)
+      try {
+        await supabase.auth.signOut()
+      } catch {
+        /* the session is already unusable; nothing to recover */
+      }
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?reason=session-expired"
+      }
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired)
+
     const initAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!ignore) {
@@ -107,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       ignore = true
       subscription.unsubscribe()
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired)
     }
   }, [])
 

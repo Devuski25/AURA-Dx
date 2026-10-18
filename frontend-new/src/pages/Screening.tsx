@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
-import { getApiUrl } from "@/lib/api"
+import { getApiUrl, isUnauthorized, notifySessionExpired } from "@/lib/api"
 import { probe } from "@/lib/service-status"
 import {
   useAudioInput,
@@ -23,7 +23,7 @@ import {
   StethoscopeCheck,
   NO_STETHOSCOPE_MESSAGE,
 } from "@/components/AudioCapture"
-import { RecordingProtocolCard, SitePrompt, SiteChip } from "@/components/RecordingProtocol"
+import { SitePrompt, SiteChip } from "@/components/RecordingProtocol"
 import {
   AUSCULTATION_SITES,
   MIN_TAKE_SEC,
@@ -285,6 +285,13 @@ export function Screening() {
     const res = await fetch(getApiUrl("/api/patients"), {
       headers: { Authorization: `Bearer ${accessToken ?? ""}` },
     })
+    // An expired token must not read as "failed to fetch". Routing it to the
+    // session-expiry handler sends the clinician to sign in, which is the whole
+    // fix, instead of leaving them on a page that will keep failing.
+    if (isUnauthorized(res)) {
+      notifySessionExpired()
+      throw new Error("Session expired")
+    }
     if (!res.ok) throw new Error("Failed to fetch patients")
     return res.json()
   }, [accessToken])
@@ -293,6 +300,10 @@ export function Screening() {
     const res = await fetch(getApiUrl("/api/screenings"), {
       headers: { Authorization: `Bearer ${accessToken ?? ""}` },
     })
+    if (isUnauthorized(res)) {
+      notifySessionExpired()
+      throw new Error("Session expired")
+    }
     if (!res.ok) throw new Error("Failed to fetch screening statuses")
     return res.json()
   }, [accessToken])
@@ -619,6 +630,13 @@ export function Screening() {
       })
 
       if (!upload.ok) {
+        // 401 means the access token expired -- routine after an hour with the
+        // tab open. Report it as such rather than letting it surface as a save
+        // failure the clinician cannot act on.
+        if (isUnauthorized({ status: upload.status } as Response)) {
+          notifySessionExpired()
+          return
+        }
         throw new Error(upload.data?.detail || "Audio upload failed")
       }
       const { file_paths } = upload.data
@@ -642,6 +660,10 @@ export function Screening() {
       })
 
       if (!screeningResponse.ok) {
+        if (isUnauthorized(screeningResponse)) {
+          notifySessionExpired()
+          return
+        }
         const error = await screeningResponse.json()
         throw new Error(error.detail || "Screening creation failed")
       }
@@ -970,10 +992,6 @@ export function Screening() {
                     : "."}
                 </p>
               </div>
-
-              {/* Full protocol, collapsed. Written out once, from the same
-                  constants the live guidance uses. */}
-              <RecordingProtocolCard />
 
               {/* What is actually plugged in. Without this a clinician cannot
                   tell the stethoscope from the built-in microphone, and the two

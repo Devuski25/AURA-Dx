@@ -52,6 +52,14 @@ export function Login() {
     if (statusParam === "pending" || statusParam === "rejected" || statusParam === "deleted" || statusParam === "approved") {
       setStatusDialog({ type: statusParam })
     }
+    /* Arriving here with ?reason=session-expired means a 401 was caught
+       anywhere in the app and the session was torn down. Say so plainly --
+       otherwise landing back on Login after an hour reads as the app having
+       signed the user out at random, and the natural conclusion is that
+       something is broken. */
+    if (searchParams.get("reason") === "session-expired") {
+      setError("Your session expired. Please sign in again.")
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
