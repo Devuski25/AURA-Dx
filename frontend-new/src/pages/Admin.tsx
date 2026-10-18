@@ -1348,7 +1348,18 @@ export function Admin() {
       </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md sm:top-[15%]">
+        {/* Width only. No `sm:top-[...]` here.
+
+            DialogContent centres itself with `top-[50%] -translate-y-1/2`.
+            Overriding `top` to 15% keeps the translate, so the panel centres on
+            15% of the viewport instead of the middle -- it floated high, and on
+            a short viewport the title was clipped off the top edge because the
+            content is taller than the room above it.
+
+            The base already handles the responsive part: `w-[95vw] max-w-lg
+            max-h-[90vh] overflow-y-auto`, so a long confirmation scrolls inside
+            itself rather than overflowing on a phone. */}
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Trash2 className="h-5 w-5" />
