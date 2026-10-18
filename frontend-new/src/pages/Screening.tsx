@@ -963,6 +963,7 @@ export function Screening() {
                 device={audioInput.device}
                 permission={audioInput.permission}
                 selectedId={audioInput.selectedId}
+                mismatch={audioInput.deviceMismatch}
                 onSelect={audioInput.setSelectedId}
                 onRefresh={() => void audioInput.refreshDevices()}
               />

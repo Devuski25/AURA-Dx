@@ -20,10 +20,40 @@ export interface InputDevice {
   label: string
   /** Heuristic, not truth: browsers rarely expose the device class. */
   looksLikeStethoscope: boolean
+  /**
+   * Not the laptop/phone's own microphone.
+   *
+   * Needed because a phone on OTG enumerates the stethoscope several times --
+   * once per audio mode -- alongside the built-in mic, and offering all of them
+   * means the clinician can pick the phone mic without noticing. When any
+   * external input is present the built-in ones are hidden.
+   */
+  isExternal: boolean
+  /**
+   * True when this entry is the unprocessed endpoint of its hardware.
+   *
+   * Windows and Android expose one device per audio mode, prefixed "Default -"
+   * or "Communications -". Those are the same physical hardware opened with
+   * different processing, and "Communications" routes through the OS voice
+   * path, which on a machine with an internal mic can quietly capture the
+   * wrong source. The unprefixed entry is the one to use.
+   */
+  isBareEndpoint: boolean
 }
 
 const STETHOSCOPE_HINTS =
   /steth|echo|eko|littmann|3m|electronic|thinklabs|mount|dsp|amplifier/i
+
+/* Built-in microphones. Matched case-insensitively against the label with the
+ * audio-mode prefix already stripped, so "Default - Built-in Microphone" does
+ * not sneak past on the strength of "Default". */
+const BUILTIN_HINTS = /built.?in|internal|laptop|macbook|webcam|microphone array|rear input/i
+
+/** Strip the "Default - " / "Communications - " audio-mode prefix. */
+function stripAudioMode(label: string): { bare: string; isBare: boolean } {
+  const m = /^(default|communications|communications-mode)\s*[-–]\s*(.+)$/i.exec(label.trim())
+  return m ? { bare: m[2].trim(), isBare: false } : { bare: label.trim(), isBare: true }
+}
 
 /**
  * Browser labels are empty strings until permission has been granted once, so
@@ -39,6 +69,11 @@ export function useAudioInput() {
   >("unknown")
   const [level, setLevel] = useState(0)
   const [clipped, setClipped] = useState(false)
+  /**
+   * The deviceId the stream ACTUALLY opened on, when it differs from the one
+   * requested. Non-null means the browser ignored the selection -- see open().
+   */
+  const [deviceMismatch, setDeviceMismatch] = useState<string | null>(null)
 
   const analyserRef = useRef<AnalyserNode | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
@@ -53,27 +88,61 @@ export function useAudioInput() {
     }
     const list = await navigator.mediaDevices.enumerateDevices()
     const inputs = list.filter((d) => d.kind === "audioinput")
-    const mapped = inputs.map((d, i) => ({
-      deviceId: d.deviceId,
-      label: d.label || `Audio input ${i + 1}`,
-      looksLikeStethoscope: STETHOSCOPE_HINTS.test(d.label),
-    }))
+
+    /* Collapse the per-mode duplicates, then judge what is built in.
+     *
+     * A phone with an OTG hub reports the same stethoscope three times --
+     *
+     *     Default - Microphone (5- USB PnP Audio Device) (0c76:1695)
+     *     Communications - Microphone (5- USB PnP Audio Device) (0c76:1695)
+     *     Microphone (5- USB PnP Audio Device) (0c76:1695)
+     *
+     * -- one physical device behind three audio modes, identical vendor and
+     * product id. Offering all three reads as "three inputs, pick one", and the
+     * two prefixed ones are worse than useless: "Communications" routes through
+     * the OS voice-processing path, which can capture the phone's own
+     * microphone even though the entry names the stethoscope. That is the
+     * behaviour reported on test.
+     *
+     * So one entry per hardware, and the unprefixed endpoint wins the slot. */
+    const byHardware = new Map<string, InputDevice>()
+    for (const d of inputs) {
+      const raw = d.label || "Audio input"
+      const { bare, isBare } = stripAudioMode(raw)
+      const external = !BUILTIN_HINTS.test(bare)
+      const key = bare.toLowerCase()
+      const existing = byHardware.get(key)
+      const candidate: InputDevice = {
+        deviceId: d.deviceId,
+        label: bare,
+        looksLikeStethoscope: STETHOSCOPE_HINTS.test(bare),
+        isExternal: external,
+        isBareEndpoint: isBare,
+      }
+      // A bare entry always replaces a prefixed one for the same hardware.
+      if (!existing || (isBare && !existing.isBareEndpoint)) {
+        byHardware.set(key, candidate)
+      }
+    }
+
+    const mapped = [...byHardware.values()]
     setDevices(mapped)
 
     /* Pick something, but never "nothing".
      *
-     * A stethoscope-shaped label wins. Failing that, if there is exactly one
-     * input it is almost certainly the stethoscope, so take it. With two or
-     * more and no identifiable label, leave the choice to the clinician rather
-     * than guessing -- because guessing wrong here is how a take gets recorded
-     * from the laptop microphone instead.
-     *
-     * Previously selectedId started empty and stayed empty until someone used
-     * the dropdown, so the default input was used for every capture. */
+     * A bare endpoint wins outright: it is the one that reliably captures the
+     * selected hardware. Failing that a stethoscope-shaped label, then a lone
+     * external input. With several candidates and nothing identifiable, leave
+     * the choice to the clinician -- guessing wrong here is how a take gets
+     * recorded from the phone's own microphone. */
     setSelectedId((prev) => {
       if (prev && mapped.some((d) => d.deviceId === prev)) return prev
+      const bare = mapped.find((d) => d.isBareEndpoint && d.isExternal)
+      if (bare) return bare.deviceId
       const hinted = mapped.find((d) => d.looksLikeStethoscope)
       if (hinted) return hinted.deviceId
+      const external = mapped.filter((d) => d.isExternal)
+      if (external.length === 1) return external[0].deviceId
       if (mapped.length === 1) return mapped[0].deviceId
       return ""
     })
@@ -149,7 +218,26 @@ export function useAudioInput() {
 
       const track = stream.getAudioTracks()[0]
       const actualId = track?.getSettings?.().deviceId
-      if (actualId) setSelectedId(actualId)
+
+      /* Did the browser actually honour the request?
+       *
+       * This used to call setSelectedId(actualId), which silently adopted
+       * whatever the browser gave us. That is exactly backwards: on a phone the
+       * whole failure mode is the browser ignoring `deviceId` and handing back
+       * the built-in microphone, and quietly re-pointing the selection at it
+       * meant the UI then showed the phone mic as though that were the choice.
+       *
+       * So the selection is NOT moved. If the returned track came from a
+       * different input than the one asked for, that is recorded and surfaced
+       * instead of being absorbed.
+       *
+       * Chrome on Android is known to ignore deviceId for getUserMedia in some
+       * configurations, so this is a real possibility rather than a theoretical
+       * one -- which is exactly why it needs reporting rather than hiding. */
+      setDeviceMismatch(
+        deviceId && actualId && actualId !== deviceId ? actualId : null
+      )
+      if (actualId && !selectedId) setSelectedId(actualId)
 
       const data = new Uint8Array(analyser.frequencyBinCount)
       const tick = () => {
@@ -199,6 +287,21 @@ export function useAudioInput() {
 
   const device = devices.find((d) => d.deviceId === selectedId)
 
+  /* Only the stethoscope is offered.
+   *
+   * When any external input is present, the device's own microphone is removed
+   * from the picker entirely rather than listed as a warning. The owner asked
+   * for the stethoscope and nothing else, and on a phone the built-in mic is
+   * almost always present and always listed -- so a clinician selecting "the
+   * microphone" is picking the phone by accident, with nothing in the label to
+   * say so.
+   *
+   * `allDevices` is kept for the case where there is no external input at all,
+   * because then the built-in mic is all there is and hiding it would leave an
+   * empty picker and no explanation. The banner says so in that case. */
+  const externalCount = devices.filter((d) => d.isExternal).length
+  const visibleDevices = externalCount > 0 ? devices.filter((d) => d.isExternal) : devices
+
   /* Which input are we actually going to record from?
    *
    * Until something is chosen here, this is empty -- and an empty selection
@@ -220,13 +323,16 @@ export function useAudioInput() {
   const activeLabel = device?.label ?? null
 
   return {
-    devices,
+    devices: visibleDevices,
+    allDevices: devices,
+    hasExternal: externalCount > 0,
     device,
     selectedId,
     setSelectedId,
     permission,
     level,
     clipped,
+    deviceMismatch,
     refreshDevices,
     open,
     close,
@@ -246,6 +352,7 @@ export function DeviceBanner({
   device,
   permission,
   selectedId,
+  mismatch,
   onSelect,
   onRefresh,
 }: {
@@ -253,9 +360,42 @@ export function DeviceBanner({
   device?: InputDevice
   permission: string
   selectedId: string
+  mismatch?: string | null
   onSelect: (id: string) => void
   onRefresh: () => void
 }) {
+  /* A mismatch outranks everything else. The stream is open on an input other
+   * than the one that was chosen -- which on a phone means the browser ignored
+   * the selection and is capturing from the device's own microphone even though
+   * the stethoscope is named in the field above it. Saying so is the only
+   * thing standing between that and a silent set of takes from the wrong
+   * source. */
+  if (mismatch) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 p-3.5">
+        <div className="flex items-start gap-2.5">
+          <span className="mt-0.5 shrink-0">
+            <MicOff className="h-4 w-4 text-red-700" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-red-900">
+              This browser is ignoring the chosen input
+            </p>
+            <p className="mt-0.5 break-words text-xs leading-relaxed text-red-800">
+              It opened the stream on a different audio input than the one
+              selected. On a phone this usually means the recording is coming
+              from the phone&apos;s own microphone rather than the stethoscope.
+            </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-red-800">
+              Try the stethoscope check below and play it back. If you hear a
+              room, disconnect and reconnect the stethoscope, then refresh.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const tone =
     permission === "denied"
       ? "border-red-200 bg-red-50"
@@ -329,6 +469,7 @@ export function DeviceBanner({
             onChange={(e) => onSelect(e.target.value)}
             className="mt-1.5 h-11 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
           >
+            <option value="">Choose…</option>
             {devices.map((d) => (
               <option key={d.deviceId} value={d.deviceId}>
                 {d.label}
@@ -336,6 +477,16 @@ export function DeviceBanner({
               </option>
             ))}
           </select>
+
+          {/* Explains the missing entries rather than letting them look like a
+              bug. The clinician expects to see the device's own microphone in
+              this list. It is not there, on purpose. */}
+          {devices.every((d) => d.isExternal) && (
+            <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-aura-muted">
+              Only connected stethoscopes are listed. This device&apos;s built-in
+              microphone is hidden while one is plugged in.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -654,6 +805,16 @@ export function StethoscopeCheck({
               </option>
             ))}
           </select>
+
+          {/* Explains the missing entries rather than letting them look like a
+              bug. The clinician expects to see the phone's own microphone in
+              this list. It is not there, on purpose. */}
+          {devices.length > 0 && devices.every((d) => d.isExternal) && (
+            <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-aura-muted">
+              Only connected stethoscopes are listed. This device&apos;s built-in
+              microphone is hidden while one is plugged in.
+            </p>
+          )}
         </div>
       )}
 
