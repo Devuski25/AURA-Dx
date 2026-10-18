@@ -1103,16 +1103,27 @@ export function Admin() {
                           <TableCell className={cn(ADMIN_CELL, "text-center")}>
                             {/* Row actions collapse into a single trigger so the
                                 column stays a fixed ~80px. Four inline icons
-                                needed ~170px and overflowed their own width. */}
-                            <UserActionsMenu
-                              user={u}
-                              currentUserRole={user?.role}
-                              currentUserId={user?.id}
-                              onApprove={handleApprove}
-                              onReject={handleReject}
-                              onEdit={openEditDialog}
-                              onDelete={confirmDelete}
-                            />
+                                needed ~170px and overflowed their own width.
+
+                                Empty for a super admin rather than rendering a
+                                trigger that opens onto a menu with nothing in
+                                it. The cell itself stays, so the column keeps
+                                its width and the rows stay aligned. */}
+                            {u.role !== "super_admin" ? (
+                              <UserActionsMenu
+                                user={u}
+                                currentUserRole={user?.role}
+                                currentUserId={user?.id}
+                                onApprove={handleApprove}
+                                onReject={handleReject}
+                                onEdit={openEditDialog}
+                                onDelete={confirmDelete}
+                              />
+                            ) : (
+                              <span className="text-xs text-aura-muted/50" aria-hidden="true">
+                                —
+                              </span>
+                            )}
                           </TableCell>
                         </MotionTableRow>
                       ))}
@@ -1161,7 +1172,27 @@ export function Admin() {
                         flashState.ids.has(u.id) && "bg-aura-pine/15"
                       )}
                     >
-                      {/* Top row: who they are, and whether they are in yet. */}
+                      {/* Top row: who they are, and what you can do about them.
+
+                          The action menu lives here, opposite the name, and the
+                          status pill moved DOWN to sit with the email and role.
+
+                          It used to be the other way round: the pill was top-right
+                          and the menu sat alone on a third row, right-aligned
+                          with nothing beside it. That row cost ~44px and a
+                          horizontal rule per card, and the detached dots read as
+                          a stray control rather than as belonging to the user
+                          above them. Putting the menu next to the name and the
+                          pill with the other metadata makes both rows say
+                          something: identity, then detail, then what you can
+                          do about it.
+
+                          Super admins get no menu at all -- on any breakpoint.
+                          Every action is already withheld from them (edit by
+                          canEditUser, approve/reject and delete by their own
+                          conditions), so what was left was a three-dots button
+                          that opened onto a menu containing only the user's
+                          name and a divider. */}
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
                           <UserMonogram user={u} />
@@ -1169,43 +1200,33 @@ export function Admin() {
                             {u.full_name}
                           </span>
                         </div>
-                        <UserStatusPill
-                          user={u}
-                          reduceMotion={reduceMotion}
-                          flashed={flashedIds.has(u.id)}
-                        />
+                        {u.role !== "super_admin" && (
+                          <UserActionsMenu
+                            user={u}
+                            currentUserRole={user?.role}
+                            currentUserId={user?.id}
+                            onApprove={handleApprove}
+                            onReject={handleReject}
+                            onEdit={openEditDialog}
+                            onDelete={confirmDelete}
+                          />
+                        )}
                       </div>
 
-                      {/* Middle row: identity and authority. The email breaks
-                          rather than scrolls — a long address on a 375px screen
-                          is the same word-wrap anywhere, and an ellipsis hides
-                          exactly the part that distinguishes two similar
-                          addresses. */}
+                      {/* Detail row: identity, authority, and whether they are in.
+                          The email breaks rather than scrolls — a long address on
+                          a 375px screen is the same word-wrap anywhere, and an
+                          ellipsis hides exactly the part that distinguishes two
+                          similar addresses. */}
                       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                         <span className="min-w-0 break-all text-xs text-aura-muted">
                           {u.email}
                         </span>
                         <UserRoleBadge role={u.role} />
-                      </div>
-
-                      {/* Actions.
-
-                          Inline on the right of the second row rather than on a
-                          third row of its own. As a full-width row it cost ~44px
-                          and a horizontal rule per card, so three users filled
-                          the screen and the list read as mostly empty boxes. The
-                          trigger keeps its `touch-target` class, which is what
-                          actually satisfies the 44px floor -- the row it sits in
-                          does not need to be 44px tall itself. */}
-                      <div className="mt-1 flex justify-end -mb-1 -mr-1">
-                        <UserActionsMenu
+                        <UserStatusPill
                           user={u}
-                          currentUserRole={user?.role}
-                          currentUserId={user?.id}
-                          onApprove={handleApprove}
-                          onReject={handleReject}
-                          onEdit={openEditDialog}
-                          onDelete={confirmDelete}
+                          reduceMotion={reduceMotion}
+                          flashed={flashedIds.has(u.id)}
                         />
                       </div>
                     </motion.li>
@@ -1373,10 +1394,13 @@ export function Admin() {
               The user will lose access to their account immediately.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-3 rounded-lg bg-aura-surface-alt p-3 text-sm">
-            <Mail className="h-4 w-4 text-aura-muted shrink-0" />
-            <span className="text-aura-muted">{deletingUser?.email}</span>
-            <Badge variant="secondary" className="ml-auto border-transparent bg-aura-sage text-aura-forest">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-aura-surface-alt p-3 text-sm">
+            <Mail className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
+            <span className="min-w-0 flex-1 break-all text-aura-muted">{deletingUser?.email}</span>
+            <Badge
+              variant="secondary"
+              className="shrink-0 whitespace-nowrap border-transparent bg-aura-sage text-aura-forest"
+            >
               {deletingUser?.role}
             </Badge>
           </div>
