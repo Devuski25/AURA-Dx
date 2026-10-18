@@ -858,7 +858,7 @@ export function ScreeningDetail() {
               Cancel
             </Button>
             <Button onClick={handleReview} disabled={reviewSubmitting}>
-              {reviewSubmitting ? "Submitting→·" : "Submit Review"}
+              {reviewSubmitting ? "Submitting…" : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>

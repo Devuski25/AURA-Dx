@@ -1,4 +1,4 @@
-import { Info, MapPin } from "lucide-react"
+import { ChevronDown, Info, MapPin } from "lucide-react"
 import {
   AUSCULTATION_SITES,
   MIN_TAKE_SEC,
@@ -37,12 +37,10 @@ export function RecordingProtocolCard({ className }: { className?: string }) {
           <Info className="h-4 w-4 text-aura-forest" aria-hidden="true" />
           How to record — sites, timing, technique
         </span>
-        <span
-          className="text-xs text-aura-muted transition-transform group-open:rotate-180"
+        <ChevronDown
+          className="h-4 w-4 transition-transform group-open:rotate-180"
           aria-hidden="true"
-        >
-          ▾
-        </span>
+        />
       </summary>
 
       <div className="space-y-5 border-t border-aura-border-soft px-4 pb-4 pt-4">

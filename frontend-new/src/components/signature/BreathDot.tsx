@@ -11,7 +11,7 @@ const BREATH_TONE_CLASS: Record<BreathTone, string> = {
 
 /**
  * BreathDot — the app's single "this is live" indicator, built on the shared
- * `aura-breath` keyframe (4s, scale 1 → 1.04, opacity 0.7 → 1).
+ * `aura-breath` keyframe (4s, scale 1 -> 1.04, opacity 0.7 -> 1).
  *
  * Always decorative: it carries no meaning on its own, so it is aria-hidden
  * and never the only signal for a status. Under prefers-reduced-motion the

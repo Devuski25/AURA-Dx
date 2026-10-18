@@ -61,7 +61,7 @@ const userSchema = z.object({
 type UserFormData = z.infer<typeof userSchema>
 
 /* ─── Entrance timeline ──────────────────────────────────────────────────────────────────────
- * title → heading + pill → stat cards (60ms apart) → accounts card → rows.
+ * title -> heading + pill -> stat cards (60ms apart) → accounts card → rows.
  * Hand-tuned so the last row lands at ~0.99s.
  */
 const STAT_STAGGER = 0.06
@@ -1360,7 +1360,7 @@ export function Admin() {
 
               <DialogFooter>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "Saving→·" : editingUser ? "Save Changes" : "Create User"}
+                  {form.formState.isSubmitting ? "Saving…" : editingUser ? "Save Changes" : "Create User"}
                 </Button>
               </DialogFooter>
             </form>
@@ -1410,7 +1410,7 @@ export function Admin() {
             </Button>
             <Button variant="destructive" onClick={executeDelete} disabled={deleting}>
               <Loader2 className={cn("mr-2 h-4 w-4", deleting ? "animate-spin" : "hidden")} role="status" aria-live="polite" />
-              {deleting ? "Deleting→·" : "Delete User"}
+              {deleting ? "Deleting…" : "Delete User"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -767,7 +767,7 @@ export function Screening() {
                           type="search"
                           value={patientSearch}
                           onChange={e => setPatientSearch(e.target.value)}
-                          placeholder="Search patients by name→·"
+                          placeholder="Search patients by name…"
                           aria-label="Search patients by name"
                           autoComplete="off"
                           className="h-9 rounded-lg border-aura-border pl-9 text-sm"

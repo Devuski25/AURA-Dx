@@ -120,7 +120,7 @@ export function Dashboard() {
     } catch { /* ignore */ }
   }, [accessToken, refreshUsers])
 
-  // Shared cache entry â€” Screenings list and the Screening wizard reuse this key
+  // Shared cache entry — "screenings" is the SAME payload Dashboard/Screenings use,
   const screeningsFetcher = useCallback(async (): Promise<Screening[]> => {
     const res = await fetch(getApiUrl("/api/screenings"), {
       headers: { Authorization: `Bearer ${accessToken ?? ""}` },
@@ -206,7 +206,7 @@ export function Dashboard() {
     return <Badge variant="secondary">{status}</Badge>
   }
 
-  /* Item 3: app-wide color legend â€” red = active infection risk (Pneumonia),
+  /* Item 3: app-wide color legend — red = active infection risk (Pneumonia),
      yellow = chronic warning (COPD), green = healthy/cleared,
      neutral = plain counts. Matches the result badges used in every table. */
   const cards = [
@@ -306,7 +306,7 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen">
-        {/* â”€â”€â”€ Welcome banner â”€â”€â”€ */}
+        {/* ═══ Welcome banner ═══ */}
         <div className="relative overflow-hidden bg-gradient-to-br from-[#0a352e] via-aura-forest to-aura-forest-light px-4 py-8 sm:px-6 lg:px-8">
           <div aria-hidden="true" className="absolute inset-0 aura-dots opacity-20" />
           <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-aura-accent/10 blur-[80px]" />
@@ -389,7 +389,7 @@ export function Dashboard() {
                         <AnimatedStat value={card.value} />
                       </p>
                       {/* Item 9: a zero on an alert-stat means "checked and clear",
-                          not "no data" â€” say so explicitly. */}
+                          not "no data" — say so explicitly. */}
                       {card.value === 0 && card.tone !== "neutral" && card.tone !== "healthy" && (
                         <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
                           Checked &middot; clear

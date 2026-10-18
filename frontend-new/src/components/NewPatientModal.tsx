@@ -249,7 +249,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
                   type="text"
                   readOnly
                   value={age !== null ? `${age} years (${ageBracket})` : ""}
-                  placeholder="—"
+                  placeholder="Derived from date of birth"
                   className="h-9 bg-aura-surface-alt text-[#333333] placeholder:text-[#6b7f75]"
                 />
               </div>
@@ -381,7 +381,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
                 Cancel
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "CreatingΓÇª" : "Create Patient & Continue"}
+                {form.formState.isSubmitting ? "Creating…" : "Create Patient & Continue"}
               </Button>
             </DialogFooter>
         </Form>
