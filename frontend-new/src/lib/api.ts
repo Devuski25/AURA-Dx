@@ -23,6 +23,8 @@
  * should not be silently redirected.
  */
 
+import { supabase } from "./supabase"
+
 /** Loopback hosts, where "localhost" would be a device-local address. */
 const LOOPBACK = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i
 
@@ -86,4 +88,82 @@ export function notifySessionExpired(): void {
   sessionExpiryAnnounced = true
   if (typeof window === "undefined") return
   window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+}
+
+/** Refresh this far ahead of the real expiry, so a request never races it. */
+const REFRESH_MARGIN_SECONDS = 120
+
+/**
+ * The current access token, refreshed first if it is about to expire.
+ *
+ * Supabase access tokens live for one hour. Pages used to call `getSession()`
+ * and send whatever came back, so once the hour passed every page in the
+ * product started failing with "Invalid or expired token" -- a tab left open
+ * between patients, or a phone that slept, was enough. The automatic refresher
+ * in supabase-js is driven by a timer that browsers throttle hard in a
+ * background tab, so it is routinely late by the time the user comes back.
+ *
+ * Checking `expires_at` before sending removes the race: the token handed to
+ * fetch() has not expired, or was just renewed.
+ */
+export async function getFreshAccessToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession()
+  const session = data.session
+  if (!session?.access_token) return null
+
+  const expiresAt = session.expires_at ?? 0
+  const secondsLeft = expiresAt - Math.floor(Date.now() / 1000)
+  if (secondsLeft > REFRESH_MARGIN_SECONDS) return session.access_token
+
+  const { data: refreshed, error } = await supabase.auth.refreshSession()
+  if (error || !refreshed.session?.access_token) return session.access_token
+  return refreshed.session.access_token
+}
+
+/**
+ * fetch() to the API with a valid bearer token, refreshing once on a 401.
+ *
+ * Every read in the product hand-rolled `getSession()` plus an Authorization
+ * header, so a stale token surfaced as a raw backend message on the page --
+ * "Unable to load screening result / Invalid or expired token" -- which reads
+ * like the record is broken rather than like a clock ran out.
+ *
+ * So this retries before giving up: a 401 triggers one forced refresh and one
+ * more attempt. Only if that also comes back 401 is the session really gone,
+ * and only then is SESSION_EXPIRED_EVENT raised. A result left open overnight
+ * loads again instead of demanding a new sign-in.
+ */
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  allowRetry = true
+): Promise<Response> {
+  const token = await getFreshAccessToken()
+  if (!token) {
+    notifySessionExpired()
+    throw new Error("Not authenticated")
+  }
+
+  const headers = new Headers(init.headers)
+  headers.set("Authorization", `Bearer ${token}`)
+
+  const res = await fetch(getApiUrl(path), { ...init, headers })
+
+  if (res.status === 401 && allowRetry) {
+    // Force a refresh even if the token still looks live -- the server may have
+    // rotated its signing key out from under us.
+    const { data: refreshed } = await supabase.auth.refreshSession()
+    const fresh = refreshed.session?.access_token
+    if (fresh) {
+      const retryHeaders = new Headers(init.headers)
+      retryHeaders.set("Authorization", `Bearer ${fresh}`)
+      const retried = await fetch(getApiUrl(path), { ...init, headers: retryHeaders })
+      if (!isUnauthorized(retried)) return retried
+      notifySessionExpired()
+      return retried
+    }
+    notifySessionExpired()
+  }
+
+  return res
 }

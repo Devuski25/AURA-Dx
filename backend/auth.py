@@ -32,20 +32,63 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def _b64url_decode(segment: str) -> bytes:
+    """Decode a base64url segment, padding it properly first.
+
+    The previous code appended a fixed "==" which is wrong whenever the input
+    length is already a multiple of 4, and silently truncates when it is not.
+    """
+    return base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4))
+
+
+def _p1363_to_der(sig: bytes) -> bytes:
+    """Convert a raw JWS P-256 signature (r||s) to DER.
+
+    A JWS ES256 signature is the two 32-byte integers r and s concatenated.
+    `cryptography`'s `verify()` expects the ASN.1 DER encoding of that pair,
+    and raises when handed raw bytes.
+
+    This is why ES256 verification never worked here. Supabase signs ES256, so
+    the local check could only ever fail, and every single authenticated request
+    fell through to the network probe against Supabase -- a round trip on the
+    hot path with a 5 second timeout. When that call was slow or flaky, the
+    request came back 401 and the user was told to sign in again.
+    """
+    if len(sig) != 64:
+        return sig
+
+    def _enc(value: int) -> bytes:
+        b = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+        # DER integers are signed: a leading bit of 1 would read as negative.
+        if b[0] & 0x80:
+            b = b"\x00" + b
+        return b
+
+    r = _enc(int.from_bytes(sig[:32], "big"))
+    s = _enc(int.from_bytes(sig[32:], "big"))
+    body = b"\x02" + bytes([len(r)]) + r + b"\x02" + bytes([len(s)]) + s
+    return b"\x30" + bytes([len(body)]) + body
+
+
 def _decode_es256(token: str, jwk_data: dict) -> Optional[dict]:
     parts = token.split(".")
     if len(parts) != 3:
         return None
     try:
         header_payload = f"{parts[0]}.{parts[1]}".encode()
-        sig = base64.urlsafe_b64decode(parts[2] + "==")
-        x = int.from_bytes(base64.urlsafe_b64decode(jwk_data["x"] + "=="), "big")
-        y = int.from_bytes(base64.urlsafe_b64decode(jwk_data["y"] + "=="), "big")
+        sig = _p1363_to_der(_b64url_decode(parts[2]))
+        x = int.from_bytes(_b64url_decode(jwk_data["x"]), "big")
+        y = int.from_bytes(_b64url_decode(jwk_data["y"]), "big")
         public_key = ec.EllipticCurvePublicNumbers(
             x, y, ec.SECP256R1()
         ).public_key(default_backend())
         public_key.verify(sig, header_payload, ec.ECDSA(hashes.SHA256()))
-        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=="))
+        payload = json.loads(_b64url_decode(parts[1]))
+        # An expired token is not a valid credential even with a good signature.
+        # jose would reject it here, but this path decodes by hand.
+        exp = payload.get("exp")
+        if exp is not None and exp < datetime.utcnow().timestamp():
+            return None
         return payload
     except Exception:
         return None
@@ -127,7 +170,26 @@ def decode_token(token: str) -> dict:
 
     issuer = _token_iss(token)
 
-    # Fallback 1: Supabase /auth/v1/user on the token's own issuer
+    # Fallback 1: ES256 verification against the issuer's JWKS, kid-matched.
+    #
+    # This runs BEFORE the network probe on purpose. Supabase signs ES256, so
+    # for every real session the HS256 branch above fails and this is the check
+    # that actually decides. It is local and the key set is cached for five
+    # minutes, so it costs nothing.
+    #
+    # The network probe below used to sit in front of it, which meant every
+    # authenticated request made a round trip to Supabase -- and if that call
+    # was slow or failed, a perfectly good token was rejected with a 401 and
+    # the user was told to sign in again.
+    jwks = _get_jwks_sync(issuer)
+    if jwks:
+        payload = _decode_es256_with_keys(token, jwks)
+        if payload:
+            return payload
+
+    # Fallback 2: ask Supabase directly. Last resort, because it is a network
+    # call on the hot path. Kept for tokens signed with a key the JWKS does not
+    # publish, which happens when a project rotates signing keys.
     try:
         import urllib.request
         url = f"{issuer}/auth/v1/user" if issuer else f"{settings.supabase_url}/auth/v1/user"
@@ -147,13 +209,6 @@ def decode_token(token: str) -> dict:
             }
     except Exception:
         pass
-
-    # Fallback 2: ES256 verification against the issuer's JWKS (kid-matched)
-    jwks = _get_jwks_sync(issuer)
-    if jwks:
-        payload = _decode_es256_with_keys(token, jwks)
-        if payload:
-            return payload
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

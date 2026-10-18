@@ -19,9 +19,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
-import { getApiUrl } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
+import { saveBlob } from "@/lib/download"
 import { useCachedData } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
@@ -97,9 +97,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
 
   // Shared cache entry — Dashboard and the Screening wizard read the same key
   const screeningsFetcher = useCallback(async (): Promise<Screening[]> => {
-    const res = await fetch(getApiUrl("/api/screenings"), {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-    })
+    const res = await apiFetch("/api/screenings")
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || "Failed to load screenings")
@@ -235,25 +233,13 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
   }
 
   const fetchPdfBlob = useCallback(async (screeningId: string): Promise<Blob | null> => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) {
-      toast.error("You must be signed in to download a PDF")
-      return null
-    }
-    const response = await fetch(getApiUrl(`/api/screenings/${screeningId}/pdf`), {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
+    const response = await apiFetch(`/api/screenings/${screeningId}/pdf`)
     if (!response.ok) return null
     return response.blob()
   }, [])
 
   const triggerDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
+    saveBlob(blob, filename)
   }
 
   const downloadPDF = useCallback(async (screeningId: string) => {
@@ -263,7 +249,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
         toast.error("Failed to download PDF")
         return
       }
-      triggerDownload(blob, `aura-dx-screening-${screeningId}.pdf`)
+      triggerDownload(blob, `aura-dx-screening-${screeningId.slice(0, 8)}.pdf`)
     } catch (error) {
       console.error("PDF download failed:", error)
       toast.error("Failed to download PDF")
@@ -271,12 +257,16 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
   }, [fetchPdfBlob])
 
   /*
-   * Bulk export over whatever the filters currently match.
+   * Bulk export: one PDF, one page per record.
    *
-   * Downloads are issued one at a time with a short gap. Firing a dozen
-   * programmatic anchor clicks in the same tick gets treated as a pop-up burst
-   * and silently blocked by the browser, so the pacing is deliberate rather than
-   * cosmetic.
+   * This used to fetch a separate PDF per record and fire a download for each,
+   * paced 350ms apart to avoid the browser's pop-up blocker. Twelve ticked
+   * records produced twelve files -- no use as a handover pack -- and the
+   * pacing made it slow enough that people stopped bothering.
+   *
+   * The server builds the whole document in one request and each screening is
+   * laid out to occupy exactly one A4 page, so page N of the file is always a
+   * whole patient rather than half a table carried over from the last.
    */
   const exportAllPDFs = useCallback(async () => {
     const targets = exportTargets
@@ -286,39 +276,42 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     }
 
     setExporting(true)
-    const toastId = toast.loading(`Exporting 0 of ${targets.length}`)
-    let failed = 0
+    const toastId = toast.loading(`Building a ${targets.length}-page report`)
 
-    for (let i = 0; i < targets.length; i++) {
-      const screening = targets[i]
-      try {
-        const blob = await fetchPdfBlob(screening.id)
-        if (blob) {
-          triggerDownload(blob, `aura-dx-screening-${screening.id}.pdf`)
-        } else {
-          failed++
-        }
-      } catch {
-        failed++
+    try {
+      const res = await apiFetch("/api/screenings/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ screening_ids: targets.map(s => s.id) }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || "Export failed")
       }
-      toast.loading(`Exporting ${i + 1} of ${targets.length}`, { id: toastId })
-      await new Promise(resolve => setTimeout(resolve, 350))
-    }
 
-    setExporting(false)
-    setExportDone(true)
-    toast.dismiss(toastId)
+      const blob = await res.blob()
+      const stamp = new Date().toISOString().slice(0, 10)
+      triggerDownload(blob, `aura-dx-screening-report-${stamp}.pdf`)
 
-    const succeeded = targets.length - failed
-    if (failed === 0) {
-      /* Only clear on a clean run — a partial failure should leave the ticks
-         in place so the user can retry exactly the ones that didn't land. */
+      setExportDone(true)
+      /* Only clear on a clean run, so a partial failure leaves the ticks in
+         place and the user can retry exactly the ones that did not land. */
       clearSelection()
-      toast.success(`Exported ${succeeded} PDF${succeeded === 1 ? "" : "s"}`)
-    } else {
-      toast.warning(`Exported ${succeeded} of ${targets.length} - ${failed} failed`)
+      toast.success(
+        `Exported ${targets.length} record${targets.length === 1 ? "" : "s"}`,
+        { id: toastId }
+      )
+    } catch (error) {
+      console.error("Bulk export failed:", error)
+      toast.error(
+        error instanceof Error ? error.message : "Export failed",
+        { id: toastId }
+      )
+    } finally {
+      setExporting(false)
     }
-  }, [exportTargets, fetchPdfBlob, clearSelection])
+  }, [exportTargets, clearSelection])
 
   return (
     <div className="space-y-6">

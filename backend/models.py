@@ -211,6 +211,16 @@ class ScreeningResponse(BaseModel):
     reviewed_by_name: Optional[str] = None
 
 
+class ExportRequest(BaseModel):
+    """Body for the combined PDF export.
+
+    A list rather than a filter object on purpose: the export is driven by what
+    the clinician actually ticked, and re-evaluating a filter server-side would
+    silently include or exclude records relative to what is on screen.
+    """
+    screening_ids: List[str] = Field(default_factory=list)
+
+
 class ScreeningReview(BaseModel):
     review_notes: Optional[str] = None
 

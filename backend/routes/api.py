@@ -15,7 +15,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from fastapi.responses import StreamingResponse
 # The legacy JWT login flow (/auth/login, /auth/me, /auth/logout,
@@ -31,7 +31,7 @@ from fastapi.responses import StreamingResponse
 from models import (
     UserCreate, UserResponse, UserUpdate,
     PatientCreate, PatientResponse, PatientUpdate,
-    ScreeningCreate, ScreeningResponse, ScreeningReview,
+    ScreeningCreate, ScreeningResponse, ScreeningReview, ExportRequest,
     InferenceRequest, InferenceResponse,
     MetricsSummary,
     UserRole, UserStatus, ScreeningStatus,
@@ -731,7 +731,12 @@ async def update_patient(patient_id: str, update: PatientUpdate, user: dict = De
     if not target.data:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    if target.data["clinic_id"] != clinic_id:
+    # Super admins are exempt, matching delete_patient below. Without this a
+    # super admin -- whose profile carries no clinic_id -- compares the
+    # patient's clinic against None and is refused every time. The row menu now
+    # offers Edit to every clinician, admin and super admin alike, so the
+    # exemption is on a path users actually reach rather than a latent gap.
+    if user.get("role") != "super_admin" and target.data["clinic_id"] != clinic_id:
         raise HTTPException(status_code=403, detail="Not your clinic patient")
 
     update_data = update.model_dump(exclude_unset=True)
@@ -1107,6 +1112,348 @@ async def metrics_summary(user: dict = Depends(require_role(UserRole.ADMIN, User
     except Exception:
         total = 0
     return MetricsSummary(total_requests=total, avg_ms=None, error_rate=0.0)
+
+
+def _report_styles():
+    """Paragraph styles for the report. Kept in one place so every page of a
+    combined export is typeset identically to a single-screening PDF."""
+    styles = getSampleStyleSheet()
+    return {
+        "title": ParagraphStyle('CustomTitle', parent=styles['Title'], fontSize=16,
+                                spaceAfter=2, alignment=TA_CENTER),
+        "subtitle": ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=10,
+                                   textColor=colors.grey, alignment=TA_CENTER,
+                                   spaceAfter=10),
+        "heading": ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=12,
+                                  spaceAfter=5, spaceBefore=10,
+                                  textColor=colors.HexColor('#1f2937')),
+        "subheading": ParagraphStyle('Subheading', parent=styles['Heading3'],
+                                     fontSize=10.5, spaceAfter=3, spaceBefore=8,
+                                     textColor=colors.HexColor('#374151')),
+        "normal": ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10,
+                                 spaceAfter=2),
+        "body": ParagraphStyle('Body', parent=styles['BodyText'], fontSize=10,
+                               leading=15, spaceAfter=6),
+        "bold": ParagraphStyle('Bold', parent=styles['Normal'], fontSize=10,
+                               fontName='Helvetica-Bold'),
+        "small": ParagraphStyle('Small', parent=styles['Normal'], fontSize=8,
+                                textColor=colors.grey),
+    }
+
+
+# Shared cell styling for every two-column key/value table in the report.
+_CELL = [
+    ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+    ('FONTSIZE', (0, 0), (-1, -1), 9),
+    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+    ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+    ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
+    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+    ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ('TOPPADDING', (0, 0), (-1, -1), 4),
+    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+]
+
+_RESULT_COLOR = {
+    "HEALTHY": colors.HexColor('#16a34a'),
+    "COPD": colors.HexColor('#ca8a04'),
+    "PNEUMONIA": colors.HexColor('#dc2626'),
+    "ATYPICAL_OOD": colors.HexColor('#4b5563'),
+}
+
+
+def _cell(text, bold: bool = False):
+    """A table cell.
+
+    Paragraph rather than a bare string. ReportLab only auto-converts cells to
+    paragraphs in some paths; as soon as a table carries per-column styling or
+    `&mdash;`-style entities it hands the value straight to wrapOn(), and a str
+    has no wrapOn. Building every cell explicitly also lets the label columns
+    be bold without a second table style.
+    """
+    return Paragraph(
+        str(text),
+        ParagraphStyle(
+            f'cell{"B" if bold else ""}',
+            fontName="Helvetica-Bold" if bold else "Helvetica",
+            fontSize=9,
+            leading=11,
+            textColor=colors.HexColor('#1f2937'),
+        ),
+    )
+
+
+def _kv_table(rows):
+    """Two label/value pairs per row. Labels are the even-indexed columns."""
+    cells = [
+        [_cell(v, bold=(i % 2 == 0)) for i, v in enumerate(row)]
+        for row in rows
+    ]
+    t = Table(cells, colWidths=[1.15 * inch, 2.35 * inch, 1.15 * inch, 2.35 * inch])
+    t.setStyle(TableStyle(_CELL))
+    return t
+
+
+def _age_years(dob) -> str:
+    """Age in whole years from a date of birth, or "N/A"."""
+    if not dob:
+        return "N/A"
+    try:
+        b = datetime.fromisoformat(str(dob).replace("Z", "+00:00"))
+        today = datetime.utcnow()
+        years = today.year - b.year - ((today.month, today.day) < (b.month, b.day))
+        return f"{years} years" if 0 <= years < 130 else "N/A"
+    except Exception:
+        return "N/A"
+
+
+def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int, S: dict):
+    """Everything about one screening, sized to sit on exactly one A4 page.
+
+    The verbose single-screening report ran to two or three pages. That is fine
+    for a PDF opened on its own but wrong for a combined export: the request was
+    for each patient's details and result on one page, and a report that spills
+    means half the pages start mid-table with no heading to attach to.
+
+    So this drops the redundant sections rather than shrinking the type. The
+    patient table folds screening details into itself, the probability
+    distribution becomes a single row instead of its own table, and per-take
+    scores are capped. Nothing is scaled below 8pt, which is the point -- a
+    combined file that is unreadable defeats its own purpose.
+
+    The scope disclaimer is last and is never conditional. It is the statement
+    of what the model can and cannot rule out, and a report without it invites
+    "not COPD and not pneumonia" being read as "nothing is wrong".
+    """
+    story = []
+
+    # --- Header -------------------------------------------------------------
+    name = data.get("patient_name") or "Unnamed patient"
+    story.append(Paragraph("AURA-Dx &mdash; AI-Assisted Respiratory Screening Report", S["title"]))
+    story.append(Paragraph(
+        f"{name} &nbsp;&middot;&nbsp; Screening {screening_id[:8]} &nbsp;&middot;&nbsp; "
+        f"Page {page_no} of {page_total}",
+        S["subtitle"]))
+
+    # --- Result headline ----------------------------------------------------
+    interp_status = data.get("interpretation_status")
+    interp_level = data.get("confidence_level")
+    resp_result = data.get("respiratory_result")
+    resp_conf = data.get("respiratory_confidence")
+
+    verdict = status_label(interp_status) if (interp_status and interp_level) else (resp_result or "Not classified")
+    vcolor = _RESULT_COLOR.get(
+        interp_status,
+        {"Pneumonia": colors.HexColor('#dc2626'),
+         "COPD": colors.HexColor('#ca8a04'),
+         "Healthy": colors.HexColor('#16a34a')}.get(resp_result, colors.HexColor('#6b7280')),
+    )
+    confidence = confidence_label(interp_level) if (interp_status and interp_level) else "—"
+    story.append(Paragraph(
+        f"<b>{verdict}</b> &nbsp;&middot;&nbsp; {confidence}"
+        + (f" &nbsp;&middot;&nbsp; {resp_conf * 100:.1f}% model confidence" if resp_conf else ""),
+        ParagraphStyle('RPVerdict', parent=S["small"], fontSize=15,
+                       textColor=vcolor, spaceAfter=2)))
+
+    # --- Patient + screening details, one table -----------------------------
+    story.append(_kv_table([
+        ["Patient", name, "Age", _age_years(data.get("patient_dob"))],
+        ["Date of Birth", str(data.get("patient_dob") or "N/A"), "Gender",
+         str(data.get("patient_gender") or "N/A").capitalize()],
+        ["Clinician", str(data.get("clinician_name") or "N/A"), "Date",
+         str(data.get("created_at") or "N/A")[:19].replace("T", " ")],
+        ["Model", str(data.get("model_version") or "N/A"), "Audio",
+         f"{data['audio_duration_sec']}s" if data.get("audio_duration_sec") else "N/A"],
+    ]))
+
+    # --- Interpretation -----------------------------------------------------
+    if interp_status and interp_level:
+        headline, message, recommendation = result_copy(interp_status, interp_level)
+        story.append(Paragraph("Clinical Interpretation", S["heading"]))
+        story.append(Paragraph(headline, ParagraphStyle(
+            'RPHeadline', parent=S["body"], fontSize=11, leading=15, spaceAfter=4)))
+        story.append(Paragraph(message, S["body"]))
+        story.append(Paragraph(
+            f"<b>Suggested next step:</b> {recommendation}",
+            ParagraphStyle(
+                'RPRec', parent=S["body"], leading=14,
+                backColor=colors.HexColor('#fefce8') if vcolor == _RESULT_COLOR.get("COPD")
+                else (colors.HexColor('#fef2f2') if vcolor == _RESULT_COLOR.get("PNEUMONIA")
+                      else colors.HexColor('#f0fdf4')),
+                borderPadding=8)))
+
+    # --- Probability distribution, one row ---------------------------------
+    probs = data.get("respiratory_probabilities") or {}
+    if probs:
+        items = list(probs.items())
+        # A4 minus 42pt margins is ~7.1in. The label column takes a fixed slice
+        # and the classes share what is left, so adding a class never pushes the
+        # table off the page.
+        avail = 7.1 - 1.15
+        each = avail / max(len(items), 1)
+        row = [_cell("Probabilities", bold=True)] + [
+            _cell(f"{cls} {prob * 100:.1f}%") for cls, prob in items
+        ]
+        t = Table([row], colWidths=[1.15 * inch] + [each * inch] * len(items))
+        t.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(Spacer(1, 8))
+        story.append(t)
+
+    # --- Per-take scores, capped so one page is enough ----------------------
+    scores = data.get("recording_scores") or {}
+    per_clip = scores.get("per_clip") or []
+    if per_clip:
+        story.append(Paragraph("Per-take scores", S["subheading"]))
+        clip_rows = [[_cell(h, bold=True) for h in
+                      ("Take", "Length", "Stage 1 healthy", "Stage 2 pneumonia", "Read")]]
+        for c in per_clip:
+            s2 = c.get("stage2_pneumonia_prob")
+            clip_rows.append([
+                _cell((c.get("index", 0) or 0) + 1),
+                _cell(f"{c.get('duration_sec', 0):.1f}s"),
+                _cell(f"{c.get('stage1_healthy_prob', 0):.2f}"),
+                _cell("&mdash;" if s2 is None else f"{s2:.2f}"),
+                _cell(c.get("clip_label") or "&mdash;"),
+            ])
+        ct = Table(clip_rows, colWidths=[0.6 * inch, 0.9 * inch, 1.5 * inch, 1.7 * inch, 1.3 * inch])
+        ct.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('ALIGN', (2, 1), (3, -1), 'RIGHT'),
+        ]))
+        story.append(ct)
+
+    # --- Clinical review ----------------------------------------------------
+    reviewed_by = data.get("reviewed_by_name")
+    review_notes = data.get("review_notes")
+    if reviewed_by or review_notes:
+        story.append(Paragraph("Clinical Review", S["subheading"]))
+        story.append(Paragraph(
+            f"{'Reviewed' if reviewed_by else 'Pending review'}"
+            + (f" by {reviewed_by}" if reviewed_by else "")
+            + (f"<br/>{review_notes}" if review_notes else ""),
+            S["body"]))
+
+    # --- Disclaimer ---------------------------------------------------------
+    story.append(Spacer(1, 8))
+    story.append(Paragraph(
+        "<b>Scope:</b> " + disclosure('scope'),
+        ParagraphStyle('RPDisclaimer', parent=S["small"], textColor=colors.HexColor('#6b7280'),
+                       borderPadding=(4, 0, 4, 0), spaceBefore=4)))
+    story.append(Paragraph(
+        "This is an AI-assisted screening tool and does not replace clinical "
+        "judgment. All results should be interpreted by a qualified healthcare "
+        "professional.",
+        ParagraphStyle('RPFooter', parent=S["small"], spaceBefore=4)))
+
+    return story
+
+
+@router.post("/screenings/export-pdf")
+async def export_screenings_pdf(
+    body: "ExportRequest",
+    user: dict = Depends(get_current_user),
+):
+    """One PDF containing one page per selected screening.
+
+    The export used to fire a separate download per record, paced 350ms apart to
+    dodge the browser's pop-up blocker. That produced a dozen files for a dozen
+    records -- unusable as a handover pack, and the pacing made it slow enough
+    that people stopped using it. One document is what was actually wanted.
+
+    Authorisation is applied per screening rather than to the batch, so a
+    clinician cannot pull another clinician's records into an export by passing
+    ids they guessed. Records the caller may not see are skipped silently and
+    counted, rather than failing the whole export.
+    """
+    ids = [i for i in (body.screening_ids or []) if i]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No screenings selected")
+    if len(ids) > 200:
+        raise HTTPException(status_code=400, detail="Too many screenings in one export (max 200)")
+
+    role = user.get("role")
+    user_clinic_id = user.get("clinic_id")
+    user_id = user.get("sub")
+
+    allowed = []
+    for sid in ids:
+        row = (
+            supabase.table("screening_history_view")
+            .select("id,clinic_id,clinician_id")
+            .eq("id", sid)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if not row:
+            continue
+        if role != "super_admin" and row[0].get("clinic_id") != user_clinic_id:
+            continue
+        if role == "clinician" and row[0].get("clinician_id") != user_id:
+            continue
+        allowed.append(sid)
+
+    if not allowed:
+        raise HTTPException(status_code=404, detail="None of the selected screenings are available to you")
+
+    rows = (
+        supabase.table("screening_history_view")
+        .select("*")
+        .in_("id", allowed)
+        .execute()
+        .data or []
+    )
+    # Preserve the caller's ordering -- the visible order is what they ticked.
+    order = {sid: i for i, sid in enumerate(allowed)}
+    rows.sort(key=lambda r: order.get(r.get("id"), 0))
+
+    if not rows:
+        raise HTTPException(status_code=404, detail="No screening data available")
+
+    S = _report_styles()
+    buffer = io.BytesIO()
+    # Margins are tighter than the verbose report's so a full page of content
+    # fits without anything dropping to 8pt.
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=42, leftMargin=42,
+                            topMargin=38, bottomMargin=34)
+
+    story = []
+    total = len(rows)
+    for i, row in enumerate(rows):
+        data = dict(row)
+        if data.get("patient_dob") is None and data.get("date_of_birth") is not None:
+            data["patient_dob"] = data["date_of_birth"]
+        if data.get("patient_gender") is None and data.get("gender") is not None:
+            data["patient_gender"] = data["gender"]
+        for _k in ("patient_name", "clinician_name", "model_version"):
+            if data.get(_k) is None:
+                data[_k] = "N/A"
+        if i:
+            story.append(PageBreak())
+        story.extend(_one_page_story(data, data.get("id", ""), i + 1, total, S))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        io.BytesIO(buffer.read()),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="aura-dx-export.pdf"'},
+    )
 
 
 @router.get("/screenings/{screening_id}/pdf")

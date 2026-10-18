@@ -37,7 +37,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/useAuth"
-import { getApiUrl } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
 import { invalidate } from "@/hooks/useCachedData"
 
 const PAST_DISEASES = [
@@ -83,9 +83,11 @@ interface NewPatientModalProps {
   onOpenChange: (open: boolean) => void
   onPatientCreated: (patient: { id: string; full_name: string }, formData?: PatientFormData) => void
   initialData?: PatientFormData
+  /** When set, the form PATCHes this patient instead of POSTing a new one. */
+  editingPatientId?: string | null
 }
 
-export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialData }: NewPatientModalProps) {
+export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialData, editingPatientId }: NewPatientModalProps) {
   const { user, accessToken } = useAuth()
   const [age, setAge] = useState<number | null>(null)
   const [ageBracket, setAgeBracket] = useState<string>("")
@@ -129,6 +131,8 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
     }
   }, [dobValue])
 
+  const isEditing = Boolean(editingPatientId)
+
   const onSubmit = async (data: PatientFormData) => {
     if (!user || !accessToken) {
       toast.error("Session not ready. Please wait or log out and back in.")
@@ -136,34 +140,45 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
     }
 
     try {
-      const res = await fetch(getApiUrl("/api/patients"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          ...data,
-          clinician_id: user.id,
-          clinic_id: user.clinic_id,
-        }),
-      })
+      /* Editing updates the existing record rather than creating a second
+         patient under the same name. The route is chosen here rather than
+         passed in, so the caller cannot accidentally POST a duplicate by
+         forgetting to clear editingPatientId. */
+      const res = isEditing
+        ? await apiFetch(`/api/patients/${editingPatientId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          })
+        : await apiFetch("/api/patients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...data,
+              clinician_id: user.id,
+              clinic_id: user.clinic_id,
+            }),
+          })
 
       if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.detail || "Failed to create patient")
+        const error = await res.json().catch(() => ({}))
+        throw new Error(error.detail || (isEditing ? "Failed to update patient" : "Failed to create patient"))
       }
 
       const patient = await res.json()
       // Drop cached patient/screening lists so all views refetch fresh
       invalidate("patients")
+      invalidate("patient-records")
       invalidate("screenings")
       onPatientCreated({ id: patient.id, full_name: patient.full_name }, data)
       form.reset()
       onOpenChange(false)
     } catch (error: any) {
-      console.error("Error creating patient:", error)
-      toast.error("Failed to create patient: " + (error instanceof Error ? error.message : "Unknown error"))
+      console.error(isEditing ? "Error updating patient:" : "Error creating patient:", error)
+      toast.error(
+        (isEditing ? "Failed to update patient: " : "Failed to create patient: ")
+        + (error instanceof Error ? error.message : "Unknown error")
+      )
     }
   }
 
@@ -172,10 +187,12 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
       <DialogContent className="max-w-2xl text-aura-text">
           <DialogHeader>
             <DialogTitle className="text-aura-text">
-              New Patient Screening
+              {isEditing ? "Edit Patient Details" : "New Patient Screening"}
             </DialogTitle>
             <DialogDescription className="text-aura-muted">
-              Enter patient details for a new breathing screening.
+              {isEditing
+                ? "Update this patient's details. Existing screening results are not changed."
+                : "Enter patient details for a new breathing screening."}
             </DialogDescription>
           </DialogHeader>
         <Form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

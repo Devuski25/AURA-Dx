@@ -4,7 +4,22 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { scaleIn } from "@/lib/motion"
-import { Loader2, Mic, MicOff, Trash2, CheckCircle, AlertCircle, ChevronRight, Settings, Plus, AlertTriangle, Search } from "lucide-react"
+import { Loader2, Mic, MicOff, Trash2, CheckCircle, AlertCircle, ChevronRight, Settings, Plus, AlertTriangle, Search, MoreHorizontal, Pencil } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
@@ -14,7 +29,7 @@ import { Input } from "@/components/ui/input"
 
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
-import { getApiUrl, isUnauthorized, notifySessionExpired } from "@/lib/api"
+import { apiFetch, getApiUrl, isUnauthorized, notifySessionExpired } from "@/lib/api"
 import { probe } from "@/lib/service-status"
 import {
   useAudioInput,
@@ -187,8 +202,35 @@ const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatus
   return STATUS_BADGES.completed
 }
 
+/* Columns: avatar | name | details (sm+) | status (sm+) | chevron | row menu.
+   Two extra trailing tracks for the chevron and the 3-dot menu trigger.
+
+   Rows are a <div>, not a <button>, because the menu trigger is itself a button
+   and nesting one interactive element inside another is invalid HTML -- it also
+   makes the row unclickable in some browsers. The whole row stays clickable via
+   a stretched overlay button sitting underneath the menu at a lower z-index. */
 const PATIENT_GRID =
-  "grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2 sm:grid-cols-[32px_minmax(0,1.1fr)_minmax(0,1.5fr)_122px_76px]"
+  "grid grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-x-3 px-3 py-2 sm:grid-cols-[32px_minmax(0,1.1fr)_minmax(0,1.5fr)_122px_auto_auto]"
+
+/* How many patient rows the picker shows before it starts scrolling.
+   Five is roughly a screenful on a phone with the search box and the New
+   Patient button still visible, and it keeps the list from growing until the
+   pinned footer is pushed out of reach. Height rather than a slice-and-paginate
+   so a filtered list still shows matches rather than hiding them behind a
+   pager. */
+const PATIENT_LIST_MAX_H = "max-h-[19rem] sm:max-h-[20rem]"
+
+/* One row of the patient picker. Carries the raw DOB alongside the formatted
+   one so the edit form can be seeded without re-parsing the display string. */
+type PatientOption = {
+  id: string
+  name: string
+  patientId: string
+  dob: string
+  dobRaw: string
+  age: number | null
+  gender: string
+}
 
 export function Screening() {
   const { user, accessToken } = useAuth()
@@ -282,12 +324,10 @@ export function Screening() {
   // Shared cache entries — "screenings" is the SAME payload Dashboard/Screenings use,
   // so the status badges cost zero extra network traffic on back-navigation.
   const patientsFetcher = useCallback(async (): Promise<Array<{ id: string; full_name: string; date_of_birth: string; gender: string }>> => {
-    const res = await fetch(getApiUrl("/api/patients"), {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-    })
-    // An expired token must not read as "failed to fetch". Routing it to the
-    // session-expiry handler sends the clinician to sign in, which is the whole
-    // fix, instead of leaving them on a page that will keep failing.
+    const res = await apiFetch("/api/patients")
+    // An expired token must not read as "failed to fetch". apiFetch already
+    // refreshes and retries once before this point, so reaching here means the
+    // session really is gone.
     if (isUnauthorized(res)) {
       notifySessionExpired()
       throw new Error("Session expired")
@@ -297,9 +337,7 @@ export function Screening() {
   }, [accessToken])
 
   const screeningsFetcher = useCallback(async (): Promise<Array<Record<string, unknown>>> => {
-    const res = await fetch(getApiUrl("/api/screenings"), {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-    })
+    const res = await apiFetch("/api/screenings")
     if (isUnauthorized(res)) {
       notifySessionExpired()
       throw new Error("Session expired")
@@ -338,15 +376,16 @@ export function Screening() {
   const statusBadgeFor = (patientId: string): PatientStatusBadge =>
     statusBadgeForLatest(latestByPatient.get(patientId))
 
-  const patientOptions = useMemo(
+  const patientOptions = useMemo<PatientOption[]>(
     () =>
       patients.map(p => ({
         id: p.id,
         name: p.full_name,
         patientId: p.id.toUpperCase(),
         dob: p.date_of_birth ? dobDateFormat.format(new Date(p.date_of_birth)) : "—",
+        dobRaw: p.date_of_birth ?? "",
         age: p.date_of_birth ? ageOf(p.date_of_birth) : null,
-        gender: p.gender,
+        gender: p.gender ?? "",
       })),
     [patients],
   )
@@ -364,11 +403,58 @@ export function Screening() {
   const [newPatientModalOpen, setNewPatientModalOpen] = useState(false)
   const [savedFormData, setSavedFormData] = useState<any>(null)
 
+  /* Edit and delete from the patient picker's row menu.
+
+     Edit reuses the new-patient form in PATCH mode rather than duplicating the
+     schema, so a field added to the form appears in both paths at once. Delete
+     is confirmed first because it cascades to the patient's screenings -- that
+     is not recoverable from the UI, so the confirmation names it. */
+  const [editingPatient, setEditingPatient] = useState<PatientOption | null>(null)
+  const [deletingPatient, setDeletingPatient] = useState<PatientOption | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const handleEditPatient = (patient: PatientOption) => {
+    setSavedFormData(null)
+    setEditingPatient(patient)
+    setNewPatientModalOpen(true)
+  }
+
+  const handleDeletePatient = async () => {
+    if (!deletingPatient) return
+    setDeleteBusy(true)
+    try {
+      const res = await apiFetch(`/api/patients/${deletingPatient.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || "Failed to delete patient")
+      }
+      invalidate("patients")
+      invalidate("patient-records")
+      invalidate("screenings")
+      void refreshPatients()
+      // Deleting the patient currently selected would otherwise leave the
+      // wizard pointing at a record that no longer exists.
+      if (selectedPatient?.id === deletingPatient.id) setSelectedPatient(null)
+      toast.success(`${deletingPatient.name} deleted`)
+      setDeletingPatient(null)
+    } catch (error) {
+      console.error("Error deleting patient:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete patient")
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
   const handleNewPatientCreated = (patient: { id: string; full_name: string }, formData?: any) => {
-    setSelectedPatient({ id: patient.id, name: patient.full_name })
+    /* An edit keeps the wizard where it was; only a fresh patient advances to
+       the recording step. Advancing after an edit would yank the clinician out
+       of the list they were working in. */
+    if (!editingPatient) setStep("record")
     if (formData) setSavedFormData(formData)
-    setStep("record")
+    setSelectedPatient({ id: patient.id, name: patient.full_name })
+    setEditingPatient(null)
     setNewPatientModalOpen(false)
+    if (editingPatient) void refreshPatients()
   }
 
   const stepIndex = ["patient", "record", "result"].indexOf(step)
@@ -645,12 +731,9 @@ export function Screening() {
       setPhase("analysing")
       setPct(PHASE_START_PCT.analysing)
 
-      const screeningResponse = await fetch(getApiUrl("/api/screenings"), {
+      const screeningResponse = await apiFetch("/api/screenings", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patient_id: selectedPatient.id,
           audio_file_paths: file_paths,
@@ -847,33 +930,28 @@ export function Screening() {
                                 </p>
                               )}
                               {visiblePatients.length > 0 && (
-                                <div>
+                                <div className={cn(PATIENT_LIST_MAX_H, "aura-table-scroll overflow-y-auto overscroll-contain")}>
                                   {/* Column labels (decorative; rows are self-describing buttons) */}
                                   <div
                                     aria-hidden="true"
-                                    className={cn(PATIENT_GRID, "hidden border-b border-aura-border-soft bg-aura-surface-alt pb-2 pt-3 text-xs font-medium text-aura-muted sm:grid")}
+                                    className={cn(PATIENT_GRID, "sticky top-0 z-10 border-b border-aura-border-soft bg-aura-surface-alt pb-2 pt-3 text-xs font-medium text-aura-muted sm:grid")}
                                   >
                                     <span />
                                     <span>Patient</span>
                                     <span>Details</span>
                                     <span>Status</span>
                                     <span className="text-right">Action</span>
+                                    <span />
                                   </div>
                                   {visiblePatients.map(patient => {
                                     const isSelected = selectedPatient?.id === patient.id
                                     const badge = statusBadgeFor(patient.id)
                                     return (
-                                      <button
+                                      <div
                                         key={patient.id}
-                                        type="button"
-                                        aria-label={`Start screening for ${patient.name}`}
-                                        aria-pressed={isSelected}
-                                        onClick={() => handlePatientSelect({ id: patient.id, name: patient.name })}
                                         className={cn(
                                           PATIENT_GRID,
-                                          "group w-full border-b border-aura-border-soft text-left transition-colors last:border-b-0",
-                                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                                          "active:scale-[0.995]",
+                                          "group relative border-b border-aura-border-soft transition-colors last:border-b-0",
                                           isSelected
                                             ? "bg-green-50 ring-1 ring-inset ring-green-600"
                                             : "bg-aura-elevated hover:bg-aura-surface-alt"
@@ -912,21 +990,55 @@ export function Screening() {
                                             {badge.label}
                                           </span>
                                         </span>
-                                        <span className="flex items-center justify-end gap-1.5">
-                                          <span
-                                            className={cn(
-                                              "hidden text-xs font-semibold lg:inline",
-                                              isSelected ? "text-green-700" : "text-aura-muted group-hover:text-green-700"
-                                            )}
-                                          >
-                                            {isSelected ? "Selected" : "Select"}
-                                          </span>
+                                        <span className="flex justify-end">
                                           <ChevronRight
                                             aria-hidden="true"
                                             className="h-4 w-4 shrink-0 text-aura-muted transition-transform group-hover:translate-x-0.5"
                                           />
                                         </span>
-                                      </button>
+                                        {/* z-10 so the menu sits above the stretched click
+                                            target below; relative so it keeps a stacking
+                                            context of its own. */}
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button
+                                              type="button"
+                                              aria-label={`Actions for ${patient.name}`}
+                                              className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-aura-muted transition-colors hover:bg-aura-surface-alt hover:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            >
+                                              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="w-44">
+                                            <DropdownMenuLabel className="truncate text-xs text-aura-muted">
+                                              {patient.name}
+                                            </DropdownMenuLabel>
+                                            <DropdownMenuItem
+                                              onSelect={() => handleEditPatient(patient)}
+                                            >
+                                              <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
+                                              Edit details
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onSelect={() => setDeletingPatient(patient)}
+                                              className="text-destructive focus:text-destructive"
+                                            >
+                                              <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                                              Delete
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                        {/* Stretched click target: the row remains one
+                                            button for selection and for screen readers,
+                                            without nesting the menu inside it. */}
+                                        <button
+                                          type="button"
+                                          aria-label={`Start screening for ${patient.name}`}
+                                          aria-pressed={isSelected}
+                                          onClick={() => handlePatientSelect({ id: patient.id, name: patient.name })}
+                                          className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:scale-[0.995]"
+                                        />
+                                      </div>
                                     )
                                   })}
                                 </div>
@@ -963,11 +1075,80 @@ export function Screening() {
         open={newPatientModalOpen}
         onOpenChange={(open) => {
           setNewPatientModalOpen(open)
-          if (!open && savedFormData) setSavedFormData(null)
+          if (!open) {
+            if (savedFormData) setSavedFormData(null)
+            // Closing must also clear the edit target, or reopening with the
+            // New Patient button would PATCH the last patient edited.
+            setEditingPatient(null)
+          }
         }}
         onPatientCreated={handleNewPatientCreated}
-        initialData={savedFormData}
+        initialData={
+          editingPatient
+            ? {
+                full_name: editingPatient.name,
+                date_of_birth: editingPatient.dobRaw,
+                gender: (editingPatient.gender || "male") as "male" | "female" | "other",
+                smoking_history: false,
+                past_respiratory_diseases: [] as string[],
+                symptoms: [] as string[],
+              }
+            : savedFormData
+        }
+        editingPatientId={editingPatient?.id ?? null}
       />
+
+      {/* Delete confirmation.
+
+          Says plainly that the screenings go too. A generic "are you sure?" on
+          a destructive action that cascades to clinical records is how a
+          clinician destroys a screening history by muscle memory.
+
+          Uses Dialog rather than an alert-dialog primitive, which this project
+          does not have; Admin's delete dialog sets the precedent. No `sm:top-*`
+          override -- DialogContent centres itself, and overriding top while the
+          -translate-y-1/2 still applies floats the panel instead of centring it. */}
+      <Dialog
+        open={Boolean(deletingPatient)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingPatient(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" aria-hidden="true" />
+              Delete patient
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Delete{" "}
+              <span className="font-semibold text-foreground">{deletingPatient?.name}</span>?
+              <br />
+              This removes the patient record and{" "}
+              <span className="font-semibold text-destructive">
+                every screening result recorded against them
+              </span>
+              . It cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingPatient(null)}
+              disabled={deleteBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeletePatient()}
+              disabled={deleteBusy}
+            >
+              {deleteBusy ? "Deleting…" : "Delete patient"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Step 2: Audio Recording */}
       <AnimatePresence mode="wait">

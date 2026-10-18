@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/hooks/useAuth"
-import { getApiUrl } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
 import { supabase } from "@/lib/supabase"
 import { useCachedData } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
@@ -81,9 +81,7 @@ export function Dashboard() {
   const canManageUsers = user?.role === "admin" || user?.role === "super_admin"
   const isClinician = user?.role === "clinician"
   const usersFetcher = useCallback(async (): Promise<any[]> => {
-    const res = await fetch(getApiUrl("/api/users"), {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-    })
+    const res = await apiFetch("/api/users")
     if (!res.ok) return []
     return res.json()
   }, [accessToken])
@@ -98,9 +96,9 @@ export function Dashboard() {
 
   const handleDashboardApprove = useCallback(async (id: string) => {
     try {
-      const res = await fetch(getApiUrl(`/api/users/${id}`), {
+      const res = await apiFetch(`/api/users/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken ?? ""}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "approved" }),
       })
       if (!res.ok) throw new Error("Failed")
@@ -110,9 +108,9 @@ export function Dashboard() {
 
   const handleDashboardReject = useCallback(async (id: string) => {
     try {
-      const res = await fetch(getApiUrl(`/api/users/${id}`), {
+      const res = await apiFetch(`/api/users/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken ?? ""}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "rejected" }),
       })
       if (!res.ok) throw new Error("Failed")
@@ -122,9 +120,7 @@ export function Dashboard() {
 
   // Shared cache entry — "screenings" is the SAME payload Dashboard/Screenings use,
   const screeningsFetcher = useCallback(async (): Promise<Screening[]> => {
-    const res = await fetch(getApiUrl("/api/screenings"), {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-    })
+    const res = await apiFetch("/api/screenings")
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || "Failed to load screenings")
@@ -209,6 +205,18 @@ export function Dashboard() {
   /* Item 3: app-wide color legend — red = active infection risk (Pneumonia),
      yellow = chronic warning (COPD), green = healthy/cleared,
      neutral = plain counts. Matches the result badges used in every table. */
+  /* "Positive" was on the COPD and Pneumonia cards and has been removed.
+
+   It said nothing. Every card in this row is a count of the same thing -- a
+   screening result -- so the card already means "how many screenings came back
+   COPD". Adding the word pushed the label onto a second line on a phone,
+   which is where the cut-off the owner reported came from. The two cards are
+   now single words and sit on one line at 375px, matching "Healthy".
+
+   The heading stays a two-line array because "Total Screenings" and
+   "Registered Users" are genuinely two words of one phrase, and forcing those
+   onto one line would cut them off instead. */
+
   const cards = [
     {
       title: ["Total", "Screenings"],
@@ -217,13 +225,13 @@ export function Dashboard() {
       tone: "neutral" as const,
     },
     {
-      title: ["COPD", "Positive"],
+      title: ["COPD"],
       value: stats.copd,
       icon: Stethoscope,
       tone: "copd" as const,
     },
     {
-      title: ["Pneumonia", "Positive"],
+      title: ["Pneumonia"],
       value: stats.pneumonia,
       icon: Stethoscope,
       tone: "critical" as const,
@@ -365,13 +373,16 @@ export function Dashboard() {
               return (
                 <motion.div key={card.title.join("-")} {...itemProps}>
                   <Card className="aura-panel h-full min-h-[124px]">
-                    <CardContent className="flex h-full flex-col justify-between p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="font-mono text-[10px] font-medium uppercase leading-[1.4] tracking-[0.08em] text-aura-muted">
+                    <CardContent className="flex h-full flex-col justify-between p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-2 sm:gap-3">
+                        {/* min-w-0 so a long label shrinks instead of pushing
+                            the card wider; break-words so it wraps rather than
+                            clipping when it must. */}
+                        <p className="min-w-0 font-mono text-[10px] font-medium uppercase leading-[1.4] tracking-[0.06em] break-words text-aura-muted sm:text-[11px] sm:tracking-[0.08em]">
                           {card.title.map((line) => <span key={line} className="block">{line}</span>)}
                         </p>
                         <span className={cn(
-                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9",
                           card.tone === "neutral" && "bg-aura-forest/10 text-aura-forest",
                           card.tone === "copd" && "bg-aura-warning/15 text-aura-warning-strong",
                           card.tone === "healthy" && "bg-aura-mint/15 text-aura-pine"
@@ -380,7 +391,7 @@ export function Dashboard() {
                         </span>
                       </div>
                       <p className={cn(
-                        "font-display text-3xl font-bold leading-none tabular-nums lg:text-4xl",
+                        "font-display text-[1.75rem] font-bold leading-none tabular-nums lg:text-4xl",
                         card.tone === "neutral" && "text-aura-ink",
                         card.tone === "critical" && "text-aura-coral-strong",
                         card.tone === "copd" && "text-aura-warning-strong",

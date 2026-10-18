@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { invalidate } from "@/hooks/useCachedData"
 import { useAuth } from "@/hooks/useAuth"
-import { getApiUrl } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -71,8 +71,8 @@ export function PatientDetail() {
         setError(null)
         try {
           const [patientRes, screeningsRes] = await Promise.all([
-            fetch(getApiUrl(`/api/patients/${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
-            fetch(getApiUrl(`/api/screenings?patient_id=${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
+            apiFetch(`/api/patients/${id}`),
+            apiFetch(`/api/screenings?patient_id=${id}`),
           ])
           if (!patientRes.ok) {
             const err = await patientRes.json().catch(() => ({}))
@@ -103,8 +103,8 @@ export function PatientDetail() {
         setError(null)
         try {
           const [patientRes, screeningsRes] = await Promise.all([
-            fetch(getApiUrl(`/api/patients/${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
-            fetch(getApiUrl(`/api/screenings?patient_id=${id}`), { headers: { Authorization: `Bearer ${accessToken}` } }),
+            apiFetch(`/api/patients/${id}`),
+            apiFetch(`/api/screenings?patient_id=${id}`),
           ])
           if (!patientRes.ok) {
             const err = await patientRes.json().catch(() => ({}))
@@ -132,10 +132,7 @@ export function PatientDetail() {
     if (!id) return
     setDeleting(true)
     try {
-      const res = await fetch(getApiUrl(`/api/patients/${id}`), {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-      })
+      const res = await apiFetch(`/api/patients/${id}`, { method: "DELETE" })
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}))
         throw new Error(detail.detail || "Failed to delete patient")

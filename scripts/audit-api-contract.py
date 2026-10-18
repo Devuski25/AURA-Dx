@@ -30,7 +30,7 @@ for module in BE_MODULES:
 # ---------------------------------------------------------------------------
 # Frontend calls
 # ---------------------------------------------------------------------------
-call_re = re.compile(r'(getApiUrl\(\s*[`"\']([^`"\']+)|fetch\(\s*`?\$\{?API_BASE\}?([^`"\')\s,]*))')
+call_re = re.compile(r'(apiFetch\(\s*[`"\']([^`"\']+)|getApiUrl\(\s*[`"\']([^`"\']+)|fetch\(\s*`?\$\{?API_BASE\}?([^`"\')\s,]*))')
 paths = defaultdict(set)
 
 for f in FE.rglob("*.ts*"):
@@ -42,6 +42,20 @@ for f in FE.rglob("*.ts*"):
         path = m.group(1)
         # getApiUrl is itself defined as a template literal over `${path}`.
         # That is the function signature, not a route anyone calls.
+        if "${" in path and not path.startswith("/"):
+            continue
+        paths[path].add(rel)
+
+    # apiFetch("/api/foo") -> /api/foo.
+    #
+    # Every authenticated call was moved onto apiFetch(), which refreshes an
+    # expiring token and retries once on a 401. Without this the audit reported
+    # every endpoint in the product as unused -- it could not see a single call
+    # site, which quietly turned the check off rather than failing it.
+    # apiFetch's own definition passes `path` through to getApiUrl, so the
+    # literal there is the function signature and is skipped like getApiUrl's.
+    for m in re.finditer(r'apiFetch\(\s*[`"\']([^`"\']+)', text):
+        path = m.group(1)
         if "${" in path and not path.startswith("/"):
             continue
         paths[path].add(rel)

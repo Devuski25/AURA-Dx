@@ -23,7 +23,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import { ServiceHealthPanel } from "@/components/ServiceHealthPanel"
-import { getApiUrl } from "@/lib/api"
+import { apiFetch } from "@/lib/api"
 import {
   Dialog,
   DialogContent,
@@ -459,19 +459,13 @@ export function Admin() {
 
   const usersFetcher = useCallback(async (): Promise<any[]> => {
     // Use API endpoint for proper auth + backend role handling
-    const res = await fetch(getApiUrl("/api/users"), {
-      headers: {
-        Authorization: `Bearer ${accessToken ?? ""}`,
-      },
-    })
+    const res = await apiFetch("/api/users")
     if (!res.ok) throw new Error("Failed to fetch users")
     return res.json()
   }, [accessToken])
 
   const metricsFetcher = useCallback(async (): Promise<number> => {
-    const metricsRes = await fetch(getApiUrl("/api/metrics/summary"), {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
-    })
+    const metricsRes = await apiFetch("/api/metrics/summary")
     if (!metricsRes.ok) return 0
     const metrics = await metricsRes.json()
     return metrics.total_requests || 0
@@ -602,11 +596,10 @@ export function Admin() {
         if (data.password) {
           updateBody.password = data.password
         }
-        const res = await fetch(getApiUrl(`/api/users/${editingUser.id}`), {
+        const res = await apiFetch(`/api/users/${editingUser.id}`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(updateBody),
         })
@@ -619,11 +612,10 @@ export function Admin() {
           toast.error("Password is required")
           return
         }
-        const res = await fetch(getApiUrl("/api/users"), {
+        const res = await apiFetch("/api/users", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({ ...data, status: "approved" }),
         })
@@ -651,9 +643,8 @@ export function Admin() {
     if (!deletingUser) return
     setDeleting(true)
     try {
-      const res = await fetch(getApiUrl(`/api/users/${deletingUser.id}`), {
+      const res = await apiFetch(`/api/users/${deletingUser.id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
       })
       if (!res.ok) {
         const err = await res.json()
@@ -673,11 +664,10 @@ export function Admin() {
 
   const handleApprove = useCallback(async (userId: string) => {
     try {
-      const res = await fetch(getApiUrl(`/api/users/${userId}`), {
+      const res = await apiFetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ status: "approved" }),
       })
@@ -695,11 +685,10 @@ export function Admin() {
 
   const handleReject = useCallback(async (userId: string) => {
     try {
-      const res = await fetch(getApiUrl(`/api/users/${userId}`), {
+      const res = await apiFetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ status: "rejected" }),
       })
