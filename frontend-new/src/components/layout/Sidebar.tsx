@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useRef, useEffect } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import {
   AudioLines,
-  ClipboardList,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
@@ -16,7 +15,7 @@ import { Logo } from "@/components/layout/Logo"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useMediaQuery } from "@/lib/useMediaQuery"
-import { spring, sidebarSpring, drawerSpring, tooltipVariants } from "@/lib/motion"
+import { spring, sidebarSpring, drawerSpring } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 
 type NavItem = {
@@ -73,7 +72,6 @@ export function Sidebar({
   const { pathname } = useLocation()
   const isMobile = !useMediaQuery("(min-width: 1024px)")
   const reduceMotion = useReducedMotion()
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
   const drawerRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -285,38 +283,103 @@ export function Sidebar({
             footer stays pinned instead of the sidebar overflowing. That matters
             most in landscape on a phone, and on a tablet with the keyboard up.
 
-            All three are mobile-only, and deliberately so. On the desktop
-            rail the nav carries a tooltip positioned `left-full`, outside the
-            nav's own box; a scroll container here would clip it. Setting
-            `overflow-y` to anything but `visible` makes `overflow-x` compute to
-            `auto` per spec, so `overflow-y-auto` on the desktop nav would
-            silently swallow those tooltips. The desktop rail carries three
-            links against a full-height column and never overflows anyway -- it
-            only ever had the problem in the short viewports this branch covers.
+            `overscroll-contain` stops a scroll that runs out of nav from
+            chaining through to the page behind the drawer.
+
+            These apply at EVERY breakpoint, not just below lg. The first pass
+            scoped them to `isMobile` to protect the collapsed-rail tooltips from
+            being clipped -- and that missed the tablet, which renders the
+            desktop rail (it is >=1024px) at a short height. Same overflow, same
+            cut-off footer, in a viewport the mobile-only rule never reached.
+            The tooltip problem is solved at its actual source below rather than
+            by keeping the sidebar out of a scroll container it genuinely needs.
 
             The bottom safe-area padding moved to the footer below: it belongs to
             the bottom-most element, and here it was reserving room for the home
             indicator ABOVE the footer rather than below it -- so the very row
             that needed the clearance was the one sitting in it. */}
-        <nav
-          className={cn(
-            "flex-1 space-y-1 px-3 pb-3 pt-1",
-            isMobile && "min-h-0 overflow-y-auto overscroll-contain"
-          )}
-        >
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-3 pt-1">
           {items.map((item) => {
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"
                 : pathname.startsWith(item.href)
 
-            return (
-              <div
-                key={item.name}
-                className="relative"
-                onMouseEnter={() => setHoveredItem(item.name)}
-                onMouseLeave={() => setHoveredItem(null)}
+            /* Built once and placed either bare or inside a tooltip trigger.
+               Written this way rather than duplicated per branch so there is
+               exactly one <Link> in the DOM per nav item -- an overlay copy
+               would double the tab stops and make the same destination reachable
+               twice. */
+            const link = (
+              <Link
+                to={item.href}
+                onClick={onClose}
+                aria-label={showLabels ? undefined : item.name}
+                /* No native `title` alongside the tooltip. Both were set, so
+                   hovering produced two labels -- the browser's, which cannot be
+                   styled and always paints over the page, and the styled one.
+                   `aria-label` still gives assistive tech the accessible name. */
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "group relative z-10 flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                  showLabels ? "justify-start" : "justify-center",
+                  isActive
+                    ? "text-[#14382a]"
+                    : "text-[#dff0e7] hover:bg-white/10 hover:text-white"
+                )}
               >
+                <motion.span
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  /* gap-3 only when the label is showing.
+
+                     The label stays mounted at width 0 so it can fade without a
+                     layout shift, but a zero-width flex item still consumes the
+                     gap. On the 72px collapsed rail that left the icon centred
+                     within a 32px block -- 20px icon + 12px of dead space --
+                     putting it 6px left of the rail's centre. Half the gap,
+                     and it read as the whole column being misaligned.
+
+                     px-3 is symmetric so it does not contribute to the offset;
+                     the gap was the only asymmetry. */
+                  className={cn(
+                    "flex min-w-0 items-center",
+                    showLabels ? "gap-3" : "gap-0"
+                  )}
+                >
+                  <item.icon
+                    className={cn(
+                      "h-5 w-5 shrink-0 transition-transform duration-150",
+                      // Collapsed rail leans on the scale nudge; expanded gets
+                      // a 2px slide so every nav item nudges the same way.
+                      !showLabels
+                        ? "group-hover:scale-110"
+                        : "motion-safe:group-hover:translate-x-0.5"
+                    )}
+                    aria-hidden="true"
+                  />
+                  {/* Label stays mounted and fades/collapses with the panel
+                      width so text never clips or shifts layout mid-toggle */}
+                  <motion.span
+                    initial={false}
+                    animate={{ opacity: showLabels ? 1 : 0, width: showLabels ? "auto" : 0 }}
+                    transition={
+                      reduceMotion
+                        ? { duration: 0 }
+                        : { width: sidebarSpring, opacity: { duration: 0.18, ease: "easeOut" } }
+                    }
+                    aria-hidden={!showLabels}
+                    className="overflow-hidden whitespace-nowrap"
+                  >
+                    {item.name}
+                  </motion.span>
+                </motion.span>
+              </Link>
+            )
+
+            return (
+              <div key={item.name} className="relative">
                 {isActive && (
                   <motion.span
                     layoutId="activeNav"
@@ -330,87 +393,31 @@ export function Sidebar({
                     className="absolute left-0 top-1/2 z-10 h-6 w-1 -translate-y-1/2 rounded-r-full bg-aura-accent"
                   />
                 )}
-                <Link
-                  to={item.href}
-                  onClick={onClose}
-                  aria-label={showLabels ? undefined : item.name}
-                  /* No native `title` alongside the custom tooltip. Both were
-                     set, so hovering produced two labels -- the browser's,
-                     which cannot be styled and always paints over the page, and
-                     the styled one. `aria-label` still gives assistive tech the
-                     accessible name. */
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "group relative z-10 flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-                    showLabels ? "justify-start" : "justify-center",
-                    isActive
-                      ? "text-[#14382a]"
-                      : "text-[#dff0e7] hover:bg-white/10 hover:text-white"
-                  )}
-                >
-                  <motion.span
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.96 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                    /* gap-3 only when the label is showing.
 
-                       The label stays mounted at width 0 so it can fade without a
-                       layout shift, but a zero-width flex item still consumes the
-                       gap. On the 72px collapsed rail that left the icon centred
-                       within a 32px block -- 20px icon + 12px of dead space --
-                       putting it 6px left of the rail's centre. Half the gap,
-                       and it read as the whole column being misaligned.
+                {/* Collapsed-rail tooltip.
 
-                       px-3 is symmetric so it does not contribute to the offset;
-                       the gap was the only asymmetry. */
-                    className={cn(
-                      "flex min-w-0 items-center",
-                      showLabels ? "gap-3" : "gap-0"
-                    )}
-                  >
-                    <item.icon
-                      className={cn(
-                        "h-5 w-5 shrink-0 transition-transform duration-150",
-                        // Collapsed rail leans on the scale nudge; expanded gets
-                        // a 2px slide so every nav item nudges the same way.
-                        !showLabels
-                          ? "group-hover:scale-110"
-                          : "motion-safe:group-hover:translate-x-0.5"
-                      )}
-                      aria-hidden="true"
-                    />
-                    {/* Label stays mounted and fades/collapses with the panel
-                        width so text never clips or shifts layout mid-toggle */}
-                    <motion.span
-                      initial={false}
-                      animate={{ opacity: showLabels ? 1 : 0, width: showLabels ? "auto" : 0 }}
-                      transition={
-                        reduceMotion
-                          ? { duration: 0 }
-                          : { width: sidebarSpring, opacity: { duration: 0.18, ease: "easeOut" } }
-                      }
-                      aria-hidden={!showLabels}
-                      className="overflow-hidden whitespace-nowrap"
-                    >
-                      {item.name}
-                    </motion.span>
-                  </motion.span>
-                </Link>
+                    Radix, not the hand-rolled <motion.span role="tooltip"> this
+                    replaces. That one was an absolutely-positioned descendant of
+                    the nav item, and the nav is now a scroll container -- and
+                    setting `overflow-y` to anything but `visible` makes
+                    `overflow-x` compute to `auto` per spec, so a tooltip at
+                    `left-full` would have been clipped by the nav's own box.
+                    Radix's TooltipContent renders through a Portal to
+                    document.body and escapes every overflow ancestor regardless.
 
-                <AnimatePresence>
-                  {!showLabels && hoveredItem === item.name && (
-                    <motion.span
-                      role="tooltip"
-                      variants={tooltipVariants}
-                      initial="hidden"
-                      animate="visible"
-                      exit="exit"
-                      className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#132420] px-3 py-1.5 text-xs font-medium text-white shadow-aura-md"
-                    >
-                      {item.name}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                    It also removes the last duplicate of a component this file
+                    already imports and uses for the logo toggle and the sign-out
+                    button: one tooltip implementation, one delay, one look. The
+                    visible change is a 200ms hover delay and Radix's fade/zoom
+                    instead of a spring -- matching the other two tooltips here. */}
+                {showLabels ? (
+                  link
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right">{item.name}</TooltipContent>
+                  </Tooltip>
+                )}
               </div>
             )
           })}
