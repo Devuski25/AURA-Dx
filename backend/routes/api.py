@@ -337,9 +337,29 @@ async def list_users(
     offset: int = 0
 ):
     clinic_id = user.get("clinic_id")
-    query = supabase.table("profiles").select("*")
-    if user.get("role") != "super_admin" and clinic_id:
-        query = query.eq("clinic_id", clinic_id)
+
+    # Scoping, with the same fallback the rest of the app uses.
+    #
+    # This used to be `if role != "super_admin" and clinic_id`, so an admin
+    # carrying no clinic_id got NO filter and saw everyone. Filtering the other
+    # way would be worse: `eq("clinic_id", None)` matches nothing, and an admin
+    # would see an empty page rather than a wrong one.
+    #
+    # `_resolve_clinic_id` falls back to the single configured clinic, which is
+    # the whole premise of the single-clinic model. So an admin whose own
+    # clinic_id was never populated still resolves to the right clinic.
+    if user.get("role") != "super_admin":
+        resolved = _resolve_clinic_id(clinic_id)
+        # No clinic row exists at all. Filtering on a value that cannot exist
+        # would return an empty list, which reads as "no users" rather than
+        # "misconfigured", so fall back to showing everything.
+        query = (
+            supabase.table("profiles").select("*").eq("clinic_id", resolved)
+            if resolved
+            else supabase.table("profiles").select("*")
+        )
+    else:
+        query = supabase.table("profiles").select("*")
     query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
     try:
         profiles_res = query.execute()
