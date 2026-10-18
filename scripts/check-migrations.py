@@ -228,5 +228,99 @@ else:
     print("       every column the backend inserts exists")
     print(f"       backend interpretation keys checked: {len(inserted)}")
 
+# PostgreSQL replaces a view's columns BY POSITION. Existing names must stay in
+# the same slots; new ones may only be appended at the very end. Inserting one
+# earlier shifts everything after it and fails with
+#
+#     42P16: cannot change name of view column "patient_name" to "..."
+#
+# which happened here: the ten new columns were appended to the end of the
+# *screenings* block rather than to the end of the view, which sits before the
+# joined patient/clinic/profile columns.
+print()
+print("=== view column order ===")
+
+
+def _view_columns(sql: str, name: str):
+    """Ordered output column names of a CREATE VIEW, or None if not present."""
+    m = re.search(
+        r"(?is)CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+" + re.escape(name) + r"\s+AS(.*?)\bFROM\b",
+        sql,
+    )
+    if not m:
+        return None
+    out = []
+    for line in m.group(1).split(","):
+        line = line.strip()
+        if not line or line.startswith("--"):
+            continue
+        alias = re.search(r"(?i)\bAS\s+(\w+)\s*$", line)
+        if alias:
+            out.append(alias.group(1))
+            continue
+        field = re.search(r"([a-z])\.(\w+)\s*$", line, re.I)
+        if field:
+            out.append(field.group(2))
+            continue
+        bare = re.match(r"^(\w+)\s*$", line)
+        if bare:
+            out.append(bare.group(1))
+    return out
+
+
+_view_names = set()
+for _m in _migrations:
+    _view_names |= set(
+        re.findall(
+            r"(?i)CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(\w+)",
+            _m.read_text(encoding="utf-8"),
+        )
+    )
+
+order_problems = []
+for _vn in sorted(_view_names):
+    _previous = None
+    for _m in _migrations:
+        _sql = _m.read_text(encoding="utf-8")
+        _current = _view_columns(_sql, _vn)
+        if _current is None:
+            continue
+        # A DROP before the CREATE frees the column positions entirely, so
+        # reordering is legitimate. The TB retirement and the multi-recording
+        # change both do this, which is why they are not violations.
+        _dropped = re.search(
+            r"(?i)DROP\s+VIEW\s+(?:IF\s+EXISTS\s+)?" + re.escape(_vn) + r"\b", _sql
+        )
+        _replaced = re.search(
+            r"(?i)CREATE\s+OR\s+REPLACE\s+VIEW\s+" + re.escape(_vn) + r"\b", _sql
+        )
+        if _dropped and not _replaced:
+            _previous = _current
+            continue
+        if _previous is not None and _current[: len(_previous)] != _previous:
+            _i = next(
+                (i for i, (a, b) in enumerate(zip(_previous, _current)) if a != b),
+                min(len(_previous), len(_current)),
+            )
+            _was = _previous[_i] if _i < len(_previous) else "(none)"
+            _now = _current[_i] if _i < len(_current) else "(none)"
+            order_problems.append(
+                f"{_m.name}: CREATE OR REPLACE VIEW {_vn} changes column "
+                f"{_i + 1} from {_was} to {_now}; existing columns must keep "
+                f"their positions. Append new columns at the end, or DROP the "
+                f"view first."
+            )
+        _previous = _current
+
+if order_problems:
+    failures += 1
+    print("[FAIL] a CREATE OR REPLACE VIEW reorders or renames existing columns")
+    for p in order_problems:
+        print(f"         - {p}")
+    print("         new columns must be appended at the END of the select list")
+else:
+    print("[PASS] every replaced view keeps its existing columns in position")
+    print(f"       views checked: {len(_view_names)}")
+
 print(f"\n{'ALL PASS' if failures == 0 else str(failures) + ' FAILURE(S)'}")
 sys.exit(1 if failures else 0)

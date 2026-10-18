@@ -56,8 +56,19 @@ COMMENT ON COLUMN public.screenings.low_agreement IS
 -- make the new columns unreachable -- the selects in backend/routes/api.py name
 -- them and would fail with "column does not exist".
 --
--- CREATE OR REPLACE VIEW cannot change a view's column order or add columns in
--- the middle, so the new ones are appended at the end of the screenings block.
+-- PostgreSQL matches the existing columns of a replaced view BY POSITION. New
+-- columns may only be appended at the very end of the whole select list.
+-- Placing them anywhere earlier shifts the columns after them and fails with
+--
+--     42P16: cannot change name of view column "patient_name"
+--                 to "interpretation_status"
+--
+-- which is what happened on the first attempt: they were appended to the end of
+-- the *screenings* block rather than to the end of the view, which sits before
+-- the joined patient/clinic/profile columns.
+--
+-- scripts/check-migrations.py compares each view's column order against the
+-- previous definition of the same view, so this cannot recur.
 CREATE OR REPLACE VIEW screening_history_view AS
 SELECT
     s.id,
@@ -80,6 +91,17 @@ SELECT
     s.review_notes,
     s.created_at,
     s.updated_at,
+    pat.full_name AS patient_name,
+    pat.date_of_birth,
+    age_bracket(pat.date_of_birth) AS age_bracket,
+    pat.gender,
+    pat.smoking_history,
+    c.name AS clinic_name,
+    clin.full_name AS clinician_name,
+    rev.full_name AS reviewed_by_name,
+    -- Appended last, and only last. PostgreSQL matches a replaced view's
+    -- existing columns by POSITION, so new columns cannot be inserted
+    -- anywhere earlier without shifting the ones after them.
     s.interpretation_status,
     s.confidence_level,
     s.recommendation_code,
@@ -89,15 +111,7 @@ SELECT
     s.band_position,
     s.low_agreement,
     s.recordings_total,
-    s.recordings_flagged,
-    pat.full_name AS patient_name,
-    pat.date_of_birth,
-    age_bracket(pat.date_of_birth) AS age_bracket,
-    pat.gender,
-    pat.smoking_history,
-    c.name AS clinic_name,
-    clin.full_name AS clinician_name,
-    rev.full_name AS reviewed_by_name
+    s.recordings_flagged
 FROM screenings s
 JOIN patients pat ON s.patient_id = pat.id
 JOIN clinics c ON s.clinic_id = c.id
