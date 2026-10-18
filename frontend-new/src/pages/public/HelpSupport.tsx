@@ -100,7 +100,7 @@ const categories: FaqCategory[] = [
         q: "How do I capture a breathing sample?",
         a: [
           ordered(
-            "Connect your digital stethoscope with a USB cable.",
+            "Connect your digital stethoscope using a wired connection.",
             "Open the Screening page and pair the device.",
             "Work through the five suggested sites in order — anterior right, anterior left, posterior right, posterior left, then trachea.",
             "Press Capture and have the patient breathe normally for 5–8 full breaths at each site (roughly 15–25 seconds).",
@@ -141,7 +141,7 @@ const categories: FaqCategory[] = [
             "Any digital stethoscope that your device recognises as a microphone. Most modern models qualify — Eko, Thinklabs, 3M Littmann CORE, Stemoscope and similar."
           ),
           unordered(
-            "Use a wired USB connection. Plug it in and it appears as an audio input straight away.",
+            "Use a wired connection. Plug it in and it appears as an audio input straight away.",
             "A Bluetooth stethoscope works only if you have already paired it in your device's settings — AURA-Dx cannot pair it for you.",
             "It must output standard PCM audio at 16–48 kHz.",
             "If you are unsure whether yours is supported, contact support with the model number."
@@ -176,7 +176,7 @@ const categories: FaqCategory[] = [
         q: "My digital stethoscope isn't detected. What should I do?",
         a: [
           ordered(
-            "Check the wired connection — USB cable firmly seated at both ends.",
+            "Check the wired connection — make sure the cable is firmly seated at both ends.",
             "Allow device permission in the browser (the lock icon in the address bar).",
             "Make sure you are on HTTPS — device APIs require a secure origin.",
             "Use a supported browser: Chrome 100+, Edge 100+, Firefox 98+, Safari 15+.",
@@ -204,7 +204,7 @@ const categories: FaqCategory[] = [
         q: "Can I use AURA-Dx on a tablet or phone with my digital stethoscope?",
         a: [
           text(
-            "Yes. You will need a USB-C to USB-A or OTG adapter to plug the stethoscope into the tablet or phone."
+            "Yes. You will need a suitable adapter to plug the stethoscope into the tablet or phone."
           ),
           unordered(
             "Check the adapter supports audio, not just charging or data.",
