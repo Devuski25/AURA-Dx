@@ -190,14 +190,53 @@ function ProbabilityBar({ label, prob, color }: { label: string; prob: number; c
   )
 }
 
-/* ---------- Waveform (screening details) ---------- */
-function Waveform() {
-  const bars = [4, 9, 14, 6, 16, 10, 5, 12, 8, 15, 6, 11]
+/* ---------- Take durations (screening details) ----------
+ *
+ * This replaces a decorative "waveform" that drew twelve bars from a hardcoded
+ * array of heights. It looked like the patient's recording and meant nothing --
+ * the same twelve bars appeared for every screening, including rows with no
+ * audio at all. A clinical screen showing invented data shaped like data is
+ * worse than showing none.
+ *
+ * These bars are real: each one is the measured length of one recorded take,
+ * scaled against the longest take in the set. The widths therefore answer a
+ * question a clinician actually asks -- was one take clipped short? -- and the
+ * numbers are in the tooltip and in the per-take table further down.
+ *
+ * Nothing is drawn when the per-take scores are missing, because there is
+ * genuinely nothing to show.
+ */
+function TakeDurations({ takes }: { takes: Array<{ duration_sec?: number }> }) {
+  const usable = takes.filter(t => typeof t.duration_sec === "number" && t.duration_sec > 0)
+  if (usable.length === 0) return null
+
+  const longest = Math.max(...usable.map(t => t.duration_sec as number), 0.001)
+
   return (
-    <div aria-hidden="true" className="flex h-4 items-end gap-[2px] opacity-50">
-      {bars.map((h, i) => (
-        <span key={i} className="w-[2px] rounded-[1px] bg-aura-forest-light" style={{ height: `${h}px` }} />
-      ))}
+    <div>
+      <FieldLabel>Takes recorded</FieldLabel>
+      <div className="flex h-5 items-end gap-1" role="img"
+           aria-label={`${usable.length} recordings, lengths ${usable
+             .map(t => `${(t.duration_sec as number).toFixed(1)} seconds`)
+             .join(", ")}`}
+      >
+        {usable.map((t, i) => {
+          const secs = t.duration_sec as number
+          // 20% floor so a very short take is still visible as a bar.
+          const pct = Math.max((secs / longest) * 100, 20)
+          return (
+            <span
+              key={i}
+              title={`Take ${i + 1}: ${secs.toFixed(1)}s`}
+              className="w-1.5 shrink-0 rounded-[2px] bg-aura-forest-light"
+              style={{ height: `${Math.max(pct, 18)}%` }}
+            />
+          )
+        })}
+      </div>
+      <div className="mt-1 text-[11px] tabular-nums text-aura-muted">
+        {usable.length} take{usable.length === 1 ? "" : "s"}
+      </div>
     </div>
   )
 }
@@ -601,15 +640,18 @@ export function ScreeningDetail() {
           tells a clinician nothing, while the clinician who performed the
           screening does.
 
-          Two columns on a phone rather than one: Name spans the full width and
-          Age / Gender / Clinician sit beneath it. A single column on a 375px
-          screen pushed the reading below the fold for no reason. */}
+          Two columns on a phone, with no column spanning the full width:
+          Name and Age share the first row, Gender and Clinician the second.
+          Name used to span both columns and Clinician sat alone on a third
+          row, which on a 375px screen made the card three rows tall for four
+          values and pushed the age below the fold. Nothing here is long enough
+          to need the extra width -- the longest is a name, and it truncates. */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, ...sectionSpring }}>
       <InfoCard title="Patient Information">
         <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:gap-8 lg:grid-cols-4 lg:gap-6">
-          <div className="col-span-2 sm:col-span-1">
+          <div className="min-w-0">
             <FieldLabel>Name</FieldLabel>
-            <div className={cn("text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
+            <div className={cn("truncate text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
               {screening.patient_name || "Anonymous Screening"}
             </div>
           </div>
@@ -652,8 +694,23 @@ export function ScreeningDetail() {
               {screening.audio_duration_sec ? `${screening.audio_duration_sec}s` : "N/A"}
             </div>
           </div>
-          <div className="flex items-end">
-            <Waveform />
+          <div>
+            <FieldLabel>Status</FieldLabel>
+            <div
+              className={cn(
+                "inline-flex items-center rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
+                screening.status === "pending_review"
+                  ? "bg-aura-coral-soft text-aura-coral-strong"
+                  : screening.reviewed_by
+                  ? "bg-aura-mint-soft text-aura-pine"
+                  : "bg-aura-sage text-aura-forest"
+              )}
+            >
+              {screening.status === "pending_review" ? "Pending Review" : screening.reviewed_by ? "Reviewed" : screening.status}
+            </div>
+          </div>
+          <div className="flex flex-col items-end min-w-0">
+            <TakeDurations takes={screening.recording_scores?.per_clip ?? []} />
           </div>
         </div>
       </InfoCard>
@@ -890,35 +947,6 @@ export function ScreeningDetail() {
         </motion.div>
       )}
 
-      {/* Review Status */}
-      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, ...sectionSpring }} className="aura-panel mt-6 rounded-[14px] py-5 px-6">
-        <h2 className="mb-4 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
-          Review Status
-        </h2>
-        <div className="grid grid-cols-1 gap-8 lg:gap-6">
-          <div>
-            <FieldLabel>Status</FieldLabel>
-            <div
-              className={cn(
-                "inline-flex items-center rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
-                screening.status === "pending_review"
-                  ? "bg-aura-coral-soft text-aura-coral-strong"
-                  : screening.reviewed_by
-                  ? "bg-aura-mint-soft text-aura-pine"
-                  : "bg-aura-sage text-aura-forest"
-              )}
-            >
-              {screening.status === "pending_review" ? "Pending Review" : screening.reviewed_by ? "Reviewed" : screening.status}
-            </div>
-          </div>
-          {screening.review_notes && (
-            <div>
-              <FieldLabel>Review Notes</FieldLabel>
-              <div className="text-sm font-medium text-aura-ink">{screening.review_notes}</div>
-            </div>
-          )}
-        </div>
-      </motion.div>
       {/* Actions */}
       <div className="mt-6 print:hidden">
         <Button variant="outline" onClick={() => navigate("/dashboard/patient-records")}>
