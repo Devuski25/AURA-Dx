@@ -35,9 +35,15 @@ const STATE_TEXT: Record<Check["state"], string> = {
 /**
  * Admin-only component health.
  *
- * This is the screen you open when the Login page is showing red. The Login page
+ * The screen you open when the Login page is showing red. The Login page
  * tells a clinician whether to bother; this tells an administrator what is
  * actually wrong.
+ *
+ * It lives on the dashboard rather than behind the admin pages because a
+ * clinician is the person who finds the system broken -- they are the one
+ * recording, and they are the one who needs to know whether the failure is
+ * theirs or the server's. The diagnostic is for the person hitting the
+ * problem, not for the person who will fix it later.
  *
  * Probes live where possible, falls back to the heartbeat row for detail, and
  * never throws -- a diagnostic tool that errors when the thing is broken is
@@ -143,7 +149,7 @@ export function ServiceHealthPanel() {
 
   return (
     <Card className="aura-panel rounded-2xl">
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
         {/* Title only.
 
             The heartbeat age was here as a description and read as a run-on:
@@ -154,26 +160,35 @@ export function ServiceHealthPanel() {
             The heartbeat age is not lost. It is reported on its own line at the
             bottom of the card, next to the check time, where it reads as a fact
             rather than as a subtitle. */}
-        <CardTitle>Service health</CardTitle>
+        <CardTitle className="text-base text-aura-ink">Service health</CardTitle>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={busy}>
           <RefreshCw className={busy ? "mr-1.5 h-3.5 w-3.5 animate-spin" : "mr-1.5 h-3.5 w-3.5"} />
           Refresh
         </Button>
       </CardHeader>
-      <CardContent>
-        <ul className="m-0 grid list-none gap-3 sm:grid-cols-2">
+      <CardContent className="px-4 pb-4 sm:px-5">
+        {/* Two across on a phone and in tablet portrait, four across from
+            tablet landscape up.
+
+            The breakpoint is chosen on width, which is the only thing a
+            stylesheet can see, and it lands where it needs to because the
+            responsive contract already treats 1024px as the desktop edge: an
+            iPad in landscape is 1024px wide and gets the four-across row,
+            while the same iPad in portrait is 768px and gets the two-by-two.
+            A phone is 375-430px and also gets the two-by-two. */}
+        <ul className="m-0 grid list-none grid-cols-2 gap-2.5 lg:grid-cols-4">
           {checks.map((c) => (
             <li
               key={c.label}
-              className="flex items-start gap-3 rounded-xl border border-aura-border-soft bg-aura-surface-alt p-4"
+              className="flex items-start gap-2.5 rounded-xl border border-aura-border-soft bg-aura-surface-alt p-3"
             >
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white">
-                <c.icon className="h-4 w-4 text-aura-forest" aria-hidden="true" />
+              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white">
+                <c.icon className="h-3.5 w-3.5 text-aura-forest" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${STATE_STYLE[c.state]}`} aria-hidden="true" />
-                  <p className="text-sm font-semibold text-aura-ink">{c.label}</p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${STATE_STYLE[c.state]}`} aria-hidden="true" />
+                  <p className="text-[13px] font-semibold leading-tight text-aura-ink">{c.label}</p>
                   <Badge
                     variant="outline"
                     className={`border-transparent ${STATE_TEXT[c.state]}`}
@@ -181,16 +196,20 @@ export function ServiceHealthPanel() {
                     {c.state}
                   </Badge>
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-aura-muted">{c.detail}</p>
+                <p className="mt-1 text-[11px] leading-snug text-aura-muted">{c.detail}</p>
               </div>
             </li>
           ))}
         </ul>
 
         {checkedAt && (
-          <p className="mt-4 text-xs text-aura-muted">
+          <p className="mt-3 text-[11px] text-aura-muted">
             Checked {new Date(checkedAt).toLocaleTimeString()}
-            {beat?.checked_at ? ` · Last heartbeat ${beatAge}` : " · No heartbeat recorded"}
+            {/* The heartbeat age is only worth saying when there is one. The
+                "No heartbeat recorded" fallback was a statement about the
+                absence of a statement, and it sat next to a timestamp as if it
+                were one. */}
+            {beat?.checked_at ? ` · Last heartbeat ${beatAge}` : ""}
           </p>
         )}
       </CardContent>

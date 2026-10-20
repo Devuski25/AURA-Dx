@@ -1202,6 +1202,34 @@ export function Screening() {
             <CardDescription>Patient: {selectedPatient?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Warn before the clinician starts, not after they lose the work.
+
+                Takes live in component state. They are not written anywhere
+                until the analysis is run and the files are uploaded, so
+                navigating away -- to the dashboard, to another patient, to a
+                different tab -- unmounts this page and the recordings go with
+                it. There is no recovery for an unsent take.
+
+                This sits above the device banner because the device choice is
+                the first thing a clinician touches on this screen, and this is
+                the thing they need to know before touching it. */}
+            <div
+              role="note"
+              className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5"
+            >
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-900">
+                  Unsent recordings are discarded if you leave this page
+                </p>
+                <p className="mt-1 text-[13px] leading-relaxed text-amber-800">
+                  Your takes are held on this device only. They are saved when
+                  you run the analysis — leaving this page before then discards
+                  them, and they cannot be recovered.
+                </p>
+              </div>
+            </div>
+
             {/* What is actually plugged in. Without this a clinician cannot
                 tell the stethoscope from the built-in microphone, and the two
                 are indistinguishable until the takes come back useless. This

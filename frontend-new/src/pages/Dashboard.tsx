@@ -30,6 +30,7 @@ import { useCachedData } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
 import { renderResultBadges, ConfidenceChip, ScreeningStatusBadge } from "@/lib/badge-helpers"
 import { EmptyState } from "@/components/EmptyState"
+import { ServiceHealthPanel } from "@/components/ServiceHealthPanel"
 
 interface Screening {
   id: string
@@ -408,6 +409,23 @@ export function Dashboard() {
                 </motion.div>
               )
             })}
+            </motion.div>
+
+            {/* Service health, full width.
+
+                A clinician is the person who finds the system broken -- they
+                are the one recording, and they are the one who needs to know
+                whether the failure is theirs or the server's. So the
+                diagnostic sits here, on the dashboard they land on, rather than
+                behind the admin pages.
+
+                Full width because it is a status strip, not a card to read: four
+                services in a row on a wide screen, two by two on a phone or a
+                tablet in portrait. */}
+            <motion.div {...staggerProps} className="mt-6">
+              <motion.div {...{ variants: staggerItem }}>
+                <ServiceHealthPanel />
+              </motion.div>
             </motion.div>
 
         {/* The second track only exists for roles that render the Needs
