@@ -264,6 +264,23 @@ function Start-ServiceProcess($Svc) {
         Write-Host "  [FAIL] $($Svc.Name): venv python not found at $($Svc.Py)" -ForegroundColor Red
         return
     }
+
+    # Reap orphans before launching.
+    #
+    # A service can be alive with its socket dead -- the Windows
+    # I/O completion-port failure does exactly that -- and then it holds its
+    # log file open and answers nothing. `start` is the recovery path for
+    # exactly that case, so it has to clean up as well as `restart` does.
+    # Without this, starting a new instance beside the orphan left two
+    # processes fighting over one log file and one port, and the new one never
+    # opened the port at all.
+    $orphans = @(Get-OrphanPids $Svc)
+    if ($orphans.Count -gt 0) {
+        Write-Host "  [CLEAN] $($Svc.Name): $($orphans.Count) orphaned process(es) still resident (PID $($orphans -join ','))"
+        foreach ($op in $orphans) { & taskkill /PID $op /T /F 2>&1 | Out-Null }
+        Start-Sleep -Milliseconds 800
+    }
+
     Write-Host "  [START] $($Svc.Name) (:$($Svc.Port))..."
     $out = Join-Path $Logs "$($Svc.Name).log"
     # Truncate first, otherwise a failure shows the tail of the PREVIOUS run and
