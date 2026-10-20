@@ -59,7 +59,13 @@ $Services = @(
         # empty -- which is exactly what a failed start looks like. The
         # difference between "still starting" and "died" is the one thing the
         # log is for.
-        Args = @("-u", "-m", "uvicorn", "inference_service:app", "--host", "0.0.0.0", "--port", "8000")
+        # run_service.py rather than uvicorn directly. It sets the Windows
+        # Selector event loop before the loop is made, because the default
+        # Proactor loop has a bug that kills this service's accept loop
+        # after a request, leaving the port open and the service answering
+        # nothing. The app string is still on the command line, so the
+        # orphan matcher below still finds it.
+        Args = @("-u", "run_service.py", "inference_service:app", "--host", "0.0.0.0", "--port", "8000")
         Port = 8000
         # Matched by name when hunting orphans. It used to be read positionally
         # as Args[2], which silently became "uvicorn" the moment an argument
