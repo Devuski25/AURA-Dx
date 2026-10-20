@@ -80,6 +80,37 @@ def make_user(role, clinic_id, name):
     return sign_in(email, password)
 
 
+def _ui_filter_options():
+    """The role and status options the admin page actually offers.
+
+    Read out of the page's source rather than hard-coded here, so that the
+    check follows the UI. A copy of the list in the test drifts from the
+    page, and then the test is checking a thing that is not there.
+    """
+    import re
+
+    source = (
+        Path(__file__).resolve().parent.parent
+        / "frontend-new"
+        / "src"
+        / "pages"
+        / "Admin.tsx"
+    ).read_text(encoding="utf-8")
+
+    def options_after(marker: str) -> set:
+        start = source.find(marker)
+        if start < 0:
+            return set()
+        block = source[start:start + 1200]
+        return set(re.findall(r'<SelectItem value="([^"]+)"', block))
+
+    roles = options_after('value={roleFilter}')
+    statuses = options_after('value={statusFilter}')
+    roles.discard("all")
+    statuses.discard("all")
+    return roles, statuses
+
+
 def main():
     clinic_id = "00000000-0000-0000-0000-000000000001"
     tok = make_user("super_admin", clinic_id, "Filter Admin")
@@ -188,14 +219,27 @@ def main():
         # Not values that happen to be present right now -- an account can be
         # pending today and approved tomorrow, and the filter has to offer it
         # either way.
+        #
+        # And the reverse: an option the UI offers that the database can never
+        # hold is a filter that will confuse somebody. The options are read
+        # out of the page itself, so the check follows the UI rather than a
+        # copy of it that can drift.
         POSSIBLE_ROLES = {"clinician", "admin", "super_admin"}
         POSSIBLE_STATUSES = {"pending", "approved", "rejected", "deleted"}
-        for value in ("clinician", "admin", "super_admin"):
+        ui_roles, ui_statuses = _ui_filter_options()
+        print(f"    role options in the UI   : {sorted(ui_roles)}")
+        print(f"    status options in the UI : {sorted(ui_statuses)}")
+        for value in ui_roles:
             if value not in POSSIBLE_ROLES:
                 failures.append(f"the role filter offers '{value}', which is not a role")
-        for value in ("pending", "approved", "rejected", "deleted"):
+        for value in ui_statuses:
             if value not in POSSIBLE_STATUSES:
                 failures.append(f"the status filter offers '{value}', which is not a status")
+        # Every status an account can be in, other than "all", has to be
+        # offered -- otherwise a status is unreachable through the filter.
+        for value in POSSIBLE_STATUSES - {"deleted"}:
+            if value not in ui_statuses:
+                failures.append(f"the status filter does not offer '{value}'")
         print(f"    role options   : {sorted(POSSIBLE_ROLES)}")
         print(f"    status options : {sorted(POSSIBLE_STATUSES)}")
 

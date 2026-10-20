@@ -3,18 +3,12 @@ import { Toaster } from "@/components/ui/sonner"
 import { Layout } from "@/components/layout/Layout"
 import { PublicLayout } from "@/components/public/PublicLayout"
 import { Login } from "@/pages/Login"
-import { Register } from "@/pages/Register"
-import { AuthCallback } from "@/pages/AuthCallback"
-import { ResetPassword } from "@/pages/ResetPassword"
 import { Home } from "@/pages/public/Home"
-import { About } from "@/pages/public/About"
-import { Team } from "@/pages/public/Team"
-import { Legal } from "@/pages/public/Legal"
-import { PublicHelpSupport } from "@/pages/public/HelpSupport"
 import { AuthProvider } from "@/context/AuthContext"
 import { BackendWatchdog } from "@/components/BackendWatchdog"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { AnalysisWatcherProvider } from "@/lib/analysis-watcher"
+import { likelyNextRoutes, prefetchRoute, routeForPath, whenIdle } from "@/lib/route-prefetch"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -36,6 +30,27 @@ const PatientRecords = lazy(() => import("@/pages/PatientRecords").then(m => ({ 
 const PatientDetail = lazy(() => import("@/pages/PatientDetail").then(m => ({ default: m.PatientDetail })))
 const ScreeningDetail = lazy(() => import("@/pages/ScreeningDetail").then(m => ({ default: m.ScreeningDetail })))
 const Admin = lazy(() => import("@/pages/Admin").then(m => ({ default: m.Admin })))
+
+/* The pages nobody opens straight away are loaded when they are opened.
+
+   Home and Login stay eager: they are the landing page and the sign-in page,
+   and a first-time visitor is looking at one of them within a second of
+   arriving. Everything else -- the marketing pages, the sign-up form, the
+   password-reset flow -- was in the entry chunk, which meant every signed-in
+   clinician downloaded a copy of it on every cold load to open a records
+   list. None of it changes what any of the pages look like; it changes when
+   the code arrives.
+
+   The records list and the patient's record are the two pages that follow
+   each other, and they are prefetched while the browser is idle, so moving
+   between them does not wait for a download either. */
+const Register = lazy(() => import("@/pages/Register").then(m => ({ default: m.Register })))
+const AuthCallback = lazy(() => import("@/pages/AuthCallback").then(m => ({ default: m.AuthCallback })))
+const ResetPassword = lazy(() => import("@/pages/ResetPassword").then(m => ({ default: m.ResetPassword })))
+const About = lazy(() => import("@/pages/public/About").then(m => ({ default: m.About })))
+const Team = lazy(() => import("@/pages/public/Team").then(m => ({ default: m.Team })))
+const Legal = lazy(() => import("@/pages/public/Legal").then(m => ({ default: m.Legal })))
+const PublicHelpSupport = lazy(() => import("@/pages/public/HelpSupport").then(m => ({ default: m.PublicHelpSupport })))
 
 function SuspenseLoader() {
   return (
@@ -85,6 +100,43 @@ function ScrollToTop() {
   return null
 }
 
+/**
+ * Fetches the code of the page the user is about to open.
+ *
+ * Two signals. Hovering a link knows exactly which page it goes to, so that
+ * one is prefetched and nothing else. And when the browser goes idle, the
+ * page that usually follows the current one is prefetched -- from the
+ * dashboard, that is the records list; from the records list, it is a
+ * patient's record.
+ *
+ * A pointer hover is not available on a touch screen, so the idle pass
+ * matters most on a phone. Neither of them fetches any patient data: only
+ * the code of a page, which is the same for everybody.
+ */
+function RoutePrefetcher() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    const onPointerOver = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null
+      const link = target?.closest?.("a[href]") as HTMLAnchorElement | null
+      if (!link) return
+      const route = routeForPath(link.getAttribute("href") || "")
+      if (route) prefetchRoute(route)
+    }
+    document.addEventListener("pointerover", onPointerOver, { passive: true })
+    return () => document.removeEventListener("pointerover", onPointerOver)
+  }, [])
+
+  useEffect(() => {
+    whenIdle(() => {
+      for (const route of likelyNextRoutes(pathname)) prefetchRoute(route)
+    })
+  }, [pathname])
+
+  return null
+}
+
 function AppRoutes() {
   const { user, loading } = useAuth()
 
@@ -101,17 +153,20 @@ function AppRoutes() {
       {/* Public marketing pages */}
       <Route element={<PublicLayout />}>
         <Route index element={<Home />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/team" element={<Team />} />
-        <Route path="/legal" element={<Legal />} />
-        <Route path="/help-support" element={<PublicHelpSupport />} />
+        {/* The ones that are not the landing page are loaded on demand, so a
+            signed-in clinician does not download a copy of the about page to
+            open a records list. */}
+        <Route path="/about" element={<Suspense fallback={<SuspenseLoader />}><About /></Suspense>} />
+        <Route path="/team" element={<Suspense fallback={<SuspenseLoader />}><Team /></Suspense>} />
+        <Route path="/legal" element={<Suspense fallback={<SuspenseLoader />}><Legal /></Suspense>} />
+        <Route path="/help-support" element={<Suspense fallback={<SuspenseLoader />}><PublicHelpSupport /></Suspense>} />
       </Route>
 
       {/* Auth pages */}
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Suspense fallback={<SuspenseLoader />}><Register /></Suspense>} />
+      <Route path="/auth/callback" element={<Suspense fallback={<SuspenseLoader />}><AuthCallback /></Suspense>} />
+      <Route path="/reset-password" element={<Suspense fallback={<SuspenseLoader />}><ResetPassword /></Suspense>} />
 
       {/* Authenticated app */}
       <Route
@@ -166,6 +221,7 @@ function App() {
               Skip to main content
             </a>
             <ScrollToTop />
+            <RoutePrefetcher />
             <AppRoutes />
             {/* Renders nothing; tells the user once if the backend disappears while
                 they are working, rather than letting buttons fail unexplained. */}

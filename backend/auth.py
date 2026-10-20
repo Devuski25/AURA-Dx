@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import time
 from jose import jwt, JWTError
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
@@ -19,6 +20,19 @@ SECRET_KEY = settings.jwt_secret
 _jwks_cache = None
 _jwks_cache_time = None
 _jwks_cache_key = None
+
+# How long a profile's role and status are trusted before being read from the
+# database again.
+#
+# Short on purpose. This is a backstop for a change made outside the API --
+# in the Supabase dashboard, say -- where nothing calls the invalidation. A
+# change made through the API takes effect at once, because approving,
+# rejecting, changing a role and deleting an account all invalidate the
+# entry. So this only decides how long a change made by hand is ignored.
+PROFILE_CACHE_TTL_SECONDS = 20
+
+# user id -> (profile row, the monotonic time it was read)
+_profile_cache: dict = {}
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -121,7 +135,17 @@ def _get_jwks_sync(issuer: Optional[str] = None) -> Optional[list]:
     else:
         base = settings.supabase_url
     cache_key = base
-    if _jwks_cache is not None and _jwks_cache_time and _jwks_cache_key == cache_key and (datetime.utcnow() - _jwks_cache_time).seconds < 300:
+    # `.total_seconds()`, not `.seconds`. `timedelta.seconds` is the seconds
+    # COMPONENT, so it wraps to 0 at every whole minute: at 60s it reads 0,
+    # at 120s it reads 0, and at a full hour it reads 0 again. The cache then
+    # never expires for a long-running process, and a rotated signing key is
+    # never picked up.
+    if (
+        _jwks_cache is not None
+        and _jwks_cache_time
+        and _jwks_cache_key == cache_key
+        and (datetime.utcnow() - _jwks_cache_time).total_seconds() < 300
+    ):
         return _jwks_cache
     try:
         import urllib.request
@@ -217,6 +241,51 @@ def decode_token(token: str) -> dict:
     )
 
 
+def invalidate_profile(user_id: str) -> None:
+    """Forget a cached profile.
+
+    Called whenever something changes a person's role or status, so that the
+    change takes effect on the very next request rather than whenever the
+    cache happens to expire. Without this the cache would quietly weaken the
+    rule that a rejected account stops working immediately.
+    """
+    _profile_cache.pop(user_id, None)
+
+
+def _get_profile(user_id: str) -> Optional[dict]:
+    """role, status and clinic_id for a user, from a short-lived cache.
+
+    Returns None when the user does not exist. A user who does not exist is
+    not cached: the first request after the account is deleted has to be
+    refused, and caching a miss would keep refusing a user who has just been
+    created.
+    """
+    now = time.monotonic()
+    hit = _profile_cache.get(user_id)
+    if hit is not None and (now - hit[1]) < PROFILE_CACHE_TTL_SECONDS:
+        return hit[0]
+
+    try:
+        res = (
+            supabase.table("profiles")
+            .select("role, status, clinic_id")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception:
+        return None
+
+    rows = res.data or []
+    if not rows:
+        _profile_cache.pop(user_id, None)
+        return None
+
+    row = rows[0]
+    _profile_cache[user_id] = (row, now)
+    return row
+
+
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> dict:
     if not credentials:
         raise HTTPException(
@@ -233,28 +302,38 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Resolve role/status/clinic_id from the DB on every request so account
-    # status (pending/rejected/deleted) is enforced immediately and role
-    # changes take effect without waiting for token expiry.
-    try:
-        profile = supabase.table("profiles").select("role, status, clinic_id").eq("id", sub).single().execute()
-    except Exception:
-        profile = None
-    if not profile or not profile.data:
+    # Resolve role/status/clinic_id from the DB so account status
+    # (pending/rejected/deleted) is enforced and role changes take effect
+    # without waiting for token expiry.
+    #
+    # That lookup was done on EVERY authenticated request, and it is a
+    # database round trip: about 130ms from this machine to the hosted
+    # database, which is more than the query the endpoint itself runs. A page
+    # that makes three calls paid it three times, and every page felt slow
+    # for a reason that had nothing to do with the page.
+    #
+    # The result is cached in memory for a short window, and invalidated the
+    # moment anything changes it -- approving, rejecting, changing a role or
+    # deleting an account all call `invalidate_profile`. So the guarantee that
+    # a rejected account stops working the moment it is rejected still holds;
+    # the cache only covers the window between two requests from the same
+    # signed-in person.
+    profile_row = _get_profile(sub)
+    if profile_row is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Profile not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if profile.data.get("status") != "approved":
+    if profile_row.get("status") != "approved":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account not approved or inactive",
         )
-    payload["role"] = profile.data["role"]
-    payload["clinic_id"] = profile.data.get("clinic_id")
-    payload["status"] = profile.data.get("status")
+    payload["role"] = profile_row["role"]
+    payload["clinic_id"] = profile_row.get("clinic_id")
+    payload["status"] = profile_row.get("status")
     return payload
 
 

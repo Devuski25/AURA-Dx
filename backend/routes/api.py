@@ -37,7 +37,7 @@ from models import (
     UserRole, UserStatus, ScreeningStatus,
     ErrorResponse, HealthResponse, SendOtp, VerifyOtp
 )
-from auth import get_current_user, get_current_user_id, require_role
+from auth import get_current_user, get_current_user_id, require_role, invalidate_profile
 from database import supabase, supabase_anon
 from config import settings
 from email_service import send_account_status_email, send_verification_email
@@ -621,6 +621,10 @@ async def update_user(
     previous_status = target.data.get("status")
     if update_data:
         supabase.table("profiles").update(update_data).eq("id", user_id).execute()
+        # The role and status are cached for the length of a request, so a
+        # change made here has to clear that entry. Otherwise a rejected
+        # account would keep working until the cache happened to expire.
+        invalidate_profile(user_id)
     if password:
         supabase.auth.admin.update_user_by_id(user_id, {"password": password})
 
@@ -689,6 +693,9 @@ async def delete_user(user_id: str, user: dict = Depends(require_role(UserRole.A
 
     supabase.auth.admin.delete_user(user_id)
     supabase.table("profiles").delete().eq("id", user_id).execute()
+    # A deleted account must stop working on the next request, not whenever
+    # the cached profile happens to expire.
+    invalidate_profile(user_id)
 
     _log_audit("user_delete", user.get("sub"), None, "user", user_id, {"deleted_user": target.data["email"]})
 
@@ -1331,6 +1338,91 @@ def _enrich_screening(s):
     return s
 
 
+def _enrich_screenings(rows: list) -> list:
+    """Add the joined names to many screenings at once.
+
+    `_enrich_screening` does three queries for one row: the patient, the
+    people, the clinic. Called in a loop that is three queries per screening,
+    and every one of them is a round trip to the hosted database -- about
+    130ms each from this machine. A list of fifty screenings spent fifteen
+    seconds in lookups before it had anything to show.
+
+    The same three lookups do not need repeating per row: the same patient
+    appears in several screenings, the same clinician signs off on all of
+    them, and there is one clinic. So the ids are collected and looked up
+    once each.
+
+    It is only used where the view is unavailable. The view already carries
+    the joined names, and the normal path reads it directly.
+    """
+    rows = [dict(r) for r in (rows or [])]
+    if not rows:
+        return []
+
+    for s in rows:
+        s.setdefault("patient_name", None)
+        s.setdefault("patient_dob", None)
+        s.setdefault("patient_gender", None)
+        s.setdefault("age_bracket", None)
+        s.setdefault("clinic_name", None)
+        s.setdefault("clinician_name", None)
+        s.setdefault("reviewed_by_name", None)
+        s.setdefault("reviewed_by", None)
+        s.setdefault("reviewed_at", None)
+        s.setdefault("review_notes", None)
+
+    patient_ids = {r.get("patient_id") for r in rows if r.get("patient_id")}
+    profile_ids = {
+        x
+        for r in rows
+        for x in (r.get("clinician_id"), r.get("reviewed_by"))
+        if x
+    }
+    clinic_ids = {r.get("clinic_id") for r in rows if r.get("clinic_id")}
+
+    patients = {}
+    if patient_ids:
+        try:
+            res = supabase.table("patients").select(
+                "id,full_name,date_of_birth,gender"
+            ).in_("id", list(patient_ids)).execute()
+            patients = {p["id"]: p for p in (res.data or [])}
+        except Exception:
+            patients = {}
+
+    people = {}
+    if profile_ids:
+        try:
+            res = supabase.table("profiles").select("id,full_name").in_(
+                "id", list(profile_ids)
+            ).execute()
+            people = {p["id"]: p.get("full_name") for p in (res.data or [])}
+        except Exception:
+            people = {}
+
+    clinics = {}
+    if clinic_ids:
+        try:
+            res = supabase.table("clinics").select("id,name").in_(
+                "id", list(clinic_ids)
+            ).execute()
+            clinics = {c["id"]: c.get("name") for c in (res.data or [])}
+        except Exception:
+            clinics = {}
+
+    for s in rows:
+        p = patients.get(s.get("patient_id"))
+        if p:
+            s["patient_name"] = p.get("full_name")
+            s["patient_dob"] = p.get("date_of_birth")
+            s["patient_gender"] = p.get("gender")
+            s["age_bracket"] = _calc_age_bracket(p.get("date_of_birth"))
+        s["clinician_name"] = people.get(s.get("clinician_id"))
+        s["reviewed_by_name"] = people.get(s.get("reviewed_by"))
+        s["clinic_name"] = clinics.get(s.get("clinic_id"))
+    return rows
+
+
 def _screening_row(row: dict) -> ScreeningResponse:
     """Build a ScreeningResponse from a screening_history_view row.
 
@@ -1440,7 +1532,7 @@ async def list_screenings(
             query = query.eq("respiratory_result", respiratory_result)
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
         res = query.execute()
-        return [_enrich_screening(s) for s in (res.data or [])]
+        return [_screening_row(s) for s in _enrich_screenings(res.data or [])]
     except HTTPException:
         raise
     except Exception as e:
@@ -1540,11 +1632,15 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
 async def metrics_summary(user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     clinic_id = user.get("clinic_id")
     try:
-        query = supabase.table("audit_logs").select("action").eq("action", "screening_create")
+        query = supabase.table("audit_logs").select("action", count="exact").eq("action", "screening_create")
         if user.get("role") != "super_admin" and clinic_id:
             query = query.eq("clinic_id", clinic_id)
         res = query.execute()
-        total = len(res.data)
+        # The count, not the rows. This used to fetch every audit row with
+        # this action and count them in Python, which meant the dashboard got
+        # slower for every screening that was ever made -- and the dashboard
+        # is the first thing anyone opens.
+        total = res.count if res.count is not None else len(res.data or [])
     except Exception:
         total = 0
     return MetricsSummary(total_requests=total, avg_ms=None, error_rate=0.0)
@@ -1913,23 +2009,32 @@ async def export_screenings_pdf(
     user_clinic_id = user.get("clinic_id")
     user_id = user.get("sub")
 
-    allowed = []
-    for sid in ids:
-        row = (
+    # One query for all of them, not one per id.
+    #
+    # This was a query per screening id, and an export can carry up to two
+    # hundred. At about 130ms a round trip to the hosted database, exporting a
+    # patient's history spent twenty seconds checking whether the caller was
+    # allowed to see it -- before a single page was written. The rule is
+    # simple enough to apply to a set of rows in memory.
+    try:
+        perm_rows = (
             supabase.table("screening_history_view")
             .select("id,clinic_id,clinician_id")
-            .eq("id", sid)
-            .limit(1)
+            .in_("id", ids)
             .execute()
-            .data
+            .data or []
         )
-        if not row:
+    except Exception as e:
+        print(f"[export] permission query failed: {e!r}")
+        perm_rows = []
+
+    allowed = []
+    for row in perm_rows:
+        if role != "super_admin" and row.get("clinic_id") != user_clinic_id:
             continue
-        if role != "super_admin" and row[0].get("clinic_id") != user_clinic_id:
+        if role == "clinician" and row.get("clinician_id") != user_id:
             continue
-        if role == "clinician" and row[0].get("clinician_id") != user_id:
-            continue
-        allowed.append(sid)
+        allowed.append(row.get("id"))
 
     if not allowed:
         raise HTTPException(status_code=404, detail="None of the selected screenings are available to you")

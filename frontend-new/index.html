@@ -13,7 +13,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- The font stylesheet is loaded without blocking the first paint.
+
+         A stylesheet in <head> is render-blocking: the browser downloads it
+         and waits for it before painting anything. That request goes to a
+         third-party origin, so it also costs a DNS lookup and a TLS
+         handshake on every cold load, on the clinic's connection. The text
+         renders immediately in the fallback face and swaps when the real one
+         arrives -- `display=swap` already did that -- so there is nothing to
+         lose by not waiting for it.
+
+         `media="print"` is the standard way to make a stylesheet
+         non-blocking, and the `onload` handler puts it back to `all` once
+         it has arrived. The <noscript> copy is for the rare browser with
+         scripting off, where the trick would otherwise leave the font
+         unstyled for good. -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'; this.onload=null;"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    </noscript>
     <title>AURA-Dx - AI-Assisted Respiratory Screening</title>
     <meta name="description" content="AURA-Dx (Acoustic Unit for Respiratory Assessment) screens breathing audio for COPD, Pneumonia, and healthy lungs through an acoustic AI classification pipeline." />
 

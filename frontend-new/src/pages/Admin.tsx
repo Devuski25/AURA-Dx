@@ -957,7 +957,6 @@ export function Admin() {
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
                     <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="deleted">Deleted</SelectItem>
                   </SelectContent>
                 </Select>
                 {/* Pushed to the far right of the toolbar row with ml-auto;

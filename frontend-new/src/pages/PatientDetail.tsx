@@ -460,36 +460,6 @@ export function PatientDetail() {
           )}
         </CardContent>
       </Card>
-
-      {/* B10: give the space below Screening History purpose — review notes */}
-      <Card className="aura-panel">
-        <CardHeader>
-          <CardTitle>Clinician Notes &amp; Remarks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {screenings.filter(s => s.review_notes).length === 0 ? (
-            <p className="text-sm text-aura-muted">
-              No clinician notes recorded yet. Notes added while reviewing a screening will appear here.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {screenings.filter(s => s.review_notes).map(s => (
-                <li key={s.id} className="rounded-xl border border-aura-forest/10 bg-aura-surface p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-aura-ink">
-                      {new Date(s.created_at).toLocaleDateString()}
-                    </span>
-                    <span className="text-xs text-aura-muted">
-                      {s.reviewed_by_name ? `Reviewed by ${s.reviewed_by_name}` : "Review pending"}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-aura-text">{s.review_notes}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

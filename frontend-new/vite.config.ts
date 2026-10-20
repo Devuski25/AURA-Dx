@@ -25,14 +25,8 @@ export default defineConfig({
           if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/") || id.includes("node_modules/react-router")) {
             return "react-vendor"
           }
-          if (id.includes("node_modules/@supabase")) {
-            return "supabase"
-          }
           if (id.includes("node_modules/framer-motion")) {
             return "motion"
-          }
-          if (id.includes("node_modules/react-hook-form") || id.includes("node_modules/@hookform") || id.includes("node_modules/zod")) {
-            return "forms"
           }
         },
       },

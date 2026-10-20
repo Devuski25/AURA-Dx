@@ -65,6 +65,8 @@ cd frontend-new && npm run dev
 | Table column alignment | `python scripts/check-table-alignment.py` |
 | Patient picker header matches its rows | `python scripts/check-picker-grid.py` |
 | Selected-site card matches the dropdown | `node frontend-new/scripts/check-site-card.mjs` |
+| Route prefetching fetches the right chunk | `node frontend-new/scripts/check-route-prefetch.mjs` |
+| How long each API call takes | `python backend/test_api_timing.py` |
 | Environment gating (fail-closed) | `python backend/test_app_env.py` |
 | CORS LAN scoping | `python backend/test_cors_lan.py` |
 | PDF report styles (no clipped type) | `python backend/test_pdf_styles.py` |

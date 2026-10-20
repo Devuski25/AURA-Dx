@@ -2,6 +2,22 @@ import { Badge } from "@/components/ui/badge"
 import { AlertTriangle, CheckCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+/* The style maps live at module scope.
+
+   They used to be rebuilt inside the function, so every row of every list
+   created a new object and a new className string on every render. React
+   compares props by identity, so a string that is never the same as last
+   time means the badge can never be skipped, and a list of a hundred
+   screenings re-rendered all hundred badges whenever anything above them
+   changed.
+
+   A map that never changes is created once. */
+const RESP_BADGE_STYLES: Record<string, string> = {
+  Healthy: "border-aura-mint/30 bg-aura-mint-soft text-aura-pine hover:bg-aura-mint-soft",
+  Pneumonia: "border-aura-coral/30 bg-aura-coral-soft text-aura-coral-strong hover:bg-aura-coral-soft",
+  COPD: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
+}
+
 export function getRespBadge(label: string | null) {
   /* No class yet. This is what a screening looks like while its analysis is
      still running, and also a legacy row with no verdict.
@@ -12,13 +28,8 @@ export function getRespBadge(label: string | null) {
   if (!label) {
     return <span className="text-sm text-aura-muted">&mdash;</span>
   }
-  const styles: Record<string, string> = {
-    Healthy: "border-aura-mint/30 bg-aura-mint-soft text-aura-pine hover:bg-aura-mint-soft",
-    Pneumonia: "border-aura-coral/30 bg-aura-coral-soft text-aura-coral-strong hover:bg-aura-coral-soft",
-    COPD: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
-  }
   return (
-    <Badge className={`gap-1.5 px-3 py-1 ${styles[label] || ""}`}>
+    <Badge className={`gap-1.5 px-3 py-1 ${RESP_BADGE_STYLES[label] || ""}`}>
       {label === "Healthy" && <CheckCircle className="h-3.5 w-3.5" />}
       {label === "Pneumonia" && <AlertTriangle className="h-3.5 w-3.5" />}
       {label}
