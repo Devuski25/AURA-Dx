@@ -989,7 +989,39 @@ def _screening_row(row: dict) -> ScreeningResponse:
         row["patient_dob"] = row["date_of_birth"]
     if row.get("patient_gender") is None and row.get("gender") is not None:
         row["patient_gender"] = row["gender"]
-    return ScreeningResponse(**row)
+    return ScreeningResponse(**_normalise_classification(row))
+
+
+def _normalise_classification(data: dict) -> dict:
+    """Make the reported class agree with the reported probabilities.
+
+    `respiratory_result` and `respiratory_confidence` are a cached copy of the
+    answer that the probability vector already contains. Deriving them from
+    that vector rather than trusting the cache means a screening can never
+    report one class while showing another as the most likely -- which is
+    exactly what happened: a screening with a healthy mean of 0.60 was
+    reported as COPD while its own probability table read Healthy 60.0%, and
+    the banner, the badge and the confidence meter each told a different story.
+
+    The safety override is the exception and is respected. A single strongly
+    positive recording wins regardless of the mean, so there the mean can
+    legitimately point the other way. Re-deriving it here would hide the
+    override, which is the one thing that must never be hidden.
+
+    Doing this on read also repairs rows written before the fusion was fixed,
+    without waiting for a migration and without a second copy of the rule.
+    """
+    data = dict(data)
+    probs = data.get("respiratory_probabilities") or {}
+    if not probs:
+        return data
+    fusion = (data.get("recording_scores") or {}).get("fusion") or {}
+    if fusion.get("override_applied"):
+        return data
+    label, prob = max(probs.items(), key=lambda kv: kv[1])
+    data["respiratory_result"] = label
+    data["respiratory_confidence"] = prob
+    return data
 
 
 @router.get("/screenings", response_model=List[ScreeningResponse])
@@ -1509,7 +1541,7 @@ async def export_screenings_pdf(
     story = []
     total = len(rows)
     for i, row in enumerate(rows):
-        data = dict(row)
+        data = _normalise_classification(dict(row))
         if data.get("patient_dob") is None and data.get("date_of_birth") is not None:
             data["patient_dob"] = data["date_of_birth"]
         if data.get("patient_gender") is None and data.get("gender") is not None:
@@ -1543,7 +1575,7 @@ async def download_screening_pdf(
         screening = supabase.table("screenings").select("*").eq("id", screening_id).single().execute()
     if not screening.data:
         raise HTTPException(status_code=404, detail="Screening not found")
-    data = dict(screening.data)
+    data = _normalise_classification(dict(screening.data))
     # Enrich with join data if from base table (not the view)
     if "patient_name" not in data:
         data = _enrich_screening(data)

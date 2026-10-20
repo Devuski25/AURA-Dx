@@ -706,14 +706,27 @@ def fuse_clips(clip_results: List[dict]) -> dict:
 
     1. Safety override first. A single recording at or above
        STAGE2_OVERRIDE_THRESHOLD pneumonia confidence wins outright, *before*
-       the Healthy check — otherwise four healthy-looking takes would bury the
+       anything else -- otherwise four healthy-looking takes would bury the
        one site where pathology is actually audible.
-    2. Otherwise the mean decides. Healthy if the fused healthy probability
-       clears the Stage 1 threshold, otherwise the louder of the two
-       pathological classes.
+    2. Otherwise the reported class is the one the fused distribution says is
+       most likely.
 
-    Pneumonia is the acute class and COPD the chronic one, so preferring
-    Pneumonia whenever it is in the lead is the safety-first tiebreak.
+    That second rule used to be something else. The class was picked by a
+    healthy threshold re-applied to the fused mean, and then by a
+    pneumonia-beats-COPD comparison that made COPD the default. Either could
+    name a class the report was simultaneously showing as the least likely: a
+    screening whose mean healthy score was 0.60, against a 0.61 threshold, was
+    reported as COPD while its own probability table read Healthy 60.0%. A
+    report that contradicts its own numbers is worse than no report, and a
+    clinician reading it has no way to know which half to believe.
+
+    The override above is untouched by this change -- one strongly positive
+    recording still wins regardless of the mean, which is the entire point of
+    it.
+
+    Ties break on the order of the probability keys, Healthy then Pneumonia
+    then COPD, so a dead heat between the two pathological classes resolves to
+    the more urgent one.
     """
     n = len(clip_results)
     mean_healthy = float(np.mean([c["healthy_prob"] for c in clip_results]))
@@ -728,31 +741,30 @@ def fuse_clips(clip_results: List[dict]) -> dict:
     triggered_by = None
     override = None
 
-    if override_clips:
-        override = "single_clip_high_confidence_pneumonia"
-        triggered_by = override_clips[0]["index"]
-        label = "Pneumonia"
-        confidence = max(c["pneumonia_prob"] for c in override_clips)
-    elif mean_healthy >= STAGE1_HEALTHY_THRESHOLD:
-        label = "Healthy"
-        confidence = mean_healthy
-    elif mean_pneumonia > mean_copd:
-        label = "Pneumonia"
-        confidence = mean_pneumonia
-    else:
-        label = "COPD"
-        confidence = mean_copd
-
     probabilities = {
         "Healthy": round(mean_healthy, 4),
         "Pneumonia": round(mean_pneumonia, 4),
         "COPD": round(mean_copd, 4),
     }
     # Renormalise so the fused vector reads as a distribution. Renormalising
-    # never changes the reported label — that was already decided above.
+    # never changes which class is the most likely one, so the label chosen
+    # below agrees with the numbers this produces.
     total = sum(probabilities.values())
     if total > 0:
         probabilities = {k: round(v / total, 4) for k, v in probabilities.items()}
+
+    if override_clips:
+        override = "single_clip_high_confidence_pneumonia"
+        triggered_by = override_clips[0]["index"]
+        label = "Pneumonia"
+        confidence = max(c["pneumonia_prob"] for c in override_clips)
+    else:
+        # The reported class is the one the distribution says is most likely,
+        # and the confidence is that class's probability. The two are read from
+        # the same numbers, so the headline and the table beneath it cannot
+        # disagree.
+        label = max(probabilities, key=probabilities.get)
+        confidence = probabilities[label]
 
     fused = {
         "label": label,

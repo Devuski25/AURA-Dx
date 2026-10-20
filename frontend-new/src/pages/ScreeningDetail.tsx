@@ -239,7 +239,7 @@ function InfoCard({ title, className, children }: { title: string; className?: s
     sub: "text-aura-warning-strong",
   },
   clear: {
-    label: "NO ACUTE RESPIRATORY PATHOLOGY",
+    label: "HEALTHY",
     detail: "No urgent pathology detected · routine follow-up",
     container: "border-aura-mint/50 border-t-aura-pine bg-aura-mint-soft",
     icon: <CheckCircle className="h-6 w-6 text-aura-mint" />,
@@ -400,9 +400,15 @@ export function ScreeningDetail() {
      whenever probabilities were null. */
   const respProbabilityBars = useMemo(() => {
     if (!screening?.respiratory_probabilities) return null
-    return Object.entries(screening.respiratory_probabilities).map(([cls, prob]) => (
-      <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor(cls)} />
-    ))
+    // Highest first, so the class the result names is the one at the top of
+    // the list. The probabilities arrive as a plain object whose key order is
+    // whatever the database happened to return, which put the most likely
+    // class wherever it landed.
+    return Object.entries(screening.respiratory_probabilities)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cls, prob]) => (
+        <ProbabilityBar key={cls} label={cls} prob={prob} color={tierColor(cls)} />
+      ))
   }, [screening?.respiratory_probabilities])
 
   useEffect(() => {

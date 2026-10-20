@@ -149,6 +149,26 @@ CASES = [
     ("single take",
      [clip(0, "COPD", 0.0, 0.25, 0.75)],
      "COPD", None),
+
+    # --- the reported class must be the one the report shows as most likely ---
+    #
+    # Three healthy takes and two that reached Stage 2. The healthy mean is
+    # 0.60, which misses the 0.61 Stage 1 threshold by 0.01, and pneumonia
+    # (0.188) does not beat COPD (0.212) -- so the old rules reported COPD
+    # while the report's own probability table read Healthy 60.0%. A report
+    # that contradicts its own numbers is worse than no report.
+    ("healthy mean just under the stage 1 threshold -> Healthy, not COPD",
+     [clip(i, "Healthy", 1.0, 0.0, 0.0) for i in range(3)]
+     + [clip(3, "Pneumonia", 0.0, 0.47, 0.53),
+        clip(4, "COPD", 0.0, 0.47, 0.53)],
+     "Healthy", None),
+
+    ("two healthy takes and three strongly COPD -> COPD, not Healthy",
+     [clip(i, "Healthy", 1.0, 0.0, 0.0) for i in range(2)]
+     + [clip(2, "COPD", 0.0, 0.20, 0.80),
+        clip(3, "COPD", 0.0, 0.20, 0.80),
+        clip(4, "COPD", 0.0, 0.20, 0.80)],
+     "COPD", None),
 ]
 
 
@@ -169,6 +189,23 @@ def main() -> int:
             problems.append(f"probabilities sum to {total:.4f}, expected 1.0")
         if out["fusion"]["recordings_fused"] != len(clips):
             problems.append(f"recordings_fused {out['fusion']['recordings_fused']} != {len(clips)}")
+
+        # The invariant that keeps the headline and the table beneath it
+        # telling the same story: unless the safety override fired, the class
+        # the report names has to be the class the report shows as most
+        # likely, and the confidence has to be that class's probability.
+        #
+        # Without the override the mean can legitimately point the other way --
+        # that is what the override is for -- so it is excluded here.
+        if not got_override:
+            top_label, top_prob = max(out["probabilities"].items(), key=lambda kv: kv[1])
+            if got_label != top_label:
+                problems.append(
+                    f"label {got_label!r} is not the most likely class {top_label!r} "
+                    f"({top_prob:.4f})")
+            if abs(out["confidence"] - top_prob) > 0.001:
+                problems.append(
+                    f"confidence {out['confidence']} != the label's probability {top_prob}")
 
         if problems:
             failures += 1

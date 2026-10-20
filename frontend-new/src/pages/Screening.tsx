@@ -1495,7 +1495,12 @@ export function Screening() {
                 <div className="mt-4">
                   <p className="text-sm text-aura-muted mb-2">Probability Distribution</p>
                   <div className="space-y-2">
-                    {Object.entries((result.respiratory_result.probabilities as Record<string, number>) || {}).map(([cls, prob]) => (
+                    {/* Highest first, so the class the result names is the one
+                        at the top of the list. The key order of a plain object
+                        is whatever the database happened to return. */}
+                    {Object.entries((result.respiratory_result.probabilities as Record<string, number>) || {})
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cls, prob]) => (
                       <div key={cls} className="flex items-center justify-between text-sm">
                         <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-aura-warning" : "text-aura-accent-dark")}>{cls}</span>
                         <div className="flex items-center gap-2 w-full max-w-xs">
