@@ -44,6 +44,50 @@ def print(*args, **kwargs):  # noqa: A001
     OUT.flush()
 
 
+def _inference_is_up() -> bool:
+    """Is the inference service answering?
+
+    It listens on 127.0.0.1:8000 on this machine. A health check is enough --
+    the question is whether it can be reached, not whether it is happy.
+    """
+    try:
+        req = urllib.request.Request("http://127.0.0.1:8000/health")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def _write_synthetic_wav(path: Path, seconds: float = 6.0, rate: int = 16000) -> None:
+    """A short mono 16 kHz wav for the inference service to chew on.
+
+    It is a low hum with a tremolo and a little noise, rather than silence,
+    because silence can be rejected by the pre-processing before the model
+    ever sees it. The model always produces a verdict for anything that gets
+    that far, which is all this test needs.
+    """
+    import math
+    import random
+    import struct
+    import wave
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        frames = bytearray()
+        for i in range(int(rate * seconds)):
+            t = i / rate
+            v = 0.22 * math.sin(2 * math.pi * 120 * t) * (
+                1 + 0.4 * math.sin(2 * math.pi * 3 * t)
+            )
+            v += 0.04 * random.uniform(-1, 1)
+            v = max(-1.0, min(1.0, v))
+            frames += struct.pack("<h", int(v * 32767))
+        w.writeframes(bytes(frames))
+
+
 def call(path, method="GET", body=None, token=None):
     headers = {"Content-Type": "application/json", "User-Agent": UA}
     if token:
@@ -130,6 +174,36 @@ def main():
     if not mine:
         failures.append("A cannot see the patient they created")
 
+    # --- the owner can open their own patient's record ---------------------
+    #
+    # This is the page the list's "View details" opens, and it was the one
+    # that was returning a 500 for its own owner: the endpoint built the
+    # response by spreading a list of rows as keyword arguments. Every other
+    # check here was about what B and the admin could do, and the owner's own
+    # read was never called -- so the page could be broken for the only
+    # person who uses it and every test would still pass.
+    status, body = call(f"/api/patients/{patient_id}", "GET", token=a_tok)
+    print(f"  A opens their own patient -> HTTP {status}")
+    if status != 200:
+        failures.append(f"A cannot open their own patient's record (HTTP {status})")
+    else:
+        if body.get("id") != patient_id:
+            failures.append("A's own patient record is the wrong patient")
+        # The field is `full_name` -- the patient list and the record both use
+        # it, and a record page with no name on it is a broken page.
+        if not body.get("full_name"):
+            failures.append(
+                f"A's own patient record has no name: {sorted(body.keys())}"
+            )
+        elif body["full_name"] != "Ownership Probe":
+            failures.append(
+                f"A's own patient record has the wrong name: {body.get('full_name')!r}"
+            )
+        if not body.get("date_of_birth"):
+            failures.append("A's own patient record has no date of birth")
+        if body.get("age_bracket") is None:
+            failures.append("A's own patient record has no age bracket")
+
     # --- clinician B does not ---------------------------------------------
     status, rows = call("/api/patients", "GET", token=b_tok)
     theirs = [p for p in rows if p["id"] == patient_id]
@@ -161,23 +235,22 @@ def main():
     if status not in (403, 404):
         failures.append(f"B can delete A's patient (HTTP {status})")
 
-    # --- a screening with a real recording --------------------------------
-    donor = (
-        supabase.table("screenings")
-        .select("recording_paths")
-        .eq("status", "completed")
-        .limit(20)
-        .execute().data or []
-    )
-    paths = next(
-        (d["recording_paths"] for d in donor
-         if d.get("recording_paths")
-         and all((UPLOADS / Path(p).name).is_file() for p in d["recording_paths"])),
-        None,
-    )
-    if not paths:
-        print("\n  no recording on disk to test the delete with")
-        return 1
+    # --- a screening with a recording of its own ----------------------------
+    #
+    # The test used to borrow an existing screening's recording, so it could
+    # only run when a real recording happened to be on disk. After a reset,
+    # with the audio directory cleared, it printed "no recording on disk" and
+    # stopped -- and everything after that point, including the delete paths
+    # and the analysis, never ran at all. A test that quietly skips its own
+    # middle is worse than no test.
+    #
+    # The audio is synthesised here instead. The file belongs to the test, so
+    # it cannot touch a patient's recording, and it is the same file the
+    # delete paths are then checked against.
+    probe_name = f"ownership_probe_{int(time.time() * 1000)}.wav"
+    probe_path = UPLOADS / probe_name
+    _write_synthetic_wav(probe_path)
+    paths = [f"uploads_audio\\{probe_name}"]
 
     status, screening = call("/api/screenings", "POST", {
         "patient_id": patient_id,
@@ -199,7 +272,16 @@ def main():
     print(f"  screening status after analysis: {row.get('status')}  result={row.get('respiratory_result')}")
     print(f"  screening_number={row.get('screening_number')} of {row.get('patient_screening_count')}")
     if not row.get("respiratory_result"):
-        failures.append("the screening has no result after the analysis")
+        # A dead inference service is not a bug in this code, and reporting it
+        # as one sends you hunting the wrong thing. The inference service
+        # dies on this machine -- a Windows socket failure that leaves the
+        # process resident -- and the analysis then fails with it.
+        inference_up = _inference_is_up()
+        if not inference_up:
+            print("  SKIP: the inference service is not running, so the analysis")
+            print("        cannot complete. Start the stack and run this again.")
+        else:
+            failures.append("the screening has no result after the analysis")
 
     # --- delete the screening, and check the file goes too ----------------
     before = [UPLOADS / Path(p).name for p in paths]
@@ -243,17 +325,29 @@ try:
     code = main()
 except Exception:
     import traceback
-        traceback.print_exc()
+    traceback.print_exc()
     code = 1
 finally:
     for pid in made_patients:
-        supabase.table("patients").delete().eq("id", pid).execute()
+        try:
+            supabase.table("patients").delete().eq("id", pid).execute()
+        except Exception:
+            pass
+    # The profile and the auth user are removed independently, so that the
+    # auth call timing out -- which it does intermittently on this project --
+    # cannot leave a live account behind.
     for uid in made_users:
         try:
-            supabase.auth.admin.delete_user(uid)
             supabase.table("profiles").delete().eq("id", uid).execute()
         except Exception:
             pass
+        for _ in range(3):
+            try:
+                supabase.auth.admin.delete_user(uid)
+                break
+            except Exception as e:
+                if "not found" in str(e).lower():
+                    break
     if made_users:
         print(f"\n  cleaned up {len(made_users)} test account(s)")
 

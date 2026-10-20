@@ -28,10 +28,20 @@
 --
 -- BEFORE YOU RUN IT
 --   The audio files are on the Mini PC's disk, not in the database, so this
---   script cannot remove them. Delete them separately or the disk will fill
+--   script cannot remove them. Clear them separately or the disk will fill
 --   up:
 --
+--     python backend\cleanup_audio.py
+--
+--   That removes only the recordings that no screening refers to, which is
+--   what you want after a reset. Do NOT use this instead:
+--
 --     Remove-Item C:\VSPWET\AURA-Dx\backend\uploads_audio\* -Force
+--
+--   It deletes every recording, including the ones belonging to screenings
+--   that still exist. The rows are then left pointing at files that are not
+--   there. Nothing breaks visibly -- the result of a screening is in the
+--   database -- but those recordings are simply gone.
 --
 --   Nothing here can be undone. There is no backup of a deleted screening.
 -- ===========================================================================

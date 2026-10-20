@@ -72,6 +72,10 @@ cd frontend-new && npm run dev
 | Classification agrees with the probabilities | `python backend/test_classification.py` |
 | Patient ownership and the delete paths | `python backend/test_patient_ownership.py` |
 | Every filter narrows the list correctly | `python backend/test_filters.py` |
+| No response is built from a list of rows | `python backend/test_row_unpacking.py` |
+| No endpoint returns a 500 | `python backend/test_endpoint_sweep.py` |
+| The API stays responsive during an analysis | `python backend/test_analysis_responsiveness.py` |
+| Remove the recordings no screening refers to | `python backend/cleanup_audio.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 

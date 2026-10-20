@@ -267,6 +267,26 @@ def _row_by_id(table: str, row_id: str, columns: str = "*"):
         return None
 
 
+def _first_row(query):
+    """The first row of a query, or None.
+
+    `.single()` raises when the query matches no rows, and a query that
+    matches no rows is very often the right answer: a record that is not
+    there, or one that belongs to somebody else and the ownership filter has
+    excluded. The raise turned both of those into a 500.
+
+    It is done with limit(1) rather than `maybeSingle()`, because
+    `maybeSingle` does not exist in this version of postgrest-py -- calling it
+    raises an AttributeError, which is easy to mistake for "no such row".
+
+    A genuine database error is not swallowed here. It propagates, so it is
+    still a 500 -- which is what it should be.
+    """
+    res = query.limit(1).execute()
+    rows = res.data or []
+    return rows[0] if rows else None
+
+
 def _resolve_clinic_id(preferred):
     """Return the preferred clinic id, or the single configured clinic in the
     single-clinic model when none is supplied (so clinicians without an
@@ -519,8 +539,12 @@ async def create_user(user_data: UserCreate, user: dict = Depends(require_role(U
 
         _log_audit("user_create", user.get("sub"), user.get("clinic_id"), "user", auth_user["id"], {"email": user_data.email, "role": user_data.role.value})
 
-        result = supabase.table("profiles").select("*").eq("id", auth_user["id"]).single().execute()
-        return UserResponse(**result.data)
+        result = supabase.table("profiles").select("*").eq("id", auth_user["id"]).limit(1).execute()
+        if not result.data:
+            raise HTTPException(
+                status_code=500, detail="Account created but the profile is missing"
+            )
+        return UserResponse(**result.data[0])
     except HTTPException:
         raise
     except Exception as e:
@@ -630,8 +654,10 @@ async def update_user(
 
             background_tasks.add_task(_notify)
 
-    res = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
-    return UserResponse(**res.data)
+    res = supabase.table("profiles").select("*").eq("id", user_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserResponse(**res.data[0])
 
 
 @router.delete("/users/{user_id}")
@@ -790,7 +816,14 @@ async def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
     res = supabase.table("patient_list_view").select("*").eq("id", patient_id).limit(1).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return PatientResponse(**res.data)
+    # `.limit(1)` returns a LIST of rows, so the row is the first item. Using
+    # `**res.data` spreads the list itself and raises "argument after ** must
+    # be a mapping, not list", which is a 500 on the patient's record page.
+    # `.single()` returns a dict and does not have this problem, which is
+    # why the mistake is easy to miss -- two of the four places that read a
+    # row this way use `.single()`, and the two that use `.limit(1)` were
+    # broken.
+    return PatientResponse(**res.data[0])
 
 
 @router.patch("/patients/{patient_id}", response_model=PatientResponse)
@@ -823,7 +856,9 @@ async def update_patient(patient_id: str, update: PatientUpdate, user: dict = De
     res = supabase.table("patient_list_view").select("*").eq("id", patient_id).limit(1).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return PatientResponse(**res.data)
+    # The row is the first item -- `.limit(1)` returns a list. See the note
+    # on `get_patient` above.
+    return PatientResponse(**res.data[0])
 
 
 def _delete_audio_files(paths) -> int:
@@ -1419,27 +1454,43 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
     clinic_id = user.get("clinic_id")
     user_id = user.get("sub")
 
+    def scoped(query):
+        """The ownership rules, as a filter on the query.
+
+        A clinician reaches their own screenings, an admin their clinic's, and
+        the super admin all of them. Without this a clinician could read a
+        colleague's screening by id, even though that colleague's patients
+        are invisible to them.
+        """
+        if role == "clinician":
+            return query.eq("clinician_id", user_id)
+        if role != "super_admin":
+            return query.eq("clinic_id", clinic_id)
+        return query
+
+    # `.single()` raises when the ownership filter excludes the row -- which
+    # is what happens when a clinician asks for someone else's screening. The
+    # raise was caught by the bare `except Exception` below, the fallback ran,
+    # it raised the same way, and nothing caught that second one. So "not
+    # yours" was a 500 rather than the 404 it should be.
+    #
+    # `limit(1)` returns a list, and an empty list is a missing record.
     try:
-        query = supabase.table("screening_history_view").select("*").eq("id", screening_id)
-        if role == "clinician":
-            query = query.eq("clinician_id", user_id)
-        elif role != "super_admin":
-            query = query.eq("clinic_id", clinic_id)
-        res = query.single().execute()
-        if not res.data:
-            raise HTTPException(status_code=404, detail="Screening not found")
-        return _screening_row(res.data)
-    except Exception:
-        # Fallback: use base screenings table
-        query = supabase.table("screenings").select("*").eq("id", screening_id)
-        if role == "clinician":
-            query = query.eq("clinician_id", user_id)
-        elif role != "super_admin":
-            query = query.eq("clinic_id", clinic_id)
-        res = query.single().execute()
-        if not res.data:
-            raise HTTPException(status_code=404, detail="Screening not found")
-        return ScreeningResponse(**_enrich_screening(res.data))
+        row = _first_row(
+            scoped(supabase.table("screening_history_view").select("*").eq("id", screening_id))
+        )
+        if row:
+            return _screening_row(row)
+    except Exception as e:
+        print(f"[get_screening] view query failed: {e!r}")
+
+    # Fallback: use base screenings table
+    row = _first_row(
+        scoped(supabase.table("screenings").select("*").eq("id", screening_id))
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Screening not found")
+    return ScreeningResponse(**_enrich_screening(row))
 
 
 @router.patch("/screenings/{screening_id}/review", response_model=ScreeningResponse)
@@ -1448,8 +1499,10 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
     user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
 
-    target = supabase.table("screenings").select("*").eq("id", screening_id).single().execute()
-    if not target.data:
+    # `.single()` raises when there is no such screening, which made a wrong
+    # id a 500. A missing record is a 404.
+    target_row = _first_row(supabase.table("screenings").select("*").eq("id", screening_id))
+    if not target_row:
         raise HTTPException(status_code=404, detail="Screening not found")
 
     # Same rule as the patients: a clinician reaches their own screenings, an
@@ -1459,10 +1512,10 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
     if role == "super_admin":
         pass
     elif role == "admin":
-        if target.data["clinic_id"] != clinic_id:
+        if target_row["clinic_id"] != clinic_id:
             raise HTTPException(status_code=403, detail="Not your clinic screening")
     else:
-        if target.data["clinician_id"] != user_id:
+        if target_row["clinician_id"] != user_id:
             raise HTTPException(status_code=403, detail="You can only review your own screenings")
 
     update_data = {
@@ -1477,8 +1530,10 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
 
     _log_audit("screening_review", user_id, clinic_id, "screening", screening_id, {"review_notes": review.review_notes})
 
-    res = supabase.table("screening_history_view").select("*").eq("id", screening_id).single().execute()
-    return ScreeningResponse(**res.data)
+    res = supabase.table("screening_history_view").select("*").eq("id", screening_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Screening not found")
+    return ScreeningResponse(**res.data[0])
 
 
 @router.get("/metrics/summary", response_model=MetricsSummary)
@@ -1931,13 +1986,24 @@ async def download_screening_pdf(
     user: dict = Depends(get_current_user)
 ):
     """Generate and download PDF report for a screening."""
+    row = None
     try:
-        screening = supabase.table("screening_history_view").select("*").eq("id", screening_id).single().execute()
+        row = _first_row(
+            supabase.table("screening_history_view").select("*").eq("id", screening_id)
+        )
     except Exception:
-        screening = supabase.table("screenings").select("*").eq("id", screening_id).single().execute()
-    if not screening.data:
+        row = None
+    if row is None:
+        try:
+            row = _first_row(
+                supabase.table("screenings").select("*").eq("id", screening_id)
+            )
+        except Exception as e:
+            print(f"[pdf] fallback query failed: {e!r}")
+            row = None
+    if not row:
         raise HTTPException(status_code=404, detail="Screening not found")
-    data = _normalise_classification(dict(screening.data))
+    data = _normalise_classification(dict(row))
     # Enrich with join data if from base table (not the view)
     if "patient_name" not in data:
         data = _enrich_screening(data)
