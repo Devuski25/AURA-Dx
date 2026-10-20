@@ -115,3 +115,9 @@ packages/inference/.env.local
 *.flac
 *.m4a
 *.ogg
+
+# Exported screening reports. They are downloaded into the working directory
+# when someone exports, and they contain real patient data, so they have no
+# place in the repository. Two of these were committed by accident.
+aura-dx-screening-report-*.pdf
+aura-dx-screening-*.pdf
