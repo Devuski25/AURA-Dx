@@ -742,7 +742,14 @@ export function ScreeningDetail() {
           className="aura-panel mt-6 rounded-[14px] py-4 px-5"
         >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
+            {/* Sized as a section heading rather than a caption.
+
+                At 13px semibold in muted grey this read as a label sitting
+                above the table rather than as the title of the block, which is
+                why it was hard to find on the page. It is now the same size
+                and weight as a card title and darker, so the eye registers it
+                as a heading and the table beneath it as its content. */}
+            <h2 className="flex items-center gap-2 font-display text-[15px] font-bold uppercase tracking-[0.04em] text-aura-ink">
               Per-take scores
             </h2>
             {overrideTakeIndex !== null && (
@@ -752,7 +759,10 @@ export function ScreeningDetail() {
             )}
           </div>
 
-          <p className="mb-3 max-w-[70ch] text-[13px] leading-relaxed text-aura-muted">
+          {/* No max-width. The paragraph is one sentence and a half about how
+              the takes combine; capped at 70 characters it wrapped into three
+              short lines with the right-hand third of the card empty. */}
+          <p className="mb-3 text-[13px] leading-relaxed text-aura-muted">
             Every take is scored on its own and then averaged. A take that Stage 1
             calls healthy never reaches Stage 2, which is why its Stage 2 column is
             blank.
@@ -784,16 +794,24 @@ export function ScreeningDetail() {
               on both sides instead of all of it on the right.
 
               The scroller is kept as a safety net for a narrower screen than
-              the one this was designed against. */}
+              the one this was designed against.
+
+              Every column is left-aligned, header and value together. The two
+              probability columns used to be right-aligned, which meant the
+              number sat under the far end of its heading rather than directly
+              beneath it, while "Take" over "1" and "Duration" over "47.7s" sat
+              flush left. Mixed alignment across one row is what makes a table
+              feel like it is drifting. Left throughout, each heading sits
+              straight above the number it labels. */}
           <div className="aura-table-scroll overflow-x-auto">
             <table className="mx-auto w-full border-collapse text-[12px] md:w-fit md:text-sm">
               <thead>
                 <tr className="border-b border-aura-border-soft text-left">
                   <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Take</th>
                   <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Duration</th>
-                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4 md:text-right">Stage 1 healthy</th>
-                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4 md:text-right">Stage 2 pneumonia</th>
-                  <th scope="col" className="py-1.5 align-bottom font-semibold text-aura-ink">Read</th>
+                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Stage 1 healthy</th>
+                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Stage 2 pneumonia</th>
+                  <th scope="col" className="py-1.5 align-bottom font-semibold text-aura-ink">Result</th>
                 </tr>
               </thead>
               <tbody>
@@ -809,10 +827,10 @@ export function ScreeningDetail() {
                     <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-muted md:pr-4">
                       {c.duration_sec.toFixed(1)}s
                     </td>
-                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-ink md:pr-4 md:text-right">
+                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-ink md:pr-4">
                       {c.stage1_healthy_prob.toFixed(2)}
                     </td>
-                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-ink md:pr-4 md:text-right">
+                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-ink md:pr-4">
                       {c.stage2_pneumonia_prob === null
                         ? "—"
                         : c.stage2_pneumonia_prob.toFixed(2)}

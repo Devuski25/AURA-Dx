@@ -1311,7 +1311,7 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
     if per_clip:
         story.append(Paragraph("Per-take scores", S["subheading"]))
         clip_rows = [[_cell(h, bold=True) for h in
-                      ("Take", "Length", "Stage 1 healthy", "Stage 2 pneumonia", "Read")]]
+                      ("Take", "Length", "Stage 1 healthy", "Stage 2 pneumonia", "Result")]]
         for c in per_clip:
             s2 = c.get("stage2_pneumonia_prob")
             clip_rows.append([
@@ -1622,7 +1622,7 @@ async def download_screening_pdf(
     # it belongs in the report rather than only in the database.
     if per_clip:
         story.append(Paragraph("Per-take scores", subheading_style))
-        clip_rows = [["Take", "Duration", "Stage 1 healthy", "Stage 2 pneumonia", "Read"]]
+        clip_rows = [["Take", "Duration", "Stage 1 healthy", "Stage 2 pneumonia", "Result"]]
         for c in per_clip:
             s2 = c.get("stage2_pneumonia_prob")
             clip_rows.append([
