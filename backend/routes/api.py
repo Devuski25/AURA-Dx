@@ -43,7 +43,7 @@ from config import settings
 from email_service import send_account_status_email, send_verification_email
 from httpx_client import get_client
 # Same wording source as the React result screen. See pdf_copy.py.
-from pdf_copy import result_copy, status_label, disclosure, confidence_label
+from pdf_copy import status_label, disclosure, confidence_label
 
 router = APIRouter()
 
@@ -1268,20 +1268,19 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
     ]))
 
     # --- Interpretation -----------------------------------------------------
-    if interp_status and interp_level:
-        headline, message, recommendation = result_copy(interp_status, interp_level)
-        story.append(Paragraph("Clinical Interpretation", S["heading"]))
-        story.append(Paragraph(headline, ParagraphStyle(
-            'RPHeadline', parent=S["body"], fontSize=11, leading=15, spaceAfter=4)))
-        story.append(Paragraph(message, S["body"]))
-        story.append(Paragraph(
-            f"<b>Suggested next step:</b> {recommendation}",
-            ParagraphStyle(
-                'RPRec', parent=S["body"], leading=14,
-                backColor=colors.HexColor('#fefce8') if vcolor == _RESULT_COLOR.get("COPD")
-                else (colors.HexColor('#fef2f2') if vcolor == _RESULT_COLOR.get("PNEUMONIA")
-                      else colors.HexColor('#f0fdf4')),
-                borderPadding=8)))
+    #
+    # The narrative interpretation -- the headline, the explanation and the
+    # suggested next step -- is not printed. It restates the result in prose
+    # that the tables below already carry in numbers, and on a report that
+    # goes to a referring clinician the numbers and the evidence behind them
+    # are what is wanted.
+    #
+    # The scope disclaimer at the foot of the page is NOT part of that
+    # narrative and is deliberately kept. It is the statement of what this
+    # model can and cannot rule out, and a report that says "healthy" without
+    # it invites a reader to treat the absence of COPD and pneumonia as
+    # "nothing is wrong" -- the single most dangerous misreading this report
+    # could produce. Do not fold it into the removed block.
 
     # --- Probability distribution, one row ---------------------------------
     probs = data.get("respiratory_probabilities") or {}
@@ -1670,54 +1669,26 @@ async def download_screening_pdf(
     interp_status = data.get("interpretation_status")
     interp_level = data.get("confidence_level")
     if interp_status and interp_level:
-        headline, message, recommendation = result_copy(interp_status, interp_level)
-        resp_color = {
-            "HEALTHY": colors.HexColor('#16a34a'),
-            "COPD": colors.HexColor('#ca8a04'),
-            "PNEUMONIA": colors.HexColor('#dc2626'),
-            "ATYPICAL_OOD": colors.HexColor('#4b5563'),
-        }.get(interp_status, colors.HexColor('#6b7280'))
-
-        story.append(Paragraph("Screening Result", heading_style))
-        story.append(Paragraph(
-            f"<b>{status_label(interp_status)}</b> &mdash; {confidence_label(interp_level)}",
-            ParagraphStyle('InterpVerdict', parent=small_style,
-                           fontSize=13, textColor=resp_color, spaceAfter=4),
-        ))
-        story.append(Paragraph(
-            headline,
-            ParagraphStyle('InterpHeadline', parent=body_style,
-                           fontSize=11, leading=15, spaceAfter=6),
-        ))
-        story.append(Paragraph(message, body_style))
-        story.append(Spacer(1, 6))
-        story.append(Paragraph(
-            f"<b>Suggested next step:</b> {recommendation}",
-            ParagraphStyle('InterpRec', parent=body_style, leading=14),
-        ))
-
-        # How the verdict was reached, so the report explains itself.
-        bits = []
-        total_rec = data.get("recordings_total")
-        flagged_rec = data.get("recordings_flagged")
-        if total_rec and flagged_rec is not None:
-            bits.append(f"{flagged_rec} of {total_rec} recordings reached the disease screen")
         rule = data.get("decision_rule")
-        if rule == "safety_override":
-            bits.append("decided by a single recording rather than the average")
-        elif rule in ("conditional_copd_high", "conditional_copd_moderate", "conditional_undecidable"):
-            bits.append("averaged across the recordings that reached the disease screen")
-        elif rule in ("borderline_healthy", "majority_healthy", "majority_healthy_confident"):
-            bits.append("majority of recordings assessed as normal")
-        if bits:
-            story.append(Paragraph(
-                "<i>" + "; ".join(bits) + ".</i>",
-                ParagraphStyle('InterpBasis', parent=small_style, spaceBefore=4),
-            ))
+        flagged_rec = data.get("recordings_flagged")
 
-        detail = data.get("decision_detail")
-        if detail:
-            story.append(Paragraph(detail, ParagraphStyle('InterpDetail', parent=small_style, spaceBefore=2)))
+        # The narrative interpretation -- the verdict line, the headline, the
+        # explanation, the suggested next step, and the sentences describing
+        # how the verdict was reached -- is not printed. It restates the
+        # result in prose that the classification table and the per-take table
+        # already carry in numbers, and on a report that goes to a referring
+        # clinician the numbers and the evidence behind them are what is
+        # wanted.
+        #
+        # What stays is the two things that are not narrative: the specific
+        # safety warnings below, which are each a distinct situation that
+        # would otherwise be missed, and the scope disclaimer, which is the
+        # statement of what this model can and cannot rule out. A report that
+        # says "healthy" without that disclaimer invites a reader to treat the
+        # absence of COPD and pneumonia as "nothing is wrong" -- the single
+        # most dangerous misreading this report could produce.
+        #
+        # Do not fold either of them into the removed block.
 
         # Specific, different situations get their own line rather than being
         # folded into one generic caveat.
