@@ -801,16 +801,35 @@ export function ScreeningDetail() {
               they are spread across the full width.
 
               The scroller is kept as a safety net for a narrower screen than
-              the one this was designed against. */}
+              the one this was designed against.
+
+              The stage headings drop their second word on a phone. "Stage 1
+              healthy" and "Stage 2 pneumonia" are what the two stages are
+              called, but a phone does not have the width for them: with the
+              full labels the table overflowed and had to be scrolled sideways
+              to read, and the cells wrapped onto two lines. "Stage 1" and
+              "Stage 2" keep the number that identifies the stage and drop the
+              word describing what it screens for, which is what the row below
+              is showing anyway. Both the label and the probability are on
+              screen for every take, so nothing is hidden by the shorter
+              heading -- and the paragraph above still explains what a blank
+              Stage 2 means. The full headings are kept from `md` up, where
+              there is room for them. */}
           <div className="aura-table-scroll overflow-x-auto">
             <table className="w-full border-collapse text-[12px] md:text-sm">
               <thead>
                 <tr className="border-b border-aura-border-soft">
-                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Take</th>
-                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Duration</th>
-                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Stage 1 healthy</th>
-                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Stage 2 pneumonia</th>
-                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Result</th>
+                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Take</th>
+                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Duration</th>
+                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">
+                    <span className="md:hidden">Stage 1</span>
+                    <span className="hidden md:inline">Stage 1 healthy</span>
+                  </th>
+                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">
+                    <span className="md:hidden">Stage 2</span>
+                    <span className="hidden md:inline">Stage 2 pneumonia</span>
+                  </th>
+                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Result</th>
                 </tr>
               </thead>
               <tbody>
@@ -822,19 +841,19 @@ export function ScreeningDetail() {
                       c.index === overrideTakeIndex && "bg-aura-coral-soft/40"
                     )}
                   >
-                    <td className="px-2 py-1.5 text-center font-medium whitespace-nowrap text-aura-ink md:px-4">{c.index + 1}</td>
-                    <td className="px-2 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-muted md:px-4">
+                    <td className="px-1.5 py-1.5 text-center font-medium whitespace-nowrap text-aura-ink md:px-4">{c.index + 1}</td>
+                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-muted md:px-4">
                       {c.duration_sec.toFixed(1)}s
                     </td>
-                    <td className="px-2 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
+                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
                       {c.stage1_healthy_prob.toFixed(2)}
                     </td>
-                    <td className="px-2 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
+                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
                       {c.stage2_pneumonia_prob === null
                         ? "—"
                         : c.stage2_pneumonia_prob.toFixed(2)}
                     </td>
-                    <td className="px-2 py-1.5 text-center whitespace-nowrap md:px-4">
+                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap md:px-4">
                       <span
                         className={cn(
                           "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold md:px-2.5 md:text-xs",
