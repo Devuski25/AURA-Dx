@@ -71,6 +71,7 @@ cd frontend-new && npm run dev
 | PDF report consistency (heading vs advice) | `python backend/test_pdf_consistency.py` |
 | Classification agrees with the probabilities | `python backend/test_classification.py` |
 | Patient ownership and the delete paths | `python backend/test_patient_ownership.py` |
+| Every filter narrows the list correctly | `python backend/test_filters.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 

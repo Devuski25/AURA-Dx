@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
-import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText, Trash2, ChevronRight } from "lucide-react"
+import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -38,12 +38,34 @@ import { toast } from "sonner"
 import { EmptyState } from "@/components/EmptyState"
 import { PageBanner } from "@/components/PageBanner"
 
+/** One patient, and every screening they have. */
+interface PatientGroup {
+  /** Stable key for the group. */
+  key: string
+  patient_id: string
+  name: string
+  clinician_name: string
+  clinic_name: string
+  gender: string | null
+  /** How many screenings this patient has. */
+  count: number
+  /** Their most recent screening -- what the row shows. */
+  latest: Screening
+  /** Every distinct result class they have had. */
+  results: string[]
+}
+
 interface Screening {
   id: string
   patient_id: string
   patient_name: string | null
   date_of_birth: string
-  gender: string
+  /** The patient's sex.
+   *
+   * The API calls this `patient_gender`, not `gender`, and reading the
+   * wrong one is why the gender filter appeared to do nothing: every row had
+   * `gender` undefined, so nothing ever matched. */
+  patient_gender: string | null
   age_bracket: string
   clinic_name: string
   clinician_name: string
@@ -62,8 +84,6 @@ interface Screening {
   screening_number: number | null
   patient_screening_count: number | null
 }
-
-type SortableField = keyof Pick<Screening, "patient_name" | "created_at" | "respiratory_result" | "status">
 
 const createdDateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" })
 const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
@@ -138,106 +158,25 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     : { variants: staggerContainer, initial: "hidden" as const, animate: "visible" as const }
   const itemProps = reduceMotion ? {} : { variants: staggerItem }
 
-  /* The list order is fixed: newest screening first.
+  /* The list order is fixed: most recent activity first.
 
      The column headers used to be sort buttons with a caret indicator. They
      are now plain labels, so there is nothing left to change the order from,
      and the order it was already in -- newest first -- is the one that is
-     useful when you open the list to find the screening you just did. Keeping
-     it as a constant rather than as state also removes a re-render of the
-     whole list on every header click. */
-  const SORT_FIELD: SortableField = "created_at"
+     useful when you open the list to find the screening you just did.
 
-  const filteredAndSortedScreenings = useMemo(() => {
-    let result = [...screenings]
+     The ordering happens where the groups are built, because a row is a
+     patient now and a patient's place in the list is decided by their most
+     recent screening. */
 
-    if (search) {
-      const searchLower = search.toLowerCase()
-      result = result.filter(s =>
-        (s.patient_name ?? "").toLowerCase().includes(searchLower) ||
-        (s.clinic_name ?? "").toLowerCase().includes(searchLower) ||
-        (s.clinician_name ?? "").toLowerCase().includes(searchLower)
-      )
-    }
+  /* Every screening of each patient, grouped.
 
-    if (classFilter !== "all") {
-      result = result.filter(s => s.respiratory_result === classFilter)
-    }
+     Used by the selection and the export, both of which work in whole
+     patients: a row is a patient, and a handover pack is a patient's history
+     rather than a scatter of snapshots.
 
-    if (genderFilter !== "all") {
-      result = result.filter(s => s.gender === genderFilter)
-    }
-
-    // Newest first. The direction is fixed, so it is not a runtime choice.
-    result.sort((a, b) => {
-      const aVal = a[SORT_FIELD]
-      const bVal = b[SORT_FIELD]
-      if (aVal === null || aVal === undefined) return 1
-      if (bVal === null || bVal === undefined) return -1
-      return -String(aVal).localeCompare(String(bVal))
-    })
-
-    return result
-  }, [screenings, search, classFilter, genderFilter])
-
-  /*
-   * Row selection drives which PDFs the bulk export writes. Selections are
-   * scoped to whatever the current filters match, so ids that fall out of view
-   * simply stop counting — they are never silently exported.
-   */
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
-
-  const selectedScreenings = useMemo(
-    () => filteredAndSortedScreenings.filter(s => selectedIds.has(s.id)),
-    [filteredAndSortedScreenings, selectedIds],
-  )
-
-  const selectedCount = selectedScreenings.length
-  const allSelected =
-    selectedCount > 0 && selectedCount === filteredAndSortedScreenings.length
-
-  /* Checked + some-remaining reads as indeterminate, not unchecked. */
-  const selectAllRef = useRef<HTMLInputElement>(null)
-  const someSelected = selectedCount > 0 && !allSelected
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someSelected
-    }
-  }, [someSelected])
-
-  const toggleRow = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
-
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds(prev => {
-      const next = new Set<string>()
-      const everythingPicked =
-        filteredAndSortedScreenings.length > 0 &&
-        filteredAndSortedScreenings.every(s => prev.has(s.id))
-      if (!everythingPicked) {
-        for (const s of filteredAndSortedScreenings) next.add(s.id)
-      }
-      return next
-    })
-  }, [filteredAndSortedScreenings])
-
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
-
-  /* Every screening of a patient, grouped by patient.
-
-     A patient can be screened as many times as clinically needed, so the row
-     for one screening is only ever a page of that patient's history. The
-     3-dot menu uses this to offer the whole history rather than just the one
-     row it was opened from.
-
-     It is built from the unfiltered list, so a screening that the current
-     filters are hiding is still reachable from the menu. */
+     It is built from the unfiltered list, so a screening the current filters
+     are hiding is still part of the patient's history. */
   const screeningsByPatient = useMemo(() => {
     const byPatient = new Map<string, Screening[]>()
     for (const s of screenings) {
@@ -252,6 +191,152 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     return byPatient
   }, [screenings])
 
+  /* One row per patient.
+
+     A patient can be screened as many times as clinically needed, so a list
+     with a row per screening is the same patient repeated. The row shows their
+     most recent reading and how many readings they have; the 3-dot menu opens
+     their record, which shows all of them.
+
+     Grouped by the patient's id, because that is the only thing that
+     identifies a person. Two different patients can share a name, and the
+     doctor who created them can be the same, so grouping by name-and-doctor
+     would merge two people into one row. The name and the doctor are what the
+     row DISPLAYS; the id is what it groups by. */
+  const patientGroups = useMemo<PatientGroup[]>(() => {
+    const byPatient = new Map<string, Screening[]>()
+    for (const s of screenings) {
+      const key = s.patient_id ||
+        `name:${s.patient_name ?? ""}|doc:${s.clinician_name ?? ""}`
+      const list = byPatient.get(key)
+      if (list) list.push(s)
+      else byPatient.set(key, [s])
+    }
+    const groups: PatientGroup[] = []
+    for (const [key, list] of byPatient) {
+      // Newest first within the patient, so the first is the current reading.
+      list.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+      const latest = list[0]
+      groups.push({
+        key,
+        patient_id: latest.patient_id,
+        name: latest.patient_name || "Anonymous Screening",
+        clinician_name: latest.clinician_name,
+        clinic_name: latest.clinic_name,
+        gender: latest.patient_gender,
+        count: list.length,
+        latest,
+        results: Array.from(
+          new Set(list.map(s => s.respiratory_result).filter(Boolean) as string[])
+        ),
+      })
+    }
+    // Most recent activity first, so the patient you just screened is at the
+    // top of the list.
+    groups.sort(
+      (a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime()
+    )
+    return groups
+  }, [screenings])
+
+  const filteredAndSortedScreenings = useMemo(() => {
+    let result = [...patientGroups]
+
+    if (search) {
+      const searchLower = search.toLowerCase()
+      result = result.filter(g =>
+        g.name.toLowerCase().includes(searchLower) ||
+        (g.clinic_name ?? "").toLowerCase().includes(searchLower) ||
+        (g.clinician_name ?? "").toLowerCase().includes(searchLower)
+      )
+    }
+
+    // A patient matches the class filter if ANY of their readings has that
+    // result. The count beside their name stays their total, so the row does
+    // not change shape depending on the filter.
+    if (classFilter !== "all") {
+      result = result.filter(g => g.results.includes(classFilter))
+    }
+
+    if (genderFilter !== "all") {
+      result = result.filter(g => g.gender === genderFilter)
+    }
+
+    return result
+  }, [patientGroups, search, classFilter, genderFilter])
+
+  /*
+   * Row selection drives which PDFs the bulk export writes.
+   *
+   * The selection is held as screening ids, because that is what the export
+   * needs, but the rows are patients. A row is ticked when all of that
+   * patient's readings are ticked, and the count shown is the number of
+   * readings selected.
+   */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+
+  /* Every screening belonging to a visible patient. The selection is scoped to
+     these, so ids that fall out of view stop counting and are never silently
+     exported. */
+  const visibleScreenings = useMemo(
+    () => filteredAndSortedScreenings.flatMap(g => screeningsByPatient.get(g.patient_id) ?? [g.latest]),
+    [filteredAndSortedScreenings, screeningsByPatient]
+  )
+
+  const selectedScreenings = useMemo(
+    () => visibleScreenings.filter(s => selectedIds.has(s.id)),
+    [visibleScreenings, selectedIds]
+  )
+
+  const selectedCount = selectedScreenings.length
+  const allSelected =
+    selectedCount > 0 && selectedCount === visibleScreenings.length
+
+  /* Checked + some-remaining reads as indeterminate, not unchecked. */
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  const someSelected = selectedCount > 0 && !allSelected
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
+
+  /* Selecting a row selects the patient's whole history.
+
+     A row is a patient, so ticking it and exporting one of their readings
+     would be a surprise: the export is a handover pack, and it takes a
+     patient's complete history. Ticking them takes all of it. */
+  const togglePatient = useCallback((group: PatientGroup) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      const ids = (screeningsByPatient.get(group.patient_id) ?? [group.latest]).map(s => s.id)
+      const allOn = ids.every(id => next.has(id))
+      for (const id of ids) {
+        if (allOn) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
+  }, [screeningsByPatient])
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(prev => {
+      const next = new Set<string>()
+      const everythingPicked =
+        visibleScreenings.length > 0 &&
+        visibleScreenings.every(s => prev.has(s.id))
+      if (!everythingPicked) {
+        for (const s of visibleScreenings) next.add(s.id)
+      }
+      return next
+    })
+  }, [visibleScreenings])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  /* Every screening of a patient, grouped by patient.
   /* The export covers whole patients.
 
      A handover pack is a patient's history, not a scatter of snapshots. So if
@@ -261,7 +346,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
      This is why the count in the toast can be larger than the number of rows
      that were ticked. */
   const exportTargets = useMemo(() => {
-    const base = selectedCount > 0 ? selectedScreenings : filteredAndSortedScreenings
+    const base = selectedCount > 0 ? selectedScreenings : visibleScreenings
     const seen = new Set<string>()
     const expanded: Screening[] = []
     for (const s of base) {
@@ -275,7 +360,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     return expanded.sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
-  }, [selectedCount, selectedScreenings, filteredAndSortedScreenings, screeningsByPatient])
+  }, [selectedCount, selectedScreenings, visibleScreenings, screeningsByPatient])
 
   const getStatusBadge = (status: string, reviewedBy: string | null) => (
     <ScreeningStatusBadge
@@ -351,56 +436,35 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
 
   /* The 3-dot menu for a row.
 
-     When a patient has been screened more than once, the row is only one page
-     of their history, so the menu lists the whole history and each entry jumps
-     straight to it. The dates are shown because "the one from last week" is how
-     people refer to a screening, not "the second one".
+     A row is a patient now, not a screening, so the menu acts on the patient.
+     "View details" opens their record, which lists every screening they have
+     -- that is where the individual readings live, rather than in a submenu
+     here, where they were a list of dates with no results in them.
 
      One shared component, because the table row and the phone card are the
      same menu and were already two copies of it. */
   const ScreeningMenu = ({
-    screening,
+    group,
     label,
   }: {
-    screening: Screening
+    group: PatientGroup
     label: string
   }) => {
-    const history = screeningsByPatient.get(screening.patient_id) ?? [screening]
-    const hasHistory = history.length > 1
+    const screening = group.latest
     return (
       <>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
             {label}
           </DropdownMenuLabel>
-          {hasHistory && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted">
-                {history.length} screening{history.length === 1 ? "" : "s"}
-              </DropdownMenuLabel>
-              {history.map((h, i) => (
-                <DropdownMenuItem
-                  key={h.id}
-                  onSelect={() => navigate(`/dashboard/screenings/${h.id}`)}
-                  className="gap-2"
-                >
-                  <span className="w-16 shrink-0 font-mono text-[11px] tabular-nums text-aura-muted">
-                    {h.screening_number ? `#${h.screening_number}` : `#${i + 1}`}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {new Date(h.created_at).toLocaleDateString()}
-                  </span>
-                  {h.id === screening.id && (
-                    <Check className="h-3.5 w-3.5 shrink-0 text-aura-forest" aria-hidden="true" />
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </>
+          {group.count > 1 && (
+            <p className="px-2 pb-1 text-[11px] text-aura-muted">
+              {group.count} screenings &mdash; the record shows all of them
+            </p>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onSelect={() => navigate(`/dashboard/screenings/${screening.id}`)}
+            onSelect={() => navigate(`/dashboard/patients/${group.patient_id}`)}
             className="gap-2"
           >
             <Eye className="h-4 w-4" aria-hidden="true" />
@@ -416,14 +480,14 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => setDeletingPatient({
-              id: screening.patient_id,
+              id: group.patient_id,
               name: label,
-              count: history.length,
+              count: group.count,
             })}
             className="gap-2 text-destructive focus:text-destructive"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete patient and all records
+            Delete patient's records
           </DropdownMenuItem>
         </DropdownMenuContent>
       </>
@@ -533,12 +597,16 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     All Screenings
                   </CardTitle>
                   {/* Count sits in its own pill so it reads as a header stat
-                      rather than trailing sentence text. */}
+                      rather than trailing sentence text.
+
+                      A row is a patient, so the count is of patients, and the
+                      wording says so. Saying "records" here would be
+                      ambiguous now that one patient can be several records. */}
                   <p className="mt-2 flex items-center gap-2 text-sm text-aura-muted">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-aura-surface-alt px-3 py-1 text-sm font-semibold tabular-nums text-aura-forest">
-                      {filteredAndSortedScreenings.length} of {screenings.length}
+                      {filteredAndSortedScreenings.length} of {patientGroups.length}
                     </span>
-                    <span>records shown</span>
+                    <span>patients shown</span>
                   </p>
                 </div>
                 <button
@@ -638,12 +706,13 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                 `filteredAndSortedScreenings`, so search, sort and the PDF
                 selection all apply to both. */}
             <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
-              {filteredAndSortedScreenings.map((screening, idx) => {
-                const isSelected = selectedIds.has(screening.id)
-                const label = screening.patient_name || "Anonymous Screening"
+              {filteredAndSortedScreenings.map((group, idx) => {
+                const screening = group.latest
+                const isSelected = group.latest ? selectedIds.has(screening.id) : false
+                const label = group.name
                 return (
                   <li
-                    key={screening.id}
+                    key={group.key}
                     className={cn(
                       "rounded-xl border bg-white p-4 transition-colors",
                       isSelected
@@ -659,15 +728,22 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         <Checkbox
                           className="h-[18px] w-[18px] accent-aura-forest"
                           checked={isSelected}
-                          onChange={() => toggleRow(screening.id)}
+                          onChange={() => togglePatient(group)}
                           aria-label={`Select ${label} for PDF export`}
                         />
                       </label>
 
                       <div className="min-w-0 flex-1">
-                        <div className="text-base font-medium">{label}</div>
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <div className="text-base font-medium">{label}</div>
+                          {group.count > 1 && (
+                            <span className="rounded-full bg-aura-surface-alt px-2 py-0.5 text-[11px] font-semibold text-aura-muted">
+                              {group.count} screenings
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-aura-muted">
-                          {screening.clinician_name}
+                          {group.clinician_name}
                         </div>
                       </div>
 
@@ -682,7 +758,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                             <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <ScreeningMenu screening={screening} label={label} />
+                        <ScreeningMenu group={group} label={label} />
                       </DropdownMenu>
                     </div>
 
@@ -749,9 +825,12 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSortedScreenings.map((screening, idx) => (
+                  {filteredAndSortedScreenings.map((group, idx) => {
+                    const screening = group.latest
+                    const isSelected = selectedIds.has(screening.id)
+                    return (
                     <TableRow
-                      key={screening.id}
+                      key={group.key}
                       className={cn(
                         "group align-middle overflow-hidden border-b border-aura-forest/10 transition-colors duration-150 hover:bg-aura-mint-wash/60 focus-within:bg-aura-mint-wash/60",
                         idx % 2 === 1 && "bg-aura-table-stripe"
@@ -761,9 +840,9 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
                           <Checkbox
                             className="h-[18px] w-[18px] accent-aura-forest"
-                            checked={selectedIds.has(screening.id)}
-                            onChange={() => toggleRow(screening.id)}
-                            aria-label={`Select ${screening.patient_name || "anonymous screening"} for PDF export`}
+                            checked={isSelected}
+                            onChange={() => togglePatient(group)}
+                            aria-label={`Select ${group.name} for PDF export`}
                           />
                         </label>
                       </TableCell>
@@ -776,19 +855,18 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           aria-hidden="true"
                           className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                         />
-                        <div className="flex items-baseline gap-2">
-                          <div className="text-base font-medium">{screening.patient_name || "Anonymous Screening"}</div>
-                          {/* Which screening this is for the patient. A patient
-                              can be screened repeatedly, so "the second one"
-                              is the difference between a re-test and a
-                              genuine change. */}
-                          {screening.patient_screening_count && screening.patient_screening_count > 1 && (
-                            <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
-                              {screening.screening_number} of {screening.patient_screening_count}
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <div className="text-base font-medium">{group.name}</div>
+                          {/* How many readings this patient has. The row is the
+                              patient, so the count is what tells you there is
+                              more than one. */}
+                          {group.count > 1 && (
+                            <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 text-[11px] font-semibold text-aura-muted">
+                              {group.count} screenings
                             </span>
                           )}
                         </div>
-                        <div className="text-sm text-aura-muted">{screening.clinician_name}</div>
+                        <div className="text-sm text-aura-muted">{group.clinician_name}</div>
                       </TableCell>
                       <TableCell className="px-4 align-middle">
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -809,20 +887,18 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                                 variant="ghost"
                                 size="icon"
                                 className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
-                                aria-label={`Actions for ${screening.patient_name || "anonymous screening"}`}
+                                aria-label={`Actions for ${group.name}`}
                               >
                                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <ScreeningMenu
-                              screening={screening}
-                              label={screening.patient_name || "Anonymous Screening"}
-                            />
+                            <ScreeningMenu group={group} label={group.name} />
                           </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
