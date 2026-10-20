@@ -190,57 +190,6 @@ function ProbabilityBar({ label, prob, color }: { label: string; prob: number; c
   )
 }
 
-/* ---------- Take durations (screening details) ----------
- *
- * This replaces a decorative "waveform" that drew twelve bars from a hardcoded
- * array of heights. It looked like the patient's recording and meant nothing --
- * the same twelve bars appeared for every screening, including rows with no
- * audio at all. A clinical screen showing invented data shaped like data is
- * worse than showing none.
- *
- * These bars are real: each one is the measured length of one recorded take,
- * scaled against the longest take in the set. The widths therefore answer a
- * question a clinician actually asks -- was one take clipped short? -- and the
- * numbers are in the tooltip and in the per-take table further down.
- *
- * Nothing is drawn when the per-take scores are missing, because there is
- * genuinely nothing to show.
- */
-function TakeDurations({ takes }: { takes: Array<{ duration_sec?: number }> }) {
-  const usable = takes.filter(t => typeof t.duration_sec === "number" && t.duration_sec > 0)
-  if (usable.length === 0) return null
-
-  const longest = Math.max(...usable.map(t => t.duration_sec as number), 0.001)
-
-  return (
-    <div>
-      <FieldLabel>Takes recorded</FieldLabel>
-      <div className="flex h-5 items-end gap-1" role="img"
-           aria-label={`${usable.length} recordings, lengths ${usable
-             .map(t => `${(t.duration_sec as number).toFixed(1)} seconds`)
-             .join(", ")}`}
-      >
-        {usable.map((t, i) => {
-          const secs = t.duration_sec as number
-          // 20% floor so a very short take is still visible as a bar.
-          const pct = Math.max((secs / longest) * 100, 20)
-          return (
-            <span
-              key={i}
-              title={`Take ${i + 1}: ${secs.toFixed(1)}s`}
-              className="w-1.5 shrink-0 rounded-[2px] bg-aura-forest-light"
-              style={{ height: `${Math.max(pct, 18)}%` }}
-            />
-          )
-        })}
-      </div>
-      <div className="mt-1 text-[11px] tabular-nums text-aura-muted">
-        {usable.length} take{usable.length === 1 ? "" : "s"}
-      </div>
-    </div>
-  )
-}
-
 /* ---------- Info card ---------- */
 function InfoCard({ title, className, children }: { title: string; className?: string; children: React.ReactNode }) {
   return (
@@ -708,9 +657,6 @@ export function ScreeningDetail() {
             >
               {screening.status === "pending_review" ? "Pending Review" : screening.reviewed_by ? "Reviewed" : screening.status}
             </div>
-          </div>
-          <div className="flex flex-col items-end min-w-0">
-            <TakeDurations takes={screening.recording_scores?.per_clip ?? []} />
           </div>
         </div>
       </InfoCard>
