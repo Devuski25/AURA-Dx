@@ -420,6 +420,49 @@ async def upload_audio(
     }
 
 
+# The emails whose addresses have been confirmed, and when they were read.
+#
+# Cached because the users list asked the auth service for every account in
+# the project on every load, which is a network call the page waits for and
+# a list that grows with the project rather than with the clinic.
+_confirmed_emails_cache = None
+_confirmed_emails_cache_time = 0.0
+CONFIRMED_EMAILS_TTL_SECONDS = 30
+
+
+async def _confirmed_emails() -> set:
+    """The emails that have been confirmed.
+
+    Read from the auth service, and cached briefly. An account created
+    through this app is confirmed as it is created, so the set does not
+    usually change; a confirmation made by hand shows up within the cache
+    window.
+    """
+    global _confirmed_emails_cache, _confirmed_emails_cache_time
+    now = time.monotonic()
+    if (
+        _confirmed_emails_cache is not None
+        and (now - _confirmed_emails_cache_time) < CONFIRMED_EMAILS_TTL_SECONDS
+    ):
+        return _confirmed_emails_cache
+
+    res = await get_client().get(
+        f"{settings.supabase_url}/auth/v1/admin/users",
+        headers={
+            "Authorization": f"Bearer {settings.supabase_service_key}",
+            "apikey": settings.supabase_anon_key,
+        },
+        timeout=10.0
+    )
+    data = res.json()
+    emails = {
+        u["email"] for u in (data.get("users") or []) if u.get("email_confirmed_at")
+    }
+    _confirmed_emails_cache = emails
+    _confirmed_emails_cache_time = now
+    return emails
+
+
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
     user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
@@ -461,19 +504,20 @@ async def list_users(
         raise HTTPException(status_code=500, detail="Failed to load users")
 
     # Filter out users with unconfirmed emails (fake emails)
-    # Fetch auth users to check email_confirmed_at — parallel with profiles fetch
+    #
+    # This used to fetch EVERY auth user in the project on every call to this
+    # endpoint, to find out which emails were confirmed. That is a second
+    # network call on top of the profiles query -- about 400ms -- and the
+    # users list is the first thing an admin opens. It also grew with the
+    # project rather than with the clinic.
+    #
+    # The set of confirmed emails only changes when somebody confirms an
+    # email, so it is cached briefly. Thirty seconds is short enough that a
+    # newly confirmed account shows up promptly, and the accounts this app
+    # creates are confirmed at creation anyway, so in practice the list does
+    # not change at all between one load and the next.
     try:
-        auth_res = await get_client().get(
-            f"{settings.supabase_url}/auth/v1/admin/users",
-            headers={
-                "Authorization": f"Bearer {settings.supabase_service_key}",
-                "apikey": settings.supabase_anon_key,
-            },
-            timeout=10.0
-        )
-        auth_data = auth_res.json()
-        auth_users = auth_data.get("users", [])
-        confirmed_emails = {u["email"] for u in auth_users if u.get("email_confirmed_at")}
+        confirmed_emails = await _confirmed_emails()
         profiles = [p for p in profiles if p["email"] in confirmed_emails]
     except Exception as e:
         print(f"[list_users] Failed to filter unconfirmed emails: {e}")
