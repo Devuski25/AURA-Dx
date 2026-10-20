@@ -167,14 +167,6 @@ type Take = {
 
 const dobDateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" })
 
-const initialsOf = (name: string) =>
-  name
-    .split(" ")
-    .map(part => part.charAt(0))
-    .slice(0, 2)
-    .join("")
-    .toUpperCase()
-
 const TODAY = new Date()
 
 const ageOf = (dateOfBirth: string) => {
@@ -209,22 +201,32 @@ const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatus
    makes the row unclickable in some browsers. The whole row stays clickable via
    a stretched overlay button sitting underneath the menu at a lower z-index.
 
-   PHONE: three tracks -- avatar, name, and the one action control. The chevron
-   is desktop-only. On a phone it was a second control saying the same thing as
+   PHONE: two tracks -- the name and the one action control. The chevron is
+   desktop-only. On a phone it was a second control saying the same thing as
    the row itself ("tap here to select"), competing with the 3-dot menu for the
    right-hand margin, and the two together pushed the name into a corner. One
    control on the right leaves the name the width it needs and the margin
    clean.
 
-   The header row is why the two must agree on the track count. It has the same
-   number of children as the row only from `sm` up, where both are six. On a
-   phone the header's extra headings are hidden, so what is left is an empty
-   avatar cell and "Patient" -- two children for three tracks. The row has
-   three. When the header still had all six headings in a three-track grid
-   they wrapped onto a second row, and "Action" broke across two lines as
-   "Acti on" over a clipped row. */
+   There is no avatar track at any width. The circle of initials sat between
+   the row's left edge and the name, so the name was never aligned with the
+   card's own left padding -- it was indented past a 32px badge and its gap.
+   With the badge gone the name is the first cell and lines up with the
+   "Select Patient" title above it.
+
+   The padding is the card header's padding, px-4 and sm:px-5, for the same
+   reason: the name has to sit on the same vertical line as everything else in
+   the card.
+
+   The header row is why the two must agree on the track count. It has the
+   same number of children as the row only from `sm` up, where both are five.
+   On a phone the header's extra headings are hidden, so what is left is
+   "Patient" and "Action" -- two children for two tracks. The row has two. When
+   the header still had all six headings in a four-track grid they wrapped onto
+   a second row, and "Action" broke across two lines as "Acti on" over a
+   clipped row. */
 const PATIENT_GRID =
-  "grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[32px_minmax(0,1.1fr)_minmax(0,1.5fr)_122px_auto_auto] sm:px-3"
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_122px_auto_auto] sm:px-5"
 
 /* How many patient rows the picker shows before it starts scrolling.
    Five is roughly a screenful on a phone with the search box and the New
@@ -882,7 +884,6 @@ export function Screening() {
                 <div role="status" aria-live="polite" aria-label="Loading patients" className="divide-y divide-aura-border-soft">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className={cn(PATIENT_GRID, "py-3")}>
-                      <span className="block h-8 w-8 shrink-0 animate-pulse rounded-full bg-aura-surface-alt" />
                       <span className="flex min-w-0 flex-col gap-1.5">
                         <span className="block h-4 w-32 animate-pulse rounded bg-aura-surface-alt" />
                         <span className="block h-3 w-20 animate-pulse rounded bg-aura-surface-alt" />
@@ -947,26 +948,32 @@ export function Screening() {
                                 <div className={cn(PATIENT_LIST_MAX_H, "aura-table-scroll overflow-y-auto overscroll-contain")}>
                                   {/* Column labels (decorative; rows are self-describing buttons).
 
-                                      On a phone only "Patient" is shown. The
-                                      other headings describe columns that are
-                                      not on screen at that width, and putting
-                                      them in the header made the row wrap:
-                                      the labels did not fit the tracks the
-                                      rows use, so "Action" broke across two
-                                      lines as "Acti on" and the list was
-                                      clipped. From `sm` up the row has the
-                                      details, status and action columns, and
-                                      the headings come back with them. */}
+                                      On a phone only "Patient" and "Action"
+                                      are shown, matching the two columns the
+                                      row has at that width: the name on the
+                                      left, and the heading for the 3-dot
+                                      menu on the right. The other headings
+                                      describe columns that are not on screen
+                                      at that width, and putting them in the
+                                      header made the row wrap -- the labels
+                                      did not fit the tracks the rows use, so
+                                      "Action" broke across two lines as
+                                      "Acti on" and the list was clipped.
+
+                                      From `sm` up the row has the details,
+                                      status and action columns, and the
+                                      headings come back with them. The last
+                                      cell is empty because the menu is a
+                                      control rather than a column of data. */}
                                   <div
                                     aria-hidden="true"
                                     className={cn(PATIENT_GRID, "sticky top-0 z-10 border-b border-aura-border-soft bg-aura-surface-alt pb-2 pt-3 text-xs font-medium text-aura-muted")}
                                   >
-                                    <span />
                                     <span>Patient</span>
                                     <span className="hidden sm:block">Details</span>
                                     <span className="hidden sm:block">Status</span>
-                                    <span className="hidden text-right sm:block">Action</span>
-                                    <span />
+                                    <span className="text-right">Action</span>
+                                    <span className="hidden sm:block" />
                                   </div>
                                   {visiblePatients.map(patient => {
                                     const isSelected = selectedPatient?.id === patient.id
@@ -982,12 +989,16 @@ export function Screening() {
                                             : "bg-aura-elevated hover:bg-aura-surface-alt"
                                         )}
                                       >
-                                        <span
-                                          aria-hidden="true"
-                                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-aura-mint-soft text-xs font-semibold text-aura-forest"
-                                        >
-                                          {initialsOf(patient.name)}
-                                        </span>
+                                        {/* No avatar. The circle of initials
+                                            sat between the row's left edge
+                                            and the name, so the name was
+                                            never aligned with the card's
+                                            own left padding -- it was
+                                            indented past a 32px badge and
+                                            its gap. The name is the first
+                                            cell now, and lines up with
+                                            the "Select Patient" title
+                                            above it. */}
                                         <span className="flex min-w-0 flex-col gap-0.5">
                                           <span className="flex min-w-0 items-center gap-2">
                                             <span className="truncate text-sm font-medium">{patient.name}</span>
