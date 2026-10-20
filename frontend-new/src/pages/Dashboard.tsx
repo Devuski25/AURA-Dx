@@ -21,7 +21,6 @@ import {
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/hooks/useAuth"
@@ -29,7 +28,7 @@ import { apiFetch } from "@/lib/api"
 import { supabase } from "@/lib/supabase"
 import { useCachedData } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
-import { renderResultBadges, ConfidenceChip } from "@/lib/badge-helpers"
+import { renderResultBadges, ConfidenceChip, ScreeningStatusBadge } from "@/lib/badge-helpers"
 import { EmptyState } from "@/components/EmptyState"
 
 interface Screening {
@@ -196,11 +195,9 @@ export function Dashboard() {
 
   const isAnonymous = (s: { patient_name: string | null }) => !s.patient_name
 
-  const renderStatusBadge = (status: string, reviewedBy: string | null) => {
-    if (status === "pending_review") return <Badge variant="warning">Pending Review</Badge>
-    if (reviewedBy) return <Badge variant="success">Reviewed</Badge>
-    return <Badge variant="secondary">{status}</Badge>
-  }
+  const renderStatusBadge = (status: string, reviewedBy: string | null) => (
+    <ScreeningStatusBadge status={status} reviewedBy={reviewedBy} />
+  )
 
   /* Item 3: app-wide color legend — red = active infection risk (Pneumonia),
      yellow = chronic warning (COPD), green = healthy/cleared,

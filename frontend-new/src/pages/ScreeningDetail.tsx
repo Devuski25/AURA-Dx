@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { screeningStatusLabel } from "@/lib/badge-helpers"
 
 /** One recorded take, as scored independently by the inference service. */
 interface ClipScore {
@@ -649,10 +650,10 @@ export function ScreeningDetail() {
                   ? "bg-aura-coral-soft text-aura-coral-strong"
                   : screening.reviewed_by
                   ? "bg-aura-mint-soft text-aura-pine"
-                  : "bg-aura-sage text-aura-forest"
+                  : "bg-aura-sage text-aura-forest uppercase"
               )}
             >
-              {screening.status === "pending_review" ? "Pending Review" : screening.reviewed_by ? "Reviewed" : screening.status}
+              {screeningStatusLabel(screening.status, screening.reviewed_by)}
             </div>
           </div>
         </div>

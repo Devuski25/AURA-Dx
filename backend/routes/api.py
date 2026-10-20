@@ -1299,7 +1299,10 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
         ["Takes recorded", str(take_count) if take_count else "not recorded",
          "Fusion method", fusion_label],
         ["Safety override", safety_override, "Status",
-         str(data.get("status") or "N/A")],
+         # The raw status is a lower-case code ("completed"), which reads as a
+         # value that slipped through rather than as a status. The screen
+         # upper-cases it for the same reason.
+         str(data.get("status") or "N/A").upper()],
     ]))
 
     # --- Interpretation -----------------------------------------------------

@@ -24,7 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
-import { ConfidenceChip } from "@/lib/badge-helpers"
+import { ConfidenceChip, ScreeningStatusBadge } from "@/lib/badge-helpers"
 
 interface Patient {
   id: string
@@ -162,11 +162,9 @@ export function PatientDetail() {
     return <Badge variant={variants[result] || "default"}>{result}</Badge>
   }
 
-  const getStatusBadge = (status: string, reviewedBy: string | null) => {
-    if (status === "pending_review") return <Badge variant="warning">Pending Review</Badge>
-    if (reviewedBy) return <Badge variant="success">Reviewed</Badge>
-    return <Badge variant="secondary">{status}</Badge>
-  }
+  const getStatusBadge = (status: string, reviewedBy: string | null) => (
+    <ScreeningStatusBadge status={status} reviewedBy={reviewedBy} />
+  )
 
   if (loading) {
     return (

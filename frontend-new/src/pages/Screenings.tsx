@@ -7,7 +7,6 @@ import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activit
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -25,7 +24,7 @@ import { saveBlob } from "@/lib/download"
 import { useCachedData } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
-import { getRespBadge } from "@/lib/badge-helpers"
+import { getRespBadge, ScreeningStatusBadge } from "@/lib/badge-helpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/EmptyState"
@@ -223,12 +222,13 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
      filters match", so the button is never a dead end. */
   const exportTargets = selectedCount > 0 ? selectedScreenings : filteredAndSortedScreenings
 
-  const getStatusBadge = (status: string, reviewedBy: string | null) => {
-    const cls = "h-7 px-3 text-sm font-semibold"
-    if (status === "pending_review") return <Badge variant="warning" className={cls}>Pending Review</Badge>
-    if (reviewedBy) return <Badge variant="success" className={cls}>Reviewed</Badge>
-    return <Badge variant="secondary" className={cls}>{status}</Badge>
-  }
+  const getStatusBadge = (status: string, reviewedBy: string | null) => (
+    <ScreeningStatusBadge
+      status={status}
+      reviewedBy={reviewedBy}
+      className="h-7 px-3 text-sm font-semibold"
+    />
+  )
 
   const fetchPdfBlob = useCallback(async (screeningId: string): Promise<Blob | null> => {
     const response = await apiFetch(`/api/screenings/${screeningId}/pdf`)
