@@ -54,15 +54,37 @@ $Services = @(
         Name = "inference"
         Dir  = Join-Path $Root "packages\inference"
         Py   = Join-Path $Root "packages\inference\venv\Scripts\python.exe"
-        Args = @("-m", "uvicorn", "inference_service:app", "--host", "0.0.0.0", "--port", "8000")
+        # -u: unbuffered stdout. Redirected to a file, Python block-buffers, so
+        # a service that is still starting writes nothing and the log looks
+        # empty -- which is exactly what a failed start looks like. The
+        # difference between "still starting" and "died" is the one thing the
+        # log is for.
+        Args = @("-u", "-m", "uvicorn", "inference_service:app", "--host", "0.0.0.0", "--port", "8000")
         Port = 8000
+        # Matched by name when hunting orphans. It used to be read positionally
+        # as Args[2], which silently became "uvicorn" the moment an argument
+        # was added to the front -- and then every service matched every
+        # other one's process.
+        Module = "inference_service:app"
+        # Loading both models off disk takes tens of seconds, and it happens
+        # while the backend is starting too, so the two compete for the same
+        # CPU and disk. 30s was not enough and the service was reported dead
+        # while it was still coming up.
+        StartTimeoutSec = 120
     },
     @{
         Name = "backend"
         Dir  = Join-Path $Root "backend"
         Py   = Join-Path $Root "backend\venv\Scripts\python.exe"
-        Args = @("-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001")
+        Args = @("-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001")
         Port = 8001
+        Module = "main:app"
+        # The backend opens its port well after its own imports finish: the
+        # startup path warms the status caches, which calls the inference
+        # service, which is itself still loading models. On a busy box that
+        # took over 30 seconds and the service was reported down while it was
+        # perfectly healthy and about to listen.
+        StartTimeoutSec = 120
     }
 )
 
@@ -101,7 +123,7 @@ function Get-OrphanPids($Service) {
     # Matched on the uvicorn module argument rather than the executable path,
     # because the venv shim and its real child share one command line and both
     # must go. taskkill /T then takes the tree.
-    $module = $Service.Args[2]   # "inference_service:app" / "main:app"
+    $module = $Service.Module   # "inference_service:app" / "main:app"
     Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -and $_.CommandLine -match [regex]::Escape($module) } |
         Select-Object -ExpandProperty ProcessId
@@ -229,7 +251,8 @@ function Get-TunnelId {
 function Invoke-WmiLaunch([string]$CommandLine) {
     $r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create `
         -Arguments @{ CommandLine = $CommandLine } -ErrorAction SilentlyContinue
-    return ($r -and $r.ReturnValue -eq 0)
+    if (-not $r -or $r.ReturnValue -ne 0) { return 0 }
+    return $r.ProcessId
 }
 
 function Start-ServiceProcess($Svc) {
@@ -247,12 +270,25 @@ function Start-ServiceProcess($Svc) {
     # sends you chasing a problem that already got fixed.
     Set-Content -Path $out -Value "" -ErrorAction SilentlyContinue
     $cmd = "cmd /c cd /d $($Svc.Dir) && $($Svc.Py) $($Svc.Args -join ' ') > $out 2>&1"
-    if (-not (Invoke-WmiLaunch $cmd)) {
+    $pid_ = Invoke-WmiLaunch $cmd
+    if (-not $pid_) {
         Write-Host "  [FAIL] $($Svc.Name): could not launch" -ForegroundColor Red
         return
     }
-    if (-not (Wait-Port $Svc.Port $Svc.Name)) {
-        Show-ErrorTail $Svc.Name $out
+    $timeout = if ($Svc.StartTimeoutSec) { $Svc.StartTimeoutSec } else { 30 }
+    if (-not (Wait-Port $Svc.Port $Svc.Name $timeout)) {
+        # "Did not open the port" and "the process died" are different faults
+        # and need different responses. A service that is alive but still
+        # starting will come up on its own; killing it and relaunching is the
+        # one thing that turns a slow start into a failed one.
+        $alive = @(Get-OrphanPids $Svc)
+        if ($alive.Count -gt 0) {
+            Write-Host "  [SLOW] $($Svc.Name) is alive (PID $($alive -join ',')) but has not opened :$($Svc.Port) yet." -ForegroundColor Yellow
+            Write-Host "         It is still starting -- do NOT kill it. Check again in a minute." -ForegroundColor Yellow
+        } else {
+            Write-Host "  [FAIL] $($Svc.Name) died during startup" -ForegroundColor Red
+            Show-ErrorTail $Svc.Name $out
+        }
         return
     }
     Write-Host "  [OK] $($Svc.Name) up on :$($Svc.Port)" -ForegroundColor Green
