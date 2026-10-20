@@ -37,7 +37,7 @@ import {
   LevelMeter,
   NO_STETHOSCOPE_MESSAGE,
 } from "@/components/AudioCapture"
-import { SiteChip } from "@/components/RecordingProtocol"
+import { SiteChip, SiteDetail } from "@/components/RecordingProtocol"
 import {
   AUSCULTATION_SITES,
   MIN_TAKE_SEC,
@@ -1177,11 +1177,18 @@ export function Screening() {
             {/* Site for this take. Suggested, never enforced. */}
             {!recording && !atMaxTakes && (
               <div>
+                {/* Follows the dropdown, so the instructions always describe
+                    the place the take is about to be recorded from. */}
+                <SiteDetail
+                  code={selectedSite}
+                  takeNumber={Math.min(takes.length + 1, MAX_TAKES)}
+                  lastSiteCode={takes[takes.length - 1]?.siteCode}
+                />
                 {/* Stacked on a phone, side by side from sm. Both selects are
                     short controls; on a 375px screen they need the full width
                     to stay tappable, and on a tablet they are wasting a row
                     each. */}
-                <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
                     <div>
                       <label
                         htmlFor="aura-site"
