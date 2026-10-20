@@ -58,6 +58,23 @@ type SortableField = keyof Pick<Screening, "patient_name" | "created_at" | "resp
 const createdDateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" })
 const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
 
+/* Column header cell, shared by all four columns.
+ *
+ * The padding is px-4 because that is what the cells below use. The headers
+ * were px-3 against the cells' px-4, so every heading sat four pixels to the
+ * left of the data it labelled -- which is exactly the misalignment a heading
+ * is supposed to prevent, and it is what made PATIENT look like it belonged
+ * to the checkbox column instead of to the patient names.
+ *
+ * The colour is aura-ink rather than aura-muted. Muted grey on a header is a
+ * label; ink is a heading. These four words are the only thing telling a
+ * clinician what the columns are, and they are now the strongest thing in
+ * the header row.
+ *
+ * One class string for all four so they cannot drift apart again. */
+const HEAD_CELL =
+  "px-4 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink"
+
 function computeAgeLabel(screening: Screening): string {
   if (screening.age_bracket) return screening.age_bracket
   if (!screening.date_of_birth) return "—"
@@ -559,19 +576,19 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         no longer something the header can change.
                         aria-sort goes with the affordance: a column that
                         cannot be sorted must not announce that it can be. */}
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                    <TableHead className={HEAD_CELL}>
                       Patient
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                    <TableHead className={HEAD_CELL}>
                       Result
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                    <TableHead className={HEAD_CELL}>
                       Status
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                    <TableHead className={HEAD_CELL}>
                       Date
                     </TableHead>
-                    <TableHead className="w-20 text-right font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-label="Row actions" />
+                    <TableHead className="w-20 text-right font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink" aria-label="Row actions" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>

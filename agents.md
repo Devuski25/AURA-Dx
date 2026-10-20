@@ -62,6 +62,7 @@ cd frontend-new && npm run dev
 | Orphaned pages / route sanity | `python scripts/audit-routes.py` |
 | Unreferenced files | `python scripts/find-unused.py` |
 | Responsive contract | `python scripts/check-responsive.py` |
+| Table column alignment | `python scripts/check-table-alignment.py` |
 | Environment gating (fail-closed) | `python backend/test_app_env.py` |
 | CORS LAN scoping | `python backend/test_cors_lan.py` |
 | PDF report styles (no clipped type) | `python backend/test_pdf_styles.py` |
