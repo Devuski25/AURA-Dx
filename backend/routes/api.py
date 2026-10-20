@@ -1257,6 +1257,27 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
                        textColor=vcolor, spaceAfter=2)))
 
     # --- Patient + screening details, one table -----------------------------
+    #
+    # The acquisition details sit in this table rather than in a section of
+    # their own. The longer report had a separate "Acquisition" block with its
+    # own heading, which cost more vertical space than the two facts in it
+    # were worth and pushed the document onto a second page.
+    cascade = data.get("cascade_path") or ""
+    scores = data.get("recording_scores") or {}
+    per_clip = scores.get("per_clip") or []
+    recording_paths = data.get("recording_paths") or []
+    take_count = len(recording_paths) or len(per_clip)
+    fusion = scores.get("fusion") or {}
+    # "mean_then_safety_override" means nothing to a clinician reading a
+    # report, so it is spelled out.
+    fusion_label = {
+        "mean_then_safety_override": "Mean of takes, with single-take safety override",
+    }.get(cascade, cascade or "not recorded")
+    safety_override = (
+        f"Applied (take {(fusion.get('override_triggered_by_clip') or 0) + 1})"
+        if fusion.get("override_applied") else "Not applied"
+    )
+
     story.append(_kv_table([
         ["Patient", name, "Age", _age_years(data.get("patient_dob"))],
         ["Date of Birth", str(data.get("patient_dob") or "N/A"), "Gender",
@@ -1265,6 +1286,10 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
          str(data.get("created_at") or "N/A")[:19].replace("T", " ")],
         ["Model", str(data.get("model_version") or "N/A"), "Audio",
          f"{data['audio_duration_sec']}s" if data.get("audio_duration_sec") else "N/A"],
+        ["Takes recorded", str(take_count) if take_count else "not recorded",
+         "Fusion method", fusion_label],
+        ["Safety override", safety_override, "Status",
+         str(data.get("status") or "N/A")],
     ]))
 
     # --- Interpretation -----------------------------------------------------
@@ -1305,8 +1330,7 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
         story.append(t)
 
     # --- Per-take scores, capped so one page is enough ----------------------
-    scores = data.get("recording_scores") or {}
-    per_clip = scores.get("per_clip") or []
+    # `scores` and `per_clip` were read above for the acquisition rows.
     if per_clip:
         story.append(Paragraph("Per-take scores", S["subheading"]))
         clip_rows = [[_cell(h, bold=True) for h in
@@ -1495,332 +1519,28 @@ async def download_screening_pdf(
     if role == "clinician" and data.get("clinician_id") != user.get("sub"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
-    styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Title'], fontSize=18, spaceAfter=6, alignment=TA_CENTER)
-    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=11, textColor=colors.grey, alignment=TA_CENTER, spaceAfter=20)
-    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=13, spaceAfter=6, spaceBefore=12, textColor=colors.HexColor('#1f2937'))
-    subheading_style = ParagraphStyle('Subheading', parent=styles['Heading3'], fontSize=11, spaceAfter=4, textColor=colors.HexColor('#374151'))
-    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, spaceAfter=2)
-    # Body copy for the interpretation section. Referenced by name at the
-    # interpretation block below, but never defined -- the PDF raised
-    # NameError: name 'body_style' is not defined the moment a screening had an
-    # interpretation_status and confidence_level, which is every screening the
-    # interpretation layer has ever written. Download PDF was a flat 500.
-    body_style = ParagraphStyle('Body', parent=styles['BodyText'], fontSize=10,
-                                leading=15, spaceAfter=6)
-    bold_style = ParagraphStyle('Bold', parent=normal_style, fontName='Helvetica-Bold')
-    small_style = ParagraphStyle('Small', parent=normal_style, fontSize=8, textColor=colors.grey)
-    
-    story = []
-    
-    story.append(Paragraph("AURA-Dx - AI-Assisted Respiratory Screening Report", title_style))
-    story.append(Paragraph(f"Screening ID: {screening_id}", subtitle_style))
-    story.append(Spacer(1, 10))
-    
-    # Age in whole years from the date of birth.
-
-    # The report used to print the age *bracket* ("13-21") in the Age column,
-    # which is a coarse band the model consumes rather than a measurement of
-    # the person, and it paired with a blank Date of Birth row right below.
-    # Both are wrong in a clinical document: it printed a band where a number
-    # belongs and omitted the field a reader would check that number against.
-    _dob = data.get("patient_dob")
-    _age = "N/A"
-    if _dob:
-        try:
-            _b = datetime.fromisoformat(str(_dob).replace("Z", "+00:00"))
-            _today = datetime.utcnow()
-            _years = _today.year - _b.year - ((_today.month, _today.day) < (_b.month, _b.day))
-            _age = f"{_years} years" if 0 <= _years < 130 else "N/A"
-        except Exception:
-            _age = "N/A"
-
-    patient_data = [
-        ["Patient Name", data.get("patient_name", "N/A"), "Age", _age],
-        ["Date of Birth", data.get("patient_dob", "N/A"), "Gender", str(data.get("patient_gender", "N/A")).capitalize()],
-        ["Clinician", data.get("clinician_name", "N/A"), "Screening Date", data.get("created_at", "N/A")[:19].replace("T", " ")],
-    ]
-    patient_table = Table(patient_data, colWidths=[1.2*inch, 2.3*inch, 1.2*inch, 2.3*inch])
-    patient_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]))
-    story.append(Paragraph("Patient Information", heading_style))
-    story.append(patient_table)
-    story.append(Spacer(1, 12))
-    
-    meta_data = [
-        ["Model Version", data.get("model_version", "N/A"), "Cascade Path", data.get("cascade_path", "N/A")],
-        ["Audio Duration", f"{data.get('audio_duration_sec', 'N/A')}s" if data.get('audio_duration_sec') else "N/A", "Status", data.get("status", "N/A")],
-    ]
-    meta_table = Table(meta_data, colWidths=[1.2*inch, 2.3*inch, 1.2*inch, 2.3*inch])
-    meta_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]))
-    story.append(Paragraph("Screening Details", heading_style))
-    story.append(meta_table)
-    story.append(Spacer(1, 12))
-    
-    cascade = data.get("cascade_path", "")
-    recording_paths = data.get("recording_paths") or []
-    scores = data.get("recording_scores") or {}
-    per_clip = scores.get("per_clip") or []
-    fusion = scores.get("fusion") or {}
-
-    # "mean_then_safety_override" means nothing to a clinician reading a report.
-    fusion_label = {
-        "mean_then_safety_override": "Mean of takes, with single-take safety override",
-    }.get(cascade, cascade or "not recorded")
-
-    story.append(Paragraph("Acquisition", heading_style))
-    take_count = len(recording_paths) or len(per_clip)
-    acq_rows = [
-        ["Takes recorded", str(take_count) if take_count else "not recorded"],
-        ["Fusion method", fusion_label],
-        ["Safety override",
-         f"Applied (take {(fusion.get('override_triggered_by_clip') or 0) + 1})"
-         if fusion.get("override_applied")
-         else "Not applied"],
-    ]
-    acq_table = Table(acq_rows, colWidths=[1.5*inch, 4.5*inch])
-    acq_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]))
-    story.append(acq_table)
-    story.append(Spacer(1, 8))
-
-    # Per-take breakdown. This is the evidence behind the headline verdict, so
-    # it belongs in the report rather than only in the database.
-    if per_clip:
-        story.append(Paragraph("Per-take scores", subheading_style))
-        clip_rows = [["Take", "Duration", "Stage 1 healthy", "Stage 2 pneumonia", "Result"]]
-        for c in per_clip:
-            s2 = c.get("stage2_pneumonia_prob")
-            clip_rows.append([
-                str((c.get("index", 0) or 0) + 1),
-                f"{c.get('duration_sec', 0):.1f}s",
-                f"{c.get('stage1_healthy_prob', 0):.2f}",
-                "—" if s2 is None else f"{s2:.2f}",
-                c.get("clip_label", "—"),
-            ])
-        clip_table = Table(clip_rows, colWidths=[0.6*inch, 1*inch, 1.5*inch, 1.7*inch, 1.2*inch])
-        clip_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ('ALIGN', (2, 1), (3, -1), 'RIGHT'),
-        ]))
-        story.append(clip_table)
-        if fusion.get("override_applied"):
-            story.append(Spacer(1, 4))
-            story.append(Paragraph(
-                f"<i>Safety override applied: take {(fusion.get('override_triggered_by_clip') or 0) + 1} "
-                f"reached {fusion.get('override_threshold', 0.60):.2f} pneumonia confidence and "
-                "determined the reported result, overriding the averaged score.</i>",
-                ParagraphStyle('OverrideNote', parent=small_style,
-                               textColor=colors.HexColor('#b91c1c'))
-            ))
-        story.append(Spacer(1, 8))
-
-    resp_result = data.get("respiratory_result")
-    resp_conf = data.get("respiratory_confidence")
-    resp_probs = data.get("respiratory_probabilities", {})
-    
-    # Clinical interpretation, read from the same shared/clinical_copy.json the
-    # React result screen uses. Printed above the raw classification because it
-    # is what the report is for -- the numbers are the evidence.
+    # One page, using the same layout as the combined export.
     #
-    # Absent on rows written before the interpretation layer; the legacy
-    # classification block below still renders for those.
-    interp_status = data.get("interpretation_status")
-    interp_level = data.get("confidence_level")
-    if interp_status and interp_level:
-        rule = data.get("decision_rule")
-        flagged_rec = data.get("recordings_flagged")
-
-        # The narrative interpretation -- the verdict line, the headline, the
-        # explanation, the suggested next step, and the sentences describing
-        # how the verdict was reached -- is not printed. It restates the
-        # result in prose that the classification table and the per-take table
-        # already carry in numbers, and on a report that goes to a referring
-        # clinician the numbers and the evidence behind them are what is
-        # wanted.
-        #
-        # What stays is the two things that are not narrative: the specific
-        # safety warnings below, which are each a distinct situation that
-        # would otherwise be missed, and the scope disclaimer, which is the
-        # statement of what this model can and cannot rule out. A report that
-        # says "healthy" without that disclaimer invites a reader to treat the
-        # absence of COPD and pneumonia as "nothing is wrong" -- the single
-        # most dangerous misreading this report could produce.
-        #
-        # Do not fold either of them into the removed block.
-
-        # Specific, different situations get their own line rather than being
-        # folded into one generic caveat.
-        if rule == "safety_override":
-            story.append(Paragraph(
-                f"<i>{disclosure('override')}</i>",
-                ParagraphStyle('InterpWarn', parent=small_style,
-                               textColor=colors.HexColor('#b91c1c'), spaceBefore=4),
-            ))
-        if data.get("low_agreement"):
-            story.append(Paragraph(
-                f"<i>{disclosure('lowAgreement')}</i>",
-                ParagraphStyle('InterpWarn2', parent=small_style,
-                               textColor=colors.HexColor('#b91c1c'), spaceBefore=2),
-            ))
-        if (flagged_rec or 0) > 0 and interp_status == "HEALTHY":
-            story.append(Paragraph(
-                f"<i>{disclosure('borderlineCount')}</i>",
-                ParagraphStyle('InterpWarn3', parent=small_style, spaceBefore=2),
-            ))
-
-        story.append(Spacer(1, 6))
-        story.append(Paragraph(
-            disclosure('scope'),
-            ParagraphStyle('InterpScope', parent=small_style,
-                           textColor=colors.HexColor('#6b7280'),
-                           borderPadding=(4, 0, 4, 0), spaceBefore=4),
-        ))
-        story.append(Spacer(1, 10))
-
-    if resp_result:
-        story.append(Paragraph("Respiratory Classification", heading_style))
-
-        resp_colors = {"Healthy": colors.HexColor('#16a34a'), "Pneumonia": colors.HexColor('#dc2626'), "COPD": colors.HexColor('#ca8a04')}
-        resp_recs = {
-            "Healthy": "No urgent action required. Routine follow-up as clinically indicated.",
-            "Pneumonia": "Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines.",
-            "COPD": "Clinical evaluation recommended. Consider spirometry and pulmonology referral.",
-        }
-        resp_color = resp_colors.get(resp_result, colors.HexColor('#6b7280'))
-        resp_rec = resp_recs.get(resp_result, "")
-
-        resp_data = [
-            ["Result", resp_result, "Confidence", f"{resp_conf * 100:.1f}%" if resp_conf else "N/A"],
-        ]
-        resp_table = Table(resp_data, colWidths=[1*inch, 2*inch, 1*inch, 2*inch])
-        resp_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-            ('TEXTCOLOR', (1, 0), (1, -1), resp_color),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ]))
-        story.append(resp_table)
-        story.append(Spacer(1, 6))
-        
-        if resp_probs:
-            prob_data = [["Class", "Probability"]]
-            for cls, prob in resp_probs.items():
-                prob_data.append([cls, f"{prob * 100:.1f}%"])
-            prob_table = Table(prob_data, colWidths=[3*inch, 3*inch])
-            prob_table.setStyle(TableStyle([
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 3),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-            ]))
-            story.append(Paragraph("Probability Distribution", subheading_style))
-            story.append(prob_table)
-            story.append(Spacer(1, 8))
-        
-        if resp_rec:
-            story.append(Paragraph(
-                f"<b>CLINICAL RECOMMENDATION:</b> {resp_rec}",
-                ParagraphStyle('Rec2', parent=normal_style, textColor=resp_color, backColor=colors.HexColor('#fefce8') if resp_result == "COPD" else (colors.HexColor('#fef2f2') if resp_result == "Pneumonia" else colors.HexColor('#f0fdf4')), borderPadding=8)
-            ))
-            story.append(Spacer(1, 8))
-    
-    reviewed_by = data.get("reviewed_by_name")
-    reviewed_at = data.get("reviewed_at")
-    review_notes = data.get("review_notes")
-    
-    if reviewed_by or review_notes:
-        story.append(Paragraph("Clinical Review", heading_style))
-        review_data = [
-            ["Status", "Reviewed" if reviewed_by else "Pending Review"],
-            ["Reviewed By", reviewed_by or "—"],
-            ["Review Date", reviewed_at[:19].replace("T", " ") if reviewed_at else "—"],
-        ]
-        if review_notes:
-            review_data.append(["Notes", review_notes])
-        review_table = Table(review_data, colWidths=[1.5*inch, 4.5*inch])
-        review_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1f2937')),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        story.append(review_table)
-        story.append(Spacer(1, 20))
-    
-    story.append(Spacer(1, 20))
-    story.append(Paragraph(
-        "<i>Disclaimer: This is an AI-assisted screening tool and does not replace clinical judgment. "
-        "All results should be interpreted by a qualified healthcare professional.</i>",
-        ParagraphStyle('Disclaimer', parent=small_style, alignment=TA_CENTER, spaceBefore=10)
-    ))
-    story.append(Paragraph(
-        f"<i>Report generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC | "
-        f"AURA-Dx v2.5 | models: {data.get('model_version', 'n/a')}</i>",
-        ParagraphStyle('Footer', parent=small_style, alignment=TA_CENTER)
-    ))
-    
-    doc.build(story)
+    # This used to build its own much longer report: a title, a Patient
+    # Information section, a Screening Details section, an Acquisition
+    # section, the per-take table, a classification block, a clinical review
+    # and two footers, each with its own heading and its own vertical rhythm.
+    # It ran to two pages for a single screening, which is a poor shape for a
+    # document a clinician reads and prints -- and the second page carried
+    # nothing but the tail of the report.
+    #
+    # The combined export already had a layout written for exactly this: one
+    # screening on one A4 page, with nothing scaled below a readable size.
+    # Using it here means the Download PDF and the Export PDF are the same
+    # document rather than two documents describing the same screening
+    # differently, and the two can no longer drift apart.
+    S = _report_styles()
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=42, leftMargin=42,
+                            topMargin=38, bottomMargin=34)
+    doc.build(_one_page_story(data, screening_id, 1, 1, S))
     buffer.seek(0)
-    
+
     filename = f"aura-dx-screening-{screening_id[:8]}.pdf"
     return StreamingResponse(
         io.BytesIO(buffer.read()),
