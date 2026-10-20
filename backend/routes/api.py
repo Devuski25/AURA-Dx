@@ -43,7 +43,7 @@ from config import settings
 from email_service import send_account_status_email, send_verification_email
 from httpx_client import get_client
 # Same wording source as the React result screen. See pdf_copy.py.
-from pdf_copy import status_label, disclosure, confidence_label
+from pdf_copy import status_label, disclosure, confidence_label, class_recommendation
 
 router = APIRouter()
 
@@ -1338,6 +1338,34 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
         ]))
         story.append(Spacer(1, 8))
         story.append(t)
+
+    # --- Clinical recommendation --------------------------------------------
+    #
+    # What to do given the CLASS: "No urgent action required..." for a healthy
+    # result, and the equivalent for COPD and pneumonia.
+    #
+    # This is a different piece of advice from the confidence-qualified
+    # "suggested next step" that is deliberately not printed above. That one
+    # answered "what now, given how sure the model is"; this one answers "what
+    # now, given what was found". A healthy result carries the same advice
+    # whether the model was confident or not, and a pneumonia result carries
+    # the same advice either way -- so the class-level advice is the one that
+    # belongs on a report being sent to a referring clinician.
+    #
+    # The wording comes from shared/clinical_copy.json, the same file the
+    # screen reads, so the report and the screen cannot drift apart.
+    rec_text = class_recommendation(resp_result) if resp_result else ""
+    if rec_text:
+        rec_bg = {
+            "COPD": colors.HexColor('#fefce8'),
+            "Pneumonia": colors.HexColor('#fef2f2'),
+        }.get(resp_result, colors.HexColor('#f0fdf4'))
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            f"<b>CLINICAL RECOMMENDATION:</b> {rec_text}",
+            ParagraphStyle('RPClinRec', parent=S["normal"], fontSize=10, leading=14,
+                           textColor=vcolor, backColor=rec_bg, borderPadding=8)))
+        story.append(Spacer(1, 4))
 
     # --- Per-take scores, capped so one page is enough ----------------------
     # `scores` and `per_clip` were read above for the acquisition rows.

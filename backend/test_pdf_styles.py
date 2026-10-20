@@ -45,6 +45,10 @@ EXTRA = {
                                     textColor=colors.HexColor('#6b7280'),
                                     borderPadding=(4, 0, 4, 0), spaceBefore=4), 8),
     "RPFooter": (ParagraphStyle('RPFooter', parent=S["small"], spaceBefore=4), 8),
+    "RPClinRec": (ParagraphStyle('RPClinRec', parent=S["normal"], fontSize=10,
+                                 leading=14, textColor=colors.green,
+                                 backColor=colors.HexColor('#f0fdf4'),
+                                 borderPadding=8), 10),
 }
 
 

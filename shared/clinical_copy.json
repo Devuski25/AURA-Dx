@@ -79,6 +79,25 @@
     "ATYPICAL_OOD_LOW": "Direct auscultation and diagnostic workup are required. This system cannot characterise findings outside the conditions it was trained on."
   },
 
+  "class_recommendation": {
+    "_comment": [
+      "What to do given the CLASS, as opposed to the `recommendation` block above.",
+      "That one is keyed by status AND confidence and answers 'what now, given",
+      "how sure the model is'. This one is keyed by the class alone and answers",
+      "'what now, given what was found' -- a healthy result carries the same",
+      "advice whether the model was confident or not, and a pneumonia result",
+      "carries the same advice whether it was HIGH or MODERATE confidence.",
+      "The two answer different questions and both are printed on the report.",
+      "",
+      "Same scope discipline as the rest of this file: these name only COPD and",
+      "pneumonia, the two conditions the system evaluates. No string here may",
+      "imply another condition was considered and ruled out."
+    ],
+    "Healthy": "No urgent action required. Routine follow-up as clinically indicated.",
+    "COPD": "Clinical evaluation recommended. Consider spirometry and pulmonology referral.",
+    "Pneumonia": "Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines."
+  },
+
   "disclosure": {
     "_comment": "Shown on every result regardless of status.",
     "scope": "Screening support only. This system evaluates COPD and pneumonia and cannot assess other causes of abnormal breathing sounds. A result is not a diagnosis.",

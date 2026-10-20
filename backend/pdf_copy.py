@@ -52,6 +52,21 @@ def status_label(status: str) -> str:
     return _copy()["status"].get(status, {}).get("label", status)
 
 
+def class_recommendation(result: str) -> str:
+    """Return the class-level clinical recommendation for a classification.
+
+    Distinct from the third element of result_copy(), which is keyed by status
+    AND confidence and answers "what now, given how sure the model is". This
+    one is keyed by the class alone and answers "what now, given what was
+    found" -- a healthy result carries the same advice whether the model was
+    confident or not.
+
+    Returns "" for a class the copy file does not cover, so the caller can
+    simply not print a recommendation rather than printing an empty one.
+    """
+    return _copy().get("class_recommendation", {}).get(result, "")
+
+
 def confidence_label(level: str) -> str:
     return _copy()["confidence"].get(level, level)
 
