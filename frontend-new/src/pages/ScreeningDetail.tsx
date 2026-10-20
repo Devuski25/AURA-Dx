@@ -101,7 +101,17 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   )
 }
 
-/* ---------- Confidence ring ---------- */
+/* ---------- Confidence ring ----------
+ *
+ * Sized in CSS, not in the SVG. The viewBox stays at 132 units and the svg
+ * fills its container, so the ring scales with the breakpoint instead of
+ * needing a second copy of the markup per size. The stroke thickens in
+ * proportion because it is part of the scaled drawing, which is what keeps a
+ * larger ring from looking thin.
+ *
+ * Mobile is 148px and tablet-and-up is 164px -- a little larger than the 132px
+ * it used to be, so the headline number is readable at arm's length.
+ */
 function ConfidenceRing({ value, flagged }: { value: number; flagged: boolean }) {
   const radius = 56
   const circumference = 2 * Math.PI * radius
@@ -111,8 +121,8 @@ function ConfidenceRing({ value, flagged }: { value: number; flagged: boolean })
   const color = flagged ? CORAL : MINT
   const shownPct = useCountUp(Math.round(pct))
   return (
-    <div className="relative h-[132px] w-[132px]" role="img" aria-label={`Confidence ${pct.toFixed(0)} percent`}>
-      <svg width="132" height="132" viewBox="0 0 132 132" className="-rotate-90 text-aura-border-soft" aria-hidden="true">
+    <div className="relative h-[148px] w-[148px] sm:h-[164px] sm:w-[164px]" role="img" aria-label={`Confidence ${pct.toFixed(0)} percent`}>
+      <svg viewBox="0 0 132 132" className="h-full w-full -rotate-90 text-aura-border-soft" aria-hidden="true">
         <circle cx="66" cy="66" r={radius} stroke="currentColor" strokeWidth="12" fill="none" />
         <motion.circle
           cx="66"
@@ -129,10 +139,10 @@ function ConfidenceRing({ value, flagged }: { value: number; flagged: boolean })
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className={cn("font-display text-[26px] font-bold leading-none tabular-nums", flagged ? "text-aura-coral" : "text-aura-mint")}>
+        <div className={cn("font-display text-[28px] font-bold leading-none tabular-nums sm:text-[30px]", flagged ? "text-aura-coral" : "text-aura-mint")}>
           {shownPct}%
         </div>
-        <div className="mt-1 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">Confidence</div>
+        <div className="mt-1 font-mono text-[12px] uppercase tracking-[0.08em] text-aura-muted sm:text-[13.5px]">Confidence</div>
       </div>
     </div>
   )
@@ -342,22 +352,29 @@ function TierCard({
         </div>
         <TierStatusPill ok={!flagged} label={statusLabel} />
       </div>
-      {/* Ring beside the distribution, not above it, at every width.
+      {/* Ring placement.
 
-          This was `sm:grid-cols-[200px_1fr]`, so below 640px it collapsed to
-          one column and the phone got a full-width ring with the bars pushed
-          below the fold -- the least useful ordering, because the numbers are
-          what a clinician reads. A 132px ring plus a 150px track fits inside a
-          375px screen, so the two-column layout now starts at the smallest
-          breakpoint and only widens the track on larger screens.
+          Phone: the ring sits centred at the top on its own line and the
+          probability detail runs underneath it. The side-by-side version was
+          awkward at 375px -- a 148px ring beside a narrow column of bars
+          squeezed both, and the percentages were the part worth reading. Stacked,
+          the ring reads as the headline score with the breakdown beneath, which
+          is the order a clinician scans in.
 
-          The left column carries the ring and a stack of small labels, so its
-          type is stepped down on mobile rather than being allowed to wrap. */}
-      <div className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 px-4 py-5 sm:grid-cols-[200px_1fr] sm:gap-8 sm:px-6 sm:py-6">
-        <div className="flex flex-col items-start gap-3 sm:items-start sm:gap-4">
+          Tablet and up: side by side again, ring on the left, vertically
+          centred against the taller column of bars. The grid row stretches by
+          default, so `items-center` on the ring's flex container centres it in
+          the full height of the row instead of pinning it to the top -- which
+          is what "left middle" means here.
+
+          Centred on the phone but flush left from `sm` up, so on a wide screen
+          it lines up with the edge of the card instead of floating in the
+          middle of its column. */}
+      <div className="grid grid-cols-1 gap-5 px-4 py-5 sm:grid-cols-[184px_1fr] sm:gap-8 sm:px-6 sm:py-6">
+        <div className="flex items-center justify-center sm:justify-start">
           <ConfidenceRing value={confidence ?? 0} flagged={flagged} />
         </div>
-        <div className="max-w-2xl min-w-0">{children}</div>
+        <div className="min-w-0 max-w-2xl">{children}</div>
       </div>
     </div>
   )
