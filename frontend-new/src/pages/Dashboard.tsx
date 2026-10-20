@@ -50,6 +50,8 @@ interface Stats {
   copd: number
   pendingReview: number
   error: number
+  /** Analyses still running, so they have no class yet. */
+  analysing: number
 }
 
 const relativeFormat = new Intl.RelativeTimeFormat(undefined, { numeric: "auto", style: "narrow" })
@@ -177,6 +179,9 @@ export function Dashboard() {
       copd: screenings.filter(s => s.respiratory_result === "COPD").length,
       pendingReview: screenings.filter(s => s.status === "pending_review").length,
       error: screenings.filter(s => s.status === "error").length,
+      // Still running, so it has no class yet and is in none of the three
+      // class counts. It is in the total.
+      analysing: screenings.filter(s => s.status === "analysing").length,
     }
   }, [screenings])
 
@@ -221,6 +226,11 @@ export function Dashboard() {
       value: stats.total,
       icon: FileText,
       tone: "neutral" as const,
+      /* A screening whose analysis is still running is in the total but in
+         none of the class counts, because it has no class yet. Without this
+         note the row does not add up -- 12 total against 4 + 3 + 4 -- and
+         looks like a counting bug rather than a screening in flight. */
+      note: stats.analysing > 0 ? `${stats.analysing} analysing` : null,
     },
     {
       title: ["COPD"],
@@ -402,6 +412,14 @@ export function Dashboard() {
                       {card.value === 0 && card.tone !== "neutral" && card.tone !== "healthy" && (
                         <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
                           Checked &middot; clear
+                        </p>
+                      )}
+                      {/* A screening still being analysed is in the total but
+                          in none of the class counts. Saying so keeps the row
+                          adding up. */}
+                      {"note" in card && card.note && (
+                        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+                          {card.note}
                         </p>
                       )}
                     </CardContent>

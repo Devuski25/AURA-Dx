@@ -766,7 +766,11 @@ async def delete_patient(patient_id: str, user: dict = Depends(require_role(User
 
 
 @router.post("/screenings", response_model=ScreeningResponse)
-async def create_screening(screening: ScreeningCreate, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+async def create_screening(
+    screening: ScreeningCreate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN)),
+):
     clinician_id = user.get("sub")
     clinic_id = _resolve_clinic_id(user.get("clinic_id"))
     if not clinic_id:
@@ -787,16 +791,35 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
             detail=f"Too many recordings: {len(screening.audio_file_paths)}. Maximum is {MAX_RECORDINGS}.",
         )
 
-    inference_res = await run_inference(screening.audio_file_paths, screening.audio_duration_sec)
+    # The row is written BEFORE the inference runs, with the status
+    # 'analysing', so the client has something to poll and the screening is
+    # visible in the list while it is still going.
+    #
+    # This is what lets a clinician leave the page. The inference used to hold
+    # the POST open for the whole run -- up to two and a half minutes -- and
+    # anyone who navigated away during it never saw the result, and could
+    # easily re-record and create a second screening from the same takes.
+    #
+    # `model_version` is NOT NULL, so it needs a value before the inference has
+    # reported one. The heartbeat row carries the version the inference service
+    # last reported, which is the same figure within a minute; the background
+    # task overwrites it with the exact value the run returned.
+    model_version = "pending"
+    try:
+        cached = (
+            supabase.table("service_status")
+            .select("inference_version")
+            .eq("id", True)
+            .maybeSingle()
+            .execute()
+            .data
+        )
+        if cached and cached.get("inference_version"):
+            model_version = cached["inference_version"]
+    except Exception:
+        pass
 
-    fused = inference_res.get("respiratory_result") or {}
-    fusion = inference_res.get("fusion") or {}
-    # Produced by inference_service.interpret_fusion. Every field is optional at
-    # the storage layer so a screening recorded against an older model (or an
-    # inference service that predates the interpretation layer) still saves.
-    interp = fused.get("interpretation") or {}
-
-    data = {
+    row = {
         "patient_id": screening.patient_id,
         "clinic_id": clinic_id,
         "clinician_id": clinician_id,
@@ -804,8 +827,74 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
         "audio_file_path": screening.audio_file_paths[0],
         "audio_duration_sec": screening.audio_duration_sec,
         "recording_paths": screening.audio_file_paths,
-        # Per-take scores + fusion metadata, so the PDF and the detail view can
-        # show how the headline verdict was reached rather than just the verdict.
+        # The result columns stay NULL until the background task fills them.
+        "respiratory_result": None,
+        "respiratory_confidence": None,
+        "respiratory_probabilities": None,
+        "recording_scores": None,
+        "cascade_path": "mean_then_safety_override",
+        "model_version": model_version,
+        "status": "analysing",
+    }
+
+    created = None
+    try:
+        res = supabase.table("screenings").insert(row).execute()
+        created = res.data[0]
+    except Exception as exc:
+        # The 'analysing' status is not allowed by the column's CHECK
+        # constraint until 20261021120000_add_analysing_status.sql has been
+        # applied. The insert is refused atomically, so nothing is left behind.
+        #
+        # Rather than making the deployment order a hazard, fall back to
+        # analysing BEFORE the insert. That is the old behaviour: correct, and
+        # still blocking, but nothing breaks in the window between the backend
+        # going out and the migration being run. The new behaviour switches
+        # itself on the moment the migration lands, with no further deploy.
+        if "23514" not in str(exc):
+            raise
+        created = None
+
+    if created is None:
+        return await _create_screening_blocking(row, screening, patient.data, clinician_id, clinic_id)
+
+    screening_id = created["id"]
+
+    # Runs after the response has been sent, on the same event loop. The
+    # inference is an awaited HTTP call to the Mini PC, so the loop is free
+    # while it waits and the client's poll is served normally.
+    background_tasks.add_task(
+        _analyse_screening,
+        screening_id,
+        screening.audio_file_paths,
+        screening.audio_duration_sec,
+    )
+
+    _log_audit("screening_create", clinician_id, clinic_id, "screening", screening_id, {
+        "patient_id": screening.patient_id,
+        "recordings": len(screening.audio_file_paths),
+        "status": "analysing",
+    })
+
+    return ScreeningResponse(**created, patient_name=patient.data["full_name"], clinic_name=None, clinician_name=None, reviewed_by_name=None)
+
+
+async def _create_screening_blocking(row: dict, screening: ScreeningCreate, patient: dict, clinician_id: str, clinic_id: str):
+    """Create a screening by analysing it before the row is written.
+
+    The fallback for a database that does not yet allow the 'analysing' status.
+    It behaves the way the system always did -- the POST stays open for the
+    length of the analysis -- which is why it is only used when the background
+    path is not available.
+    """
+    inference_res = await run_inference(screening.audio_file_paths, screening.audio_duration_sec)
+
+    fused = inference_res.get("respiratory_result") or {}
+    fusion = inference_res.get("fusion") or {}
+    interp = fused.get("interpretation") or {}
+
+    data = {
+        **row,
         "recording_scores": {
             "per_clip": inference_res.get("per_clip", []),
             "fusion": fusion,
@@ -814,9 +903,6 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
         "respiratory_confidence": fused.get("confidence"),
         "respiratory_probabilities": fused.get("probabilities"),
         "cascade_path": fusion.get("method") or "mean_then_safety_override",
-        # Interpretation. `recommendation_code` is a key into
-        # shared/clinical_copy.json rather than prose, so rewording a
-        # clinician-facing message never needs a migration.
         "interpretation_status": interp.get("status"),
         "confidence_level": interp.get("confidence_level"),
         "recommendation_code": (
@@ -831,8 +917,8 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
         "low_agreement": interp.get("low_agreement"),
         "recordings_total": interp.get("recordings_total"),
         "recordings_flagged": interp.get("recordings_flagged"),
-        "model_version": inference_res["model_version"],
-        "status": "completed"
+        "model_version": inference_res.get("model_version") or "unknown",
+        "status": "completed",
     }
 
     res = supabase.table("screenings").insert(data).execute()
@@ -845,7 +931,78 @@ async def create_screening(screening: ScreeningCreate, user: dict = Depends(requ
         "override_applied": fusion.get("override_applied"),
     })
 
-    return ScreeningResponse(**created, patient_name=patient.data["full_name"], clinic_name=None, clinician_name=None, reviewed_by_name=None)
+    return ScreeningResponse(**created, patient_name=patient.get("full_name"), clinic_name=None, clinician_name=None, reviewed_by_name=None)
+
+
+async def _analyse_screening(screening_id: str, audio_file_paths: List[str], audio_duration_sec: Optional[float]) -> None:
+    """Run the inference for a screening and write the result onto its row.
+
+    Runs as a background task, so it must never raise. An exception here would
+    be swallowed by the task machinery and the row would sit in 'analysing' for
+    ever, which reads to a clinician as "still working" when it is actually
+    broken. Every failure is therefore caught and written to the row as the
+    'error' status, with the reason kept in the audit log.
+    """
+    try:
+        inference_res = await run_inference(audio_file_paths, audio_duration_sec)
+    except Exception as exc:
+        _log_audit("screening_error", None, None, "screening", screening_id, {
+            "error": str(exc)[:500],
+        })
+        supabase.table("screenings").update({
+            "status": "error",
+        }).eq("id", screening_id).execute()
+        return
+
+    try:
+        fused = inference_res.get("respiratory_result") or {}
+        fusion = inference_res.get("fusion") or {}
+        # Produced by inference_service.interpret_fusion. Every field is
+        # optional at the storage layer so a screening recorded against an
+        # older model (or an inference service that predates the
+        # interpretation layer) still saves.
+        interp = fused.get("interpretation") or {}
+
+        update = {
+            "recording_scores": {
+                "per_clip": inference_res.get("per_clip", []),
+                "fusion": fusion,
+            },
+            "respiratory_result": fused.get("label"),
+            "respiratory_confidence": fused.get("confidence"),
+            "respiratory_probabilities": fused.get("probabilities"),
+            "cascade_path": fusion.get("method") or "mean_then_safety_override",
+            # `recommendation_code` is a key into shared/clinical_copy.json
+            # rather than prose, so rewording a clinician-facing message never
+            # needs a migration.
+            "interpretation_status": interp.get("status"),
+            "confidence_level": interp.get("confidence_level"),
+            "recommendation_code": (
+                f"{interp['status']}_{interp['confidence_level']}"
+                if interp.get("status") and interp.get("confidence_level")
+                else None
+            ),
+            "decision_rule": interp.get("decision_rule"),
+            "decision_detail": interp.get("decision_detail"),
+            "band_metric": interp.get("band_metric"),
+            "band_position": interp.get("band_position"),
+            "low_agreement": interp.get("low_agreement"),
+            "recordings_total": interp.get("recordings_total"),
+            "recordings_flagged": interp.get("recordings_flagged"),
+            "model_version": inference_res.get("model_version") or "unknown",
+            "status": "completed",
+        }
+        supabase.table("screenings").update(update).eq("id", screening_id).execute()
+
+        _log_audit("screening_analyse", None, None, "screening", screening_id, {
+            "respiratory_result": update["respiratory_result"],
+            "override_applied": fusion.get("override_applied"),
+        })
+    except Exception as exc:
+        _log_audit("screening_error", None, None, "screening", screening_id, {
+            "error": str(exc)[:500],
+        })
+        supabase.table("screenings").update({"status": "error"}).eq("id", screening_id).execute()
 
 
 async def run_inference(audio_file_paths: List[str], audio_duration_sec: Optional[float]) -> dict:

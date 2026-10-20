@@ -27,6 +27,10 @@ class ScreeningStatus(str, Enum):
     COMPLETED = "completed"
     ERROR = "error"
     PENDING_REVIEW = "pending_review"
+    # The inference is still running. The row exists so the client can poll it,
+    # but there is no verdict, no confidence and no probability vector yet --
+    # the background task writes those when it lands.
+    ANALYSING = "analysing"
 
 
 class AuditAction(str, Enum):

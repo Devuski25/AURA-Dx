@@ -46,6 +46,7 @@ import {
 } from "@/lib/recording-protocol"
 import { useCachedData, invalidate } from "@/hooks/useCachedData"
 import { NewPatientModal } from "@/components/NewPatientModal"
+import { useAnalysisWatcher } from "@/lib/analysis-watcher"
 
 /* Capture is stethoscope-only: no camera, no file upload. A clinician records
    between MIN_TAKES and MAX_TAKES separate takes; the batch is scored
@@ -181,6 +182,7 @@ const STATUS_BADGES = {
   completed: { label: "Completed", className: "bg-green-100 text-green-700" },
   awaiting_review: { label: "Awaiting Review", className: "bg-yellow-100 text-yellow-800" },
   retake_needed: { label: "Retake Needed", className: "bg-red-100 text-red-700" },
+  analysing: { label: "Analysing", className: "bg-aura-surface-alt text-aura-muted" },
   none: { label: "New", className: "bg-aura-surface-alt text-aura-muted" },
 } as const
 
@@ -190,6 +192,8 @@ const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatus
   if (!latest) return STATUS_BADGES.none
   if (latest.status === "error") return STATUS_BADGES.retake_needed
   if (latest.status === "pending_review") return STATUS_BADGES.awaiting_review
+  // A screening whose analysis is still running is neither done nor broken.
+  if (latest.status === "analysing") return STATUS_BADGES.analysing
   return STATUS_BADGES.completed
 }
 
@@ -309,6 +313,12 @@ export function Screening() {
   const [pct, setPct] = useState(0)
   const [elapsed, setElapsed] = useState(0)
 
+  /* The screening whose analysis is running, if this page started it.
+     The watcher owns the polling and the notification; this page only needs to
+     know when its own screening has landed so it can show the result. */
+  const [analysingId, setAnalysingId] = useState<string | null>(null)
+  const { track, finished } = useAnalysisWatcher()
+
   /* Elapsed seconds during the analysis phase, plus a bar that creeps toward
    * the ceiling. The creep is presentation only -- it is not a measurement and
    * never reaches 100, because 100% is reserved for an actual result. */
@@ -324,6 +334,52 @@ export function Screening() {
     }, 250)
     return () => window.clearInterval(id)
   }, [submitting, phase])
+
+  /* The result landing.
+
+     The watcher polls the server and hands back the finished row. This picks
+     it up and moves to the result step.
+
+     A failure is reported here as well as in the toast, because the toast may
+     have been dismissed, and the clinician watching the progress bar needs to
+     be told the run ended badly. */
+  useEffect(() => {
+    if (!analysingId) return
+    const row = finished[analysingId]
+    if (!row) return
+
+    setAnalysingId(null)
+    setSubmitting(false)
+    setPhase("idle")
+
+    if (row.status === "error") {
+      toast.error("Analysis failed", {
+        description: "The screening could not be completed. Open it for details.",
+      })
+      return
+    }
+
+    setResult({
+      respiratory_result: row.respiratory_result
+        ? {
+            label: row.respiratory_result,
+            confidence: row.respiratory_confidence,
+            probabilities: row.respiratory_probabilities,
+          }
+        : null,
+      cascade: row.cascade_path,
+      model_version: row.model_version,
+      screening_id: row.id,
+      patient_name: selectedPatient?.name ?? row.patient_name ?? "",
+      timestamp: row.created_at,
+    })
+    invalidate("screenings")
+    setPct(100)
+    setStep("result")
+    // `invalidate` is a module-level function and `selectedPatient` is only
+    // read for its name, so neither needs to re-trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysingId, finished])
 
   /* Object URLs are created per take, so they are tracked together and revoked
      when a take is dropped, the set is cleared, or the component unmounts. */
@@ -769,19 +825,40 @@ export function Screening() {
 
       const screening = await screeningResponse.json()
 
-      // Create result object for display
+      /* The row exists now. What state it is in depends on the backend:
+         with the 'analysing' status the inference is running as a background
+         job and the watcher picks it up; without it the backend analysed
+         before replying and the result is already here.
+
+         Handling both means the order the backend and the database are
+         deployed in does not matter -- the screen works either way, and the
+         new behaviour switches on by itself when the migration lands. */
+      if (screening.status === "analysing") {
+        track(screening.id, selectedPatient.name)
+        setAnalysingId(screening.id)
+        // New screening exists now - drop cached lists so all views refetch fresh
+        invalidate("screenings")
+        return
+      }
+
       setResult({
-        respiratory_result: screening.respiratory_result ? { label: screening.respiratory_result, confidence: screening.respiratory_confidence, probabilities: screening.respiratory_probabilities } : null,
+        respiratory_result: screening.respiratory_result
+          ? {
+              label: screening.respiratory_result,
+              confidence: screening.respiratory_confidence,
+              probabilities: screening.respiratory_probabilities,
+            }
+          : null,
         cascade: screening.cascade_path,
         model_version: screening.model_version,
         screening_id: screening.id,
         patient_name: selectedPatient.name,
         timestamp: screening.created_at,
       })
-
-      // New screening exists now - drop cached lists so all views refetch fresh
       invalidate("screenings")
       setPct(100)
+      setSubmitting(false)
+      setPhase("idle")
       setStep("result")
     } catch (error: any) {
       if (error.name === "AbortError") {
@@ -790,11 +867,15 @@ export function Screening() {
         console.error("Analysis error:", error)
         toast.error("Analysis failed: " + (error instanceof Error ? error.message : "Unknown error"))
       }
-    } finally {
+      // The run never started, so there is nothing to wait for. The phase and
+      // the progress bar are reset here rather than in the finally block,
+      // because a successful submit leaves the phase on 'analysing' while the
+      // background job runs.
       setSubmitting(false)
       setPhase("idle")
       setPct(0)
       setElapsed(0)
+    } finally {
       abortControllerRef.current = null
     }
   }

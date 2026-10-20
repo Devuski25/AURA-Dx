@@ -14,6 +14,7 @@ import { PublicHelpSupport } from "@/pages/public/HelpSupport"
 import { AuthProvider } from "@/context/AuthContext"
 import { BackendWatchdog } from "@/components/BackendWatchdog"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { AnalysisWatcherProvider } from "@/lib/analysis-watcher"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -153,15 +154,24 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <BrowserRouter>
-          <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-background focus:text-foreground focus:rounded-md focus:ring-2 focus:ring-ring">
-            Skip to main content
-          </a>
-          <ScrollToTop />
-          <AppRoutes />
-          {/* Renders nothing; tells the user once if the backend disappears while
-              they are working, rather than letting buttons fail unexplained. */}
-          <BackendWatchdog />
-          <Toaster />
+          {/* Watches running analyses and announces them when they land.
+              It sits above the routes on purpose: the clinician who needs
+              telling is usually NOT on the screening page any more -- they
+              submitted, walked off to another patient, and the result arrived
+              while they were somewhere else entirely. A watcher mounted on the
+              screening page unmounts with it, which is exactly the case that
+              needs watching. */}
+          <AnalysisWatcherProvider>
+            <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-background focus:text-foreground focus:rounded-md focus:ring-2 focus:ring-ring">
+              Skip to main content
+            </a>
+            <ScrollToTop />
+            <AppRoutes />
+            {/* Renders nothing; tells the user once if the backend disappears while
+                they are working, rather than letting buttons fail unexplained. */}
+            <BackendWatchdog />
+            <Toaster />
+          </AnalysisWatcherProvider>
         </BrowserRouter>
       </AuthProvider>
     </ErrorBoundary>

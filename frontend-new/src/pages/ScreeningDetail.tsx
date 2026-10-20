@@ -10,12 +10,13 @@ import {
   Download,
   AlertCircle,
   Check,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
-import { getApiUrl } from "@/lib/api"
+import { apiFetch, getApiUrl } from "@/lib/api"
 import { invalidate } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
 import { Textarea } from "@/components/ui/textarea"
@@ -420,9 +421,7 @@ export function ScreeningDetail() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(getApiUrl(`/api/screenings/${id}`), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      const res = await apiFetch(`/api/screenings/${id}`)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || "Screening not found")
@@ -436,6 +435,19 @@ export function ScreeningDetail() {
       setLoading(false)
     }
   }
+
+  /* Poll while the analysis is still running.
+
+     A screening opened while its analysis is in progress has no verdict yet.
+     The result is written by a background job on the clinic server, so the
+     page has to ask for it again to see it land. The poll stops as soon as the
+     status is no longer 'analysing'. */
+  useEffect(() => {
+    if (screening?.status !== "analysing") return
+    const timer = window.setInterval(() => void fetchScreening(), 2500)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screening?.status, id, accessToken])
 
   const downloadPDF = async () => {
     if (!screening) return
@@ -690,7 +702,25 @@ export function ScreeningDetail() {
 
       {/* Respiratory classifier */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, ...sectionSpring }}>
-      {screening.respiratory_result && (
+      {screening.status === "analysing" ? (
+        /* The analysis is still running on the Mini PC. There is no verdict,
+           no confidence and no probability vector yet, and rendering the
+           classifier card with them empty would look like a broken page
+           rather than a running one. */
+        <div className="aura-panel mt-6 rounded-2xl px-5 py-8 text-center sm:px-6">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-aura-surface-alt">
+            <Loader2 className="h-6 w-6 animate-spin text-aura-forest" aria-hidden="true" />
+          </div>
+          <h2 className="mt-4 font-display text-lg font-semibold text-aura-ink">
+            Analysis in progress
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-[46ch] text-sm leading-relaxed text-aura-muted">
+            The recordings are being scored on the clinic server. This page will
+            show the result as soon as it is ready, and you can leave and come
+            back in the meantime.
+          </p>
+        </div>
+      ) : screening.respiratory_result && (
         <TierCard
           className="mt-6"
           eyebrow="Classification"

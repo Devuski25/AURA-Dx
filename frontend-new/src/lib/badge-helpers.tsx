@@ -1,9 +1,17 @@
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, CheckCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function getRespBadge(label: string | null) {
-  if (!label) return <Badge variant="secondary" className="px-3 py-1">N/A</Badge>
+  /* No class yet. This is what a screening looks like while its analysis is
+     still running, and also a legacy row with no verdict.
+
+     A dash rather than an "N/A" pill: in a table of badges, a full pill
+     carrying a word draws the eye as though it were a result. The status
+     column beside it already says what is happening. */
+  if (!label) {
+    return <span className="text-sm text-aura-muted">&mdash;</span>
+  }
   const styles: Record<string, string> = {
     Healthy: "border-aura-mint/30 bg-aura-mint-soft text-aura-pine hover:bg-aura-mint-soft",
     Pneumonia: "border-aura-coral/30 bg-aura-coral-soft text-aura-coral-strong hover:bg-aura-coral-soft",
@@ -32,6 +40,7 @@ export function getRespBadge(label: string | null) {
  * inconsistency it was meant to avoid.
  */
 export function screeningStatusLabel(status: string, reviewedBy?: string | null): string {
+  if (status === "analysing") return "Analysing"
   if (status === "pending_review") return "Pending Review"
   if (reviewedBy) return "Reviewed"
   return status.toUpperCase()
@@ -55,6 +64,14 @@ export function ScreeningStatusBadge({
   className?: string
 }) {
   const cls = cn(className)
+  if (status === "analysing") {
+    return (
+      <Badge variant="secondary" className={cn(cls, "gap-1.5 bg-aura-surface-alt text-aura-muted")}>
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+        Analysing
+      </Badge>
+    )
+  }
   if (status === "pending_review") {
     return <Badge variant="warning" className={cls}>Pending Review</Badge>
   }
