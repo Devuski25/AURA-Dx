@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
-import { Search, ChevronUp, ChevronDown, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText } from "lucide-react"
+import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
@@ -30,8 +30,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/EmptyState"
 import { PageBanner } from "@/components/PageBanner"
-
-type SortDirection = "asc" | "desc" | null
 
 interface Screening {
   id: string
@@ -82,8 +80,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
   const [search, setSearch] = useState("")
   const [classFilter, setClassFilter] = useState("all")
   const [genderFilter, setGenderFilter] = useState("all")
-  const [sortField, setSortField] = useState<SortableField>("created_at")
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [detailScreening, setDetailScreening] = useState<Screening | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -115,21 +111,15 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     : { variants: staggerContainer, initial: "hidden" as const, animate: "visible" as const }
   const itemProps = reduceMotion ? {} : { variants: staggerItem }
 
-  const handleSort = useCallback((field: SortableField) => {
-    if (sortField === field) {
-      if (sortDirection === "asc") {
-        setSortDirection("desc")
-      } else if (sortDirection === "desc") {
-        setSortDirection(null)
-        setSortField("created_at")
-      } else {
-        setSortDirection("asc")
-      }
-    } else {
-      setSortField(field)
-      setSortDirection("asc")
-    }
-  }, [sortField, sortDirection])
+  /* The list order is fixed: newest screening first.
+
+     The column headers used to be sort buttons with a caret indicator. They
+     are now plain labels, so there is nothing left to change the order from,
+     and the order it was already in -- newest first -- is the one that is
+     useful when you open the list to find the screening you just did. Keeping
+     it as a constant rather than as state also removes a re-render of the
+     whole list on every header click. */
+  const SORT_FIELD: SortableField = "created_at"
 
   const filteredAndSortedScreenings = useMemo(() => {
     let result = [...screenings]
@@ -151,19 +141,17 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
       result = result.filter(s => s.gender === genderFilter)
     }
 
-    if (sortDirection && sortField) {
-      result.sort((a, b) => {
-        const aVal = a[sortField]
-        const bVal = b[sortField]
-        if (aVal === null || aVal === undefined) return 1
-        if (bVal === null || bVal === undefined) return -1
-        const comparison = String(aVal).localeCompare(String(bVal))
-        return sortDirection === "asc" ? comparison : -comparison
-      })
-    }
+    // Newest first. The direction is fixed, so it is not a runtime choice.
+    result.sort((a, b) => {
+      const aVal = a[SORT_FIELD]
+      const bVal = b[SORT_FIELD]
+      if (aVal === null || aVal === undefined) return 1
+      if (bVal === null || bVal === undefined) return -1
+      return -String(aVal).localeCompare(String(bVal))
+    })
 
     return result
-  }, [screenings, search, classFilter, genderFilter, sortField, sortDirection])
+  }, [screenings, search, classFilter, genderFilter])
 
   /*
    * Row selection drives which PDFs the bulk export writes. Selections are
@@ -223,13 +211,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     if (status === "pending_review") return <Badge variant="warning" className={cls}>Pending Review</Badge>
     if (reviewedBy) return <Badge variant="success" className={cls}>Reviewed</Badge>
     return <Badge variant="secondary" className={cls}>{status}</Badge>
-  }
-
-  const SortIcon = ({ field }: { field: SortableField }) => {
-    if (sortField !== field) return <span className="text-aura-muted"><ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /></span>
-    if (sortDirection === "asc") return <ChevronUp className="h-3 w-3" />
-    if (sortDirection === "desc") return <ChevronDown className="h-3 w-3" />
-    return <span className="text-aura-muted"><ChevronUp className="h-3 w-3" /><ChevronDown className="h-3 w-3" /></span>
   }
 
   const fetchPdfBlob = useCallback(async (screeningId: string): Promise<Blob | null> => {
@@ -562,25 +543,33 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         />
                       </label>
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "patient_name" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("patient_name")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
-                        Patient <SortIcon field="patient_name" />
-                      </button>
+                    {/* Plain bold column labels.
+
+                        These were buttons carrying a sort indicator -- a pair of
+                        up/down carets, one of them lit to show the current
+                        direction. Two problems: the carets were the busiest
+                        thing in a header row that is otherwise four words, and
+                        every column showed a double caret whether or not it
+                        was sortable, so the row read as a set of filters
+                        rather than as labels.
+
+                        The labels are now text, so nothing in the header row
+                        looks clickable. The order the list is in does not
+                        change -- newest first, as it always was -- it is just
+                        no longer something the header can change.
+                        aria-sort goes with the affordance: a column that
+                        cannot be sorted must not announce that it can be. */}
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                      Patient
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "respiratory_result" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("respiratory_result")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
-                        Result <SortIcon field="respiratory_result" />
-                      </button>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                      Result
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "status" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("status")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
-                        Status <SortIcon field="status" />
-                      </button>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                      Status
                     </TableHead>
-                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-sort={sortField === "created_at" && sortDirection ? (sortDirection === "asc" ? "ascending" : "descending") : undefined}>
-                      <button type="button" onClick={() => handleSort("created_at")} className="flex items-center gap-1 cursor-pointer select-none rounded-md transition-colors hover:bg-aura-surface-alt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand">
-                        Date <SortIcon field="created_at" />
-                      </button>
+                    <TableHead className="px-3 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-muted">
+                      Date
                     </TableHead>
                     <TableHead className="w-20 text-right font-mono text-[14.5px] font-semibold uppercase tracking-[0.08em] text-aura-muted" aria-label="Row actions" />
                   </TableRow>
