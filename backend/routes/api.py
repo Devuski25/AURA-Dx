@@ -197,6 +197,76 @@ def _scope_query(query, role: str, user_clinic_id: str, target_clinic_id=None):
     return query.eq("clinic_id", user_clinic_id)
 
 
+def _scope_patients(query, role: str, user_id: str, user_clinic_id: str, target_clinic_id=None):
+    """Scope a patient query to who may see the patient.
+
+    The database already says this. The RLS policies on `patients` are:
+
+        patients_own          clinicians see only their own patients
+        patients_clinic_admin  an admin sees the clinic's patients
+        patients_admin_all     an admin sees all of them
+
+    But the backend queries with the service_role key, which bypasses RLS
+    entirely, so those rules were never applied to the API. Every clinician
+    was handed every patient in the clinic.
+
+    This applies the rules the database already declares, so the two layers
+    cannot disagree about who may see what.
+
+    A patient belongs to the clinician who created it. An admin still sees
+    everything in their clinic, and a super_admin sees everything.
+    """
+    if role == "super_admin":
+        if target_clinic_id:
+            return query.eq("clinic_id", target_clinic_id)
+        return query
+    if role == "admin":
+        # Admins keep clinic-wide visibility.
+        if not user_clinic_id:
+            return query.eq("clinic_id", "00000000-0000-0000-0000-000000000000")
+        return query.eq("clinic_id", user_clinic_id)
+    # A clinician sees only the patients they created.
+    return query.eq("clinician_id", user_id)
+
+
+def _may_touch_patient(patient: dict, user: dict) -> bool:
+    """Whether this user may read, edit or delete a given patient.
+
+    Admins reach every patient in their clinic; a clinician reaches only the
+    ones they created. Checked on the individual record as well as on the
+    list, so a clinician cannot edit a colleague's patient by guessing its id.
+    """
+    role = user.get("role")
+    if role == "super_admin":
+        return True
+    if role == "admin":
+        return patient.get("clinic_id") == user.get("clinic_id")
+    return patient.get("clinician_id") == user.get("sub")
+
+
+def _row_by_id(table: str, row_id: str, columns: str = "*"):
+    """One row by id, or None.
+
+    `.single()` raises when the query matches no rows, and that turned every
+    missing record into a 500 instead of the 404 it should be.
+
+    It is done with limit(1) rather than `maybeSingle()`, because
+    `maybeSingle` does not exist in this version of postgrest-py -- calling it
+    raises an AttributeError, which is easy to mistake for "no such row".
+    """
+    try:
+        res = (
+            supabase.table(table)
+            .select(columns)
+            .eq("id", row_id)
+            .limit(1)
+            .execute()
+        )
+        return (res.data or [None])[0]
+    except Exception:
+        return None
+
+
 def _resolve_clinic_id(preferred):
     """Return the preferred clinic id, or the single configured clinic in the
     single-clinic model when none is supplied (so clinicians without an
@@ -614,10 +684,10 @@ async def list_patients(
     # which raised AttributeError and 500'd for roles that can read the view.)
     try:
         try:
-            res = _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset, limit)
+            res = _fetch_patients_with_view(search, clinic_id, role, user.get("sub"), user_clinic_id, offset, limit)
         except Exception as e:
             print(f"[list_patients] view query failed, using table fallback: {e!r}")
-            res = _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id, offset, limit)
+            res = _fetch_patients_from_tables(search, clinic_id, role, user.get("sub"), user_clinic_id, offset, limit)
         return [PatientResponse(**p) for p in (res.data or [])]
     except HTTPException:
         raise
@@ -626,18 +696,18 @@ async def list_patients(
         raise HTTPException(status_code=500, detail="Failed to load patients")
 
 
-def _fetch_patients_with_view(search, clinic_id, role, user_clinic_id, offset: int, limit: int):
+def _fetch_patients_with_view(search, clinic_id, role, user_id, user_clinic_id, offset: int, limit: int):
     query = supabase.table("patient_list_view").select("*")
-    query = _scope_query(query, role, user_clinic_id, clinic_id)
+    query = _scope_patients(query, role, user_id, user_clinic_id, clinic_id)
     if search:
         query = query.ilike("full_name", f"%{search}%")
     return query.range(offset, offset + limit - 1).order("created_at", desc=True).execute()
 
 
-def _fetch_patients_from_tables(search, clinic_id, role, user_clinic_id, offset: int, limit: int):
+def _fetch_patients_from_tables(search, clinic_id, role, user_id, user_clinic_id, offset: int, limit: int):
     """Fallback when patient_list_view doesn't exist — query base tables and join in Python."""
     query = supabase.table("patients").select("*")
-    query = _scope_query(query, role, user_clinic_id, clinic_id)
+    query = _scope_patients(query, role, user_id, user_clinic_id, clinic_id)
     if search:
         query = query.ilike("full_name", f"%{search}%")
     res = query.range(offset, offset + limit - 1).order("created_at", desc=True).execute()
@@ -708,14 +778,16 @@ async def create_patient(patient: PatientCreate, user: dict = Depends(require_ro
 
 @router.get("/patients/{patient_id}", response_model=PatientResponse)
 async def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
-    role = user.get("role")
-    clinic_id = user.get("clinic_id")
+    target = _row_by_id("patients", patient_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if not _may_touch_patient(target, user):
+        # 404 rather than 403: the patient does not exist as far as this
+        # clinician is concerned, and saying "forbidden" would confirm that
+        # there is a patient with this id belonging to someone else.
+        raise HTTPException(status_code=404, detail="Patient not found")
 
-    query = supabase.table("patient_list_view").select("*").eq("id", patient_id)
-    if role != "super_admin":
-        query = query.eq("clinic_id", clinic_id)
-
-    res = query.single().execute()
+    res = supabase.table("patient_list_view").select("*").eq("id", patient_id).limit(1).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Patient not found")
     return PatientResponse(**res.data)
@@ -727,8 +799,8 @@ async def update_patient(patient_id: str, update: PatientUpdate, user: dict = De
     user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
 
-    target = supabase.table("patients").select("*").eq("id", patient_id).single().execute()
-    if not target.data:
+    target = _row_by_id("patients", patient_id)
+    if not target:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     # Super admins are exempt, matching delete_patient below. Without this a
@@ -736,8 +808,11 @@ async def update_patient(patient_id: str, update: PatientUpdate, user: dict = De
     # patient's clinic against None and is refused every time. The row menu now
     # offers Edit to every clinician, admin and super admin alike, so the
     # exemption is on a path users actually reach rather than a latent gap.
-    if user.get("role") != "super_admin" and target.data["clinic_id"] != clinic_id:
-        raise HTTPException(status_code=403, detail="Not your clinic patient")
+    #
+    # A clinician may only edit a patient they created. An admin may edit any
+    # patient in their clinic.
+    if not _may_touch_patient(target, user):
+        raise HTTPException(status_code=403, detail="You can only edit patients you created")
 
     update_data = update.model_dump(exclude_unset=True)
     if update_data:
@@ -745,24 +820,127 @@ async def update_patient(patient_id: str, update: PatientUpdate, user: dict = De
 
     _log_audit("patient_update", user_id, clinic_id, "patient", patient_id, update_data)
 
-    res = supabase.table("patient_list_view").select("*").eq("id", patient_id).single().execute()
+    res = supabase.table("patient_list_view").select("*").eq("id", patient_id).limit(1).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Patient not found")
     return PatientResponse(**res.data)
+
+
+def _delete_audio_files(paths) -> int:
+    """Remove a screening's recordings from the backend host's disk.
+
+    The audio files live on the Mini PC, not in the database, so deleting the
+    row that points at them leaves the files behind. They are the largest
+    thing the system stores -- a few megabytes per take -- so leaving them
+    would grow the disk every time a screening is deleted.
+
+    Returns how many files were removed.
+    """
+    removed = 0
+    for p in paths or []:
+        if not p:
+            continue
+        # Only ever touch a plain file name inside the upload directory.
+        # The path comes from the database, but it is never trusted to point
+        # anywhere else.
+        name = os.path.basename(str(p))
+        if not name or name in (".", ".."):
+            continue
+        full = os.path.join(UPLOAD_DIR, name)
+        try:
+            if os.path.isfile(full):
+                os.remove(full)
+                removed += 1
+        except OSError:
+            pass
+    return removed
 
 
 @router.delete("/patients/{patient_id}")
 async def delete_patient(patient_id: str, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     clinic_id = user.get("clinic_id")
-    target = supabase.table("patients").select("*").eq("id", patient_id).single().execute()
-    if not target.data:
+    target = _row_by_id("patients", patient_id)
+    if not target:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if user.get("role") != "super_admin" and target.data["clinic_id"] != clinic_id:
-        raise HTTPException(status_code=403, detail="Not your clinic patient")
+    if not _may_touch_patient(target, user):
+        raise HTTPException(status_code=403, detail="You can only delete patients you created")
+
+    # The recordings are collected before the delete, because the row that
+    # points at them is about to go. Deleting the patient cascades to the
+    # screenings in the database, but the audio files are on disk and need
+    # clearing by hand.
+    screenings = (
+        supabase.table("screenings")
+        .select("id,recording_paths,audio_file_path")
+        .eq("patient_id", patient_id)
+        .execute().data or []
+    )
+    audio_paths = []
+    for s in screenings:
+        audio_paths.extend(s.get("recording_paths") or [])
+        if s.get("audio_file_path"):
+            audio_paths.append(s["audio_file_path"])
 
     supabase.table("patients").delete().eq("id", patient_id).execute()
 
-    _log_audit("patient_delete", user.get("sub"), clinic_id, "patient", patient_id, {"patient_name": target.data["full_name"]})
+    removed_files = _delete_audio_files(audio_paths)
+
+    _log_audit("patient_delete", user.get("sub"), clinic_id, "patient", patient_id, {
+        "patient_name": target.get("full_name"),
+        "screenings_removed": len(screenings),
+        "audio_files_removed": removed_files,
+    })
 
     return {"message": "Patient deleted"}
+
+
+@router.delete("/screenings/{screening_id}")
+async def delete_screening(screening_id: str, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+    """Delete one screening, leaving the patient and their other screenings.
+
+    A patient can be screened as many times as clinically needed, and
+    sometimes one of those readings is not wanted -- the stethoscope slipped,
+    the room was too noisy, the take was taken at the wrong site. Removing that
+    one reading is different from removing the patient, and this is the
+    difference: the patient stays, their other screenings stay, and the
+    numbering of what remains closes up.
+    """
+    target = _row_by_id(
+        "screenings", screening_id,
+        "id,patient_id,clinic_id,clinician_id,recording_paths,audio_file_path,respiratory_result",
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Screening not found")
+
+    role = user.get("role")
+    if role == "super_admin":
+        pass
+    elif role == "admin":
+        if target.get("clinic_id") != user.get("clinic_id"):
+            raise HTTPException(status_code=403, detail="Not your clinic screening")
+    else:
+        # A clinician may delete their own screening. A colleague's is not
+        # theirs to remove, even in the same clinic.
+        if target.get("clinician_id") != user.get("sub"):
+            raise HTTPException(status_code=403, detail="You can only delete your own screenings")
+
+    audio_paths = list(target.get("recording_paths") or [])
+    if target.get("audio_file_path"):
+        audio_paths.append(target["audio_file_path"])
+
+    supabase.table("screenings").delete().eq("id", screening_id).execute()
+    removed_files = _delete_audio_files(audio_paths)
+
+    _log_audit("screening_delete", user.get("sub"), user.get("clinic_id"), "screening", screening_id, {
+        "patient_id": target.get("patient_id"),
+        "respiratory_result": target.get("respiratory_result"),
+        "audio_files_removed": removed_files,
+    })
+
+    return {
+        "message": "Screening deleted",
+        "audio_files_removed": removed_files,
+    }
 
 
 @router.post("/screenings", response_model=ScreeningResponse)
@@ -776,8 +954,8 @@ async def create_screening(
     if not clinic_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No clinic is configured; cannot create screening")
 
-    patient = supabase.table("patients").select("*").eq("id", screening.patient_id).single().execute()
-    if not patient.data:
+    patient = _row_by_id("patients", screening.patient_id)
+    if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     if not screening.audio_file_paths:
@@ -806,16 +984,20 @@ async def create_screening(
     # task overwrites it with the exact value the run returned.
     model_version = "pending"
     try:
+        # limit(1) rather than maybeSingle(), which does not exist in this
+        # version of postgrest-py -- the AttributeError it raised was caught by
+        # the except below, so the cached version was never actually read and
+        # every screening was written as "pending".
         cached = (
             supabase.table("service_status")
             .select("inference_version")
             .eq("id", True)
-            .maybeSingle()
+            .limit(1)
             .execute()
             .data
         )
-        if cached and cached.get("inference_version"):
-            model_version = cached["inference_version"]
+        if cached and cached[0] and cached[0].get("inference_version"):
+            model_version = cached[0]["inference_version"]
     except Exception:
         pass
 
@@ -856,7 +1038,7 @@ async def create_screening(
         created = None
 
     if created is None:
-        return await _create_screening_blocking(row, screening, patient.data, clinician_id, clinic_id)
+        return await _create_screening_blocking(row, screening, patient, clinician_id, clinic_id)
 
     screening_id = created["id"]
 
@@ -876,7 +1058,7 @@ async def create_screening(
         "status": "analysing",
     })
 
-    return ScreeningResponse(**created, patient_name=patient.data["full_name"], clinic_name=None, clinician_name=None, reviewed_by_name=None)
+    return ScreeningResponse(**created, patient_name=patient.get("full_name"), clinic_name=None, clinician_name=None, reviewed_by_name=None)
 
 
 async def _create_screening_blocking(row: dict, screening: ScreeningCreate, patient: dict, clinician_id: str, clinic_id: str):
@@ -1270,8 +1452,18 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
     if not target.data:
         raise HTTPException(status_code=404, detail="Screening not found")
 
-    if target.data["clinic_id"] != clinic_id:
-        raise HTTPException(status_code=403, detail="Not your clinic screening")
+    # Same rule as the patients: a clinician reaches their own screenings, an
+    # admin reaches their clinic's, and the super admin reaches all. Without
+    # this a clinician could review a colleague's screening by id, even
+    # though that colleague's patients are invisible to them.
+    if role == "super_admin":
+        pass
+    elif role == "admin":
+        if target.data["clinic_id"] != clinic_id:
+            raise HTTPException(status_code=403, detail="Not your clinic screening")
+    else:
+        if target.data["clinician_id"] != user_id:
+            raise HTTPException(status_code=403, detail="You can only review your own screenings")
 
     update_data = {
         "reviewed_by": user_id,
@@ -1420,9 +1612,22 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
     # --- Header -------------------------------------------------------------
     name = data.get("patient_name") or "Unnamed patient"
     story.append(Paragraph("AURA-Dx &mdash; AI-Assisted Respiratory Screening Report", S["title"]))
+
+    # Which screening this is, for the patient. A patient can be screened as
+    # many times as clinically needed, so "Screening 2 of 3" says which
+    # reading this is and how many there are -- which the raw id never did.
+    screening_number = data.get("screening_number")
+    screening_count = data.get("patient_screening_count")
+    if screening_number and screening_count:
+        which = f"Screening {screening_number} of {screening_count}"
+    else:
+        # Before the numbering migration, or for a row that predates it.
+        which = f"Screening {screening_id[:8]}"
+    screening_date = str(data.get("created_at") or "")[:10]
     story.append(Paragraph(
-        f"{name} &nbsp;&middot;&nbsp; Screening {screening_id[:8]} &nbsp;&middot;&nbsp; "
-        f"Page {page_no} of {page_total}",
+        f"{name} &nbsp;&middot;&nbsp; {which}"
+        + (f" &nbsp;&middot;&nbsp; {screening_date}" if screening_date else "")
+        + f" &nbsp;&middot;&nbsp; Page {page_no} of {page_total}",
         S["subtitle"]))
 
     # --- Result headline ----------------------------------------------------

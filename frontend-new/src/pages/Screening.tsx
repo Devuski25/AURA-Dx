@@ -178,26 +178,7 @@ const ageOf = (dateOfBirth: string) => {
   return age
 }
 
-const STATUS_BADGES = {
-  completed: { label: "Completed", className: "bg-green-100 text-green-700" },
-  awaiting_review: { label: "Awaiting Review", className: "bg-yellow-100 text-yellow-800" },
-  retake_needed: { label: "Retake Needed", className: "bg-red-100 text-red-700" },
-  analysing: { label: "Analysing", className: "bg-aura-surface-alt text-aura-muted" },
-  none: { label: "New", className: "bg-aura-surface-alt text-aura-muted" },
-} as const
-
-type PatientStatusBadge = (typeof STATUS_BADGES)[keyof typeof STATUS_BADGES]
-
-const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatusBadge => {
-  if (!latest) return STATUS_BADGES.none
-  if (latest.status === "error") return STATUS_BADGES.retake_needed
-  if (latest.status === "pending_review") return STATUS_BADGES.awaiting_review
-  // A screening whose analysis is still running is neither done nor broken.
-  if (latest.status === "analysing") return STATUS_BADGES.analysing
-  return STATUS_BADGES.completed
-}
-
-/* Columns: avatar | name | details (sm+) | status (sm+) | chevron | row menu.
+/* Columns: name | details (sm+) | chevron (sm+) | row menu.
    Two extra trailing tracks for the chevron and the 3-dot menu trigger.
 
    Rows are a <div>, not a <button>, because the menu trigger is itself a button
@@ -218,19 +199,24 @@ const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatus
    With the badge gone the name is the first cell and lines up with the
    "Select Patient" title above it.
 
+   There is no status column either. It was the only reason the picker had to
+   load the entire screening history before it could show a list of patients.
+   The screening count beside the name says the same thing more usefully, and
+   it comes with the patient list rather than needing a second request.
+
    The padding is the card header's padding, px-4 and sm:px-5, for the same
    reason: the name has to sit on the same vertical line as everything else in
    the card.
 
    The header row is why the two must agree on the track count. It has the
-   same number of children as the row only from `sm` up, where both are five.
+   same number of children as the row only from `sm` up, where both are four.
    On a phone the header's extra headings are hidden, so what is left is
    "Patient" and "Action" -- two children for two tracks. The row has two. When
    the header still had all six headings in a four-track grid they wrapped onto
    a second row, and "Action" broke across two lines as "Acti on" over a
    clipped row. */
 const PATIENT_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_122px_auto_auto] sm:px-5"
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_auto_auto] sm:px-5"
 
 /* How many patient rows the picker shows before it starts scrolling.
    Five is roughly a screenful on a phone with the search box and the New
@@ -250,6 +236,8 @@ type PatientOption = {
   dobRaw: string
   age: number | null
   gender: string
+  /** How many screenings this patient has. */
+  screeningCount: number
 }
 
 export function Screening() {
@@ -395,7 +383,7 @@ export function Screening() {
 
   // Shared cache entries — "screenings" is the SAME payload Dashboard/Screenings use,
   // so the status badges cost zero extra network traffic on back-navigation.
-  const patientsFetcher = useCallback(async (): Promise<Array<{ id: string; full_name: string; date_of_birth: string; gender: string }>> => {
+  const patientsFetcher = useCallback(async (): Promise<Array<{ id: string; full_name: string; date_of_birth: string; gender: string; screening_count?: number }>> => {
     const res = await apiFetch("/api/patients")
     // An expired token must not read as "failed to fetch". apiFetch already
     // refreshes and retries once before this point, so reaching here means the
@@ -408,45 +396,18 @@ export function Screening() {
     return res.json()
   }, [accessToken])
 
-  const screeningsFetcher = useCallback(async (): Promise<Array<Record<string, unknown>>> => {
-    const res = await apiFetch("/api/screenings")
-    if (isUnauthorized(res)) {
-      notifySessionExpired()
-      throw new Error("Session expired")
-    }
-    if (!res.ok) throw new Error("Failed to fetch screening statuses")
-    return res.json()
-  }, [accessToken])
-
   const { data: patientsData, isLoading: loadingPatients, refresh: refreshPatients } = useCachedData(
     user && accessToken ? "patients" : null,
     patientsFetcher,
     { ttlMs: 60_000 },
   )
-  const { data: statusData, refresh: refreshStatuses } = useCachedData(
-    user && accessToken ? "screenings" : null,
-    screeningsFetcher,
-  )
 
   useEffect(() => {
     if (!user) return
-    void Promise.all([refreshPatients(), refreshStatuses()])
-  }, [user, refreshPatients, refreshStatuses])
+    void refreshPatients()
+  }, [user, refreshPatients])
 
   const patients = useMemo(() => patientsData ?? [], [patientsData])
-
-  const latestByPatient = useMemo(() => {
-    const latest = new Map<string, { status: string }>()
-    for (const s of (statusData ?? []) as Array<{ patient_id: string; status: string }>) {
-      if (!latest.has(s.patient_id)) {
-        latest.set(s.patient_id, { status: s.status })
-      }
-    }
-    return latest
-  }, [statusData])
-
-  const statusBadgeFor = (patientId: string): PatientStatusBadge =>
-    statusBadgeForLatest(latestByPatient.get(patientId))
 
   const patientOptions = useMemo<PatientOption[]>(
     () =>
@@ -458,6 +419,9 @@ export function Screening() {
         dobRaw: p.date_of_birth ?? "",
         age: p.date_of_birth ? ageOf(p.date_of_birth) : null,
         gender: p.gender ?? "",
+        // How many screenings this patient has. It comes with the patient list,
+        // so the picker does not have to load the screening history to show it.
+        screeningCount: p.screening_count ?? 0,
       })),
     [patients],
   )
@@ -1041,24 +1005,23 @@ export function Screening() {
                                       "Action" broke across two lines as
                                       "Acti on" and the list was clipped.
 
-                                      From `sm` up the row has the details,
-                                      status and action columns, and the
-                                      headings come back with them. The last
-                                      cell is empty because the menu is a
-                                      control rather than a column of data. */}
+                                      There is no Status column. It was the
+                                      only reason the picker had to load
+                                      the entire screening history in order
+                                      to work out four badges, and the
+                                      screening count beside the name says
+                                      the same thing more usefully. */}
                                   <div
                                     aria-hidden="true"
                                     className={cn(PATIENT_GRID, "sticky top-0 z-10 border-b border-aura-border-soft bg-aura-surface-alt pb-2 pt-3 text-xs font-medium text-aura-muted")}
                                   >
                                     <span>Patient</span>
                                     <span className="hidden sm:block">Details</span>
-                                    <span className="hidden sm:block">Status</span>
                                     <span className="text-right">Action</span>
                                     <span className="hidden sm:block" />
                                   </div>
                                   {visiblePatients.map(patient => {
                                     const isSelected = selectedPatient?.id === patient.id
-                                    const badge = statusBadgeFor(patient.id)
                                     return (
                                       <div
                                         key={patient.id}
@@ -1096,16 +1059,12 @@ export function Screening() {
                                         <span className="hidden min-w-0 truncate text-xs text-aura-muted sm:block">
                                           {patient.dob} &middot; {patient.age !== null ? `${patient.age} yrs` : "—"} &middot;{" "}
                                           <span className="capitalize">{patient.gender}</span>
-                                        </span>
-                                        <span className="hidden sm:block">
-                                          <span
-                                            className={cn(
-                                              "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium",
-                                              badge.className
-                                            )}
-                                          >
-                                            {badge.label}
-                                          </span>
+                                          {patient.screeningCount > 0 && (
+                                            <>
+                                              {" "}&middot;{" "}
+                                              {patient.screeningCount} screening{patient.screeningCount === 1 ? "" : "s"}
+                                            </>
+                                          )}
                                         </span>
                                         {/* The chevron is desktop only. On a
                                             phone it duplicated the row's own
@@ -1283,34 +1242,6 @@ export function Screening() {
             <CardDescription>Patient: {selectedPatient?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Warn before the clinician starts, not after they lose the work.
-
-                Takes live in component state. They are not written anywhere
-                until the analysis is run and the files are uploaded, so
-                navigating away -- to the dashboard, to another patient, to a
-                different tab -- unmounts this page and the recordings go with
-                it. There is no recovery for an unsent take.
-
-                This sits above the device banner because the device choice is
-                the first thing a clinician touches on this screen, and this is
-                the thing they need to know before touching it. */}
-            <div
-              role="note"
-              className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3.5"
-            >
-              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-amber-900">
-                  Unsent recordings are discarded if you leave this page
-                </p>
-                <p className="mt-1 text-[13px] leading-relaxed text-amber-800">
-                  Your takes are held on this device only. They are saved when
-                  you run the analysis — leaving this page before then discards
-                  them, and they cannot be recovered.
-                </p>
-              </div>
-            </div>
-
             {/* What is actually plugged in. Without this a clinician cannot
                 tell the stethoscope from the built-in microphone, and the two
                 are indistinguishable until the takes come back useless. This

@@ -147,6 +147,9 @@ class PatientResponse(BaseModel):
     clinic_name: Optional[str] = None
     clinician_name: Optional[str] = None
     age_bracket: Optional[str] = None
+    # How many screenings this patient has. Lets the picker say so without
+    # loading the screening history to find out.
+    screening_count: Optional[int] = None
 
 
 class PatientUpdate(BaseModel):
@@ -213,6 +216,10 @@ class ScreeningResponse(BaseModel):
     clinic_name: Optional[str] = None
     clinician_name: Optional[str] = None
     reviewed_by_name: Optional[str] = None
+    # Which screening this is for the patient, and how many they have in
+    # total. Computed in the database, so they cannot drift.
+    screening_number: Optional[int] = None
+    patient_screening_count: Optional[int] = None
 
 
 class ExportRequest(BaseModel):

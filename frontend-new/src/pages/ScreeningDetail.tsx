@@ -11,6 +11,9 @@ import {
   AlertCircle,
   Check,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -73,6 +76,9 @@ interface ScreeningDetail {
   low_agreement: boolean | null
   recordings_total: number | null
   recordings_flagged: number | null
+  // Which screening this is for the patient, and how many they have.
+  screening_number: number | null
+  patient_screening_count: number | null
   reviewed_by: string | null
   reviewed_at: string | null
   review_notes: string | null
@@ -395,6 +401,40 @@ export function ScreeningDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  /* Deleting this screening.
+
+     The patient and their other screenings stay. A patient can be screened as
+     many times as clinically needed, and sometimes one of those readings is
+     not wanted -- the stethoscope slipped, the room was too noisy, the take
+     was at the wrong site. Dropping that one reading and dropping the patient
+     are different actions, and this is the smaller one. */
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const handleDelete = async () => {
+    if (!screening) return
+    setDeleteBusy(true)
+    try {
+      const res = await apiFetch(`/api/screenings/${screening.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || "Failed to delete screening")
+      }
+      invalidate("screenings")
+      invalidate("patient-records")
+      toast.success("Screening deleted")
+      setDeleteOpen(false)
+      // Back to the patient's record, which is where the remaining screenings
+      // are. Staying on a page for a screening that no longer exists would
+      // show a broken empty report.
+      navigate("/dashboard/patient-records")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete screening")
+    } finally {
+      setDeleteBusy(false)
+    }
+  }
+
   /* Probability lists hoisted to the very top of the component — above every
      early return. Calling useMemo inside conditional JSX changed the hook
      count between renders and crashed the page with React error #310
@@ -415,6 +455,53 @@ export function ScreeningDetail() {
   useEffect(() => {
     if (id && accessToken) fetchScreening()
   }, [id, accessToken])
+
+  /* The patient's other screenings.
+
+     A patient can be screened as many times as clinically needed, so this
+     page is one reading out of a history. The list is what the arrows step
+     through, and what tells the page whether there is anywhere to step to.
+
+     It is fetched from the patient's own list rather than counted, so the
+     arrows and the numbering always agree with each other. */
+  const [siblings, setSiblings] = useState<Array<{ id: string; created_at: string; screening_number: number | null }>>([])
+
+  useEffect(() => {
+    const patientId = screening?.patient_id
+    if (!patientId || !accessToken) {
+      setSiblings([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await apiFetch(`/api/screenings?patient_id=${patientId}`)
+        if (cancelled || !res.ok) return
+        const rows = (await res.json()) as Array<{
+          id: string
+          created_at: string
+          screening_number: number | null
+        }>
+        rows.sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )
+        if (!cancelled) setSiblings(rows)
+      } catch {
+        /* the arrows simply do not appear */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [screening?.patient_id, accessToken])
+
+  const siblingIndex = useMemo(
+    () => siblings.findIndex((s) => s.id === id),
+    [siblings, id]
+  )
+  const prevSibling = siblingIndex > 0 ? siblings[siblingIndex - 1] : null
+  const nextSibling =
+    siblingIndex >= 0 && siblingIndex < siblings.length - 1 ? siblings[siblingIndex + 1] : null
 
   const fetchScreening = async () => {
     if (!id || !accessToken) return
@@ -583,6 +670,44 @@ export function ScreeningDetail() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end print:hidden">
+          {/* Step through this patient's other screenings.
+
+              A patient can be screened as many times as clinically needed, so
+              a result page is one reading in a history. These arrows move
+              through the history without going back to the list.
+
+              They only appear when there is somewhere to go, and the label
+              says which reading this is, so a clinician opening the second
+              screening knows it is the second. */}
+          {(prevSibling || nextSibling) && (
+            <div className="flex items-center gap-1 rounded-lg border border-aura-border-soft bg-white px-1.5 py-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={!prevSibling}
+                onClick={() => prevSibling && navigate(`/dashboard/screenings/${prevSibling.id}`)}
+                className="h-8 w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
+                aria-label="Previous screening for this patient"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              </Button>
+              {screening?.patient_screening_count && screening.patient_screening_count > 1 && (
+                <span className="px-1 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                  {screening.screening_number ?? siblingIndex + 1} of {screening.patient_screening_count}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={!nextSibling}
+                onClick={() => nextSibling && navigate(`/dashboard/screenings/${nextSibling.id}`)}
+                className="h-8 w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
+                aria-label="Next screening for this patient"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
           {screening.status === "pending_review" && (
             <Button onClick={() => setReviewDialogOpen(true)} className="gap-2">
               <CheckCircle className="h-4 w-4" />
@@ -592,6 +717,19 @@ export function ScreeningDetail() {
           <Button variant="outline" onClick={downloadPDF} disabled={!screening} className="gap-2">
             <Download className="h-4 w-4" />
             Download PDF
+          </Button>
+          {/* Delete this screening, not the patient. Deleting the patient is
+              in the list's row menu, where it is guarded by a confirmation
+              that says the whole history goes with it. */}
+          <Button
+            variant="outline"
+            onClick={() => setDeleteOpen(true)}
+            disabled={!screening}
+            className="gap-2 text-destructive hover:text-destructive-strong"
+            aria-label="Delete this screening"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Delete
           </Button>
           {/* Print removed at the owner's request. The PDF download covers the
               same need and produces a consistent clinical document; a print
@@ -917,6 +1055,46 @@ export function ScreeningDetail() {
           Back to Patient Records
         </Button>
       </div>
+
+      {/* Delete this screening. The patient and their other readings stay --
+          deleting the patient is a different action, in the list's row menu,
+          where the confirmation says the whole history goes with it. */}
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          if (!open && !deleteBusy) setDeleteOpen(false)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" aria-hidden="true" />
+              Delete this screening?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              This removes the screening
+              {screening?.patient_name ? (
+                <>
+                  {" "}for{" "}
+                  <span className="font-semibold text-foreground">
+                    {screening.patient_name}
+                  </span>
+                </>
+              ) : null}
+              , along with its recordings. The patient and their other
+              screenings are not affected. It cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void handleDelete()} disabled={deleteBusy}>
+              {deleteBusy ? "Deleting…" : "Delete screening"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
         <DialogContent>

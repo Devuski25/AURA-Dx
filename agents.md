@@ -70,6 +70,7 @@ cd frontend-new && npm run dev
 | PDF report styles (no clipped type) | `python backend/test_pdf_styles.py` |
 | PDF report consistency (heading vs advice) | `python backend/test_pdf_consistency.py` |
 | Classification agrees with the probabilities | `python backend/test_classification.py` |
+| Patient ownership and the delete paths | `python backend/test_patient_ownership.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 
@@ -133,7 +134,8 @@ Notes:
 - **Per-take routing**: Stage 1 XGBoost `p_healthy >= 0.61` → Healthy, skips Stage 2. Otherwise Stage 2 EfficientNetB0, `p_pneumonia >= 0.47` → Pneumonia else COPD (`p_copd = 1 - p_pneumonia`)
 - **Fusion**: mean across the 3–5 takes, then safety override — any single take at `>= 0.60` pneumonia confidence wins regardless of the mean
 - **Preprocessing source of truth**: `final icbhi nb.ipynb`. Both stages' constants come from it verbatim. Do not tidy them into librosa defaults — Stage 1 uses default n_fft=2048/hop=512, Stage 2 uses 1024/256, and that difference is real.
-- **Single-clinic model**: all clinicians see all patients (no per-doctor scoping)
+- **Patient ownership**: a patient belongs to the clinician who created it — only that clinician sees and edits it. Admins see every patient in their clinic; the super_admin sees all. This mirrors the RLS policies on `patients` (`patients_own`, `patients_clinic_admin`, `patients_admin_all`), which the backend used to bypass because it queries with the service-role key.
+- **Repeated screening**: a patient may be screened as many times as clinically needed. Every screening carries its sequence number for that patient and the patient's total, computed in `screening_history_view` with a window function.
 - **First-user rule**: first注册 user → `super_admin`, all others → `clinician` + `pending`
 - **No commits to main** — always `feature/*` branches
 - **Port consistency**: Inference `:8000`, Backend `:8001`, Frontend `:5174`, Supabase `:54321`

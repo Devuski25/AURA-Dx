@@ -3,11 +3,19 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
-import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText } from "lucide-react"
+import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText, Trash2, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -21,7 +29,7 @@ import {
 import { useAuth } from "@/hooks/useAuth"
 import { apiFetch } from "@/lib/api"
 import { saveBlob } from "@/lib/download"
-import { useCachedData } from "@/hooks/useCachedData"
+import { useCachedData, invalidate } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
 import { getRespBadge, ScreeningStatusBadge } from "@/lib/badge-helpers"
@@ -50,6 +58,9 @@ interface Screening {
   review_notes: string | null
   audio_duration_sec: number | null
   created_at: string
+  /** Which screening this is for the patient, and how many they have. */
+  screening_number: number | null
+  patient_screening_count: number | null
 }
 
 type SortableField = keyof Pick<Screening, "patient_name" | "created_at" | "respiratory_result" | "status">
@@ -218,9 +229,53 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
-  /* Selected rows win; with nothing ticked the export stays "everything the
-     filters match", so the button is never a dead end. */
-  const exportTargets = selectedCount > 0 ? selectedScreenings : filteredAndSortedScreenings
+  /* Every screening of a patient, grouped by patient.
+
+     A patient can be screened as many times as clinically needed, so the row
+     for one screening is only ever a page of that patient's history. The
+     3-dot menu uses this to offer the whole history rather than just the one
+     row it was opened from.
+
+     It is built from the unfiltered list, so a screening that the current
+     filters are hiding is still reachable from the menu. */
+  const screeningsByPatient = useMemo(() => {
+    const byPatient = new Map<string, Screening[]>()
+    for (const s of screenings) {
+      const list = byPatient.get(s.patient_id)
+      if (list) list.push(s)
+      else byPatient.set(s.patient_id, [s])
+    }
+    // Oldest first within a patient, so the numbers run 1, 2, 3.
+    for (const list of byPatient.values()) {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    }
+    return byPatient
+  }, [screenings])
+
+  /* The export covers whole patients.
+
+     A handover pack is a patient's history, not a scatter of snapshots. So if
+     a patient is represented in the export -- by being ticked, or by matching
+     the filters -- every one of their screenings goes in with them.
+
+     This is why the count in the toast can be larger than the number of rows
+     that were ticked. */
+  const exportTargets = useMemo(() => {
+    const base = selectedCount > 0 ? selectedScreenings : filteredAndSortedScreenings
+    const seen = new Set<string>()
+    const expanded: Screening[] = []
+    for (const s of base) {
+      const siblings = screeningsByPatient.get(s.patient_id) ?? [s]
+      for (const sib of siblings) {
+        if (seen.has(sib.id)) continue
+        seen.add(sib.id)
+        expanded.push(sib)
+      }
+    }
+    return expanded.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    )
+  }, [selectedCount, selectedScreenings, filteredAndSortedScreenings, screeningsByPatient])
 
   const getStatusBadge = (status: string, reviewedBy: string | null) => (
     <ScreeningStatusBadge
@@ -253,6 +308,127 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
       toast.error("Failed to download PDF")
     }
   }, [fetchPdfBlob])
+
+  /* Deleting a patient removes their screenings with them.
+
+     The database cascades, so the screenings go in one statement, and the
+     recordings are cleared off the Mini PC's disk by the same request --
+     otherwise every deletion would leave a few megabytes of audio behind and
+     the disk would fill up over a year of use. */
+  const [deletingPatient, setDeletingPatient] = useState<{
+    id: string
+    name: string
+    count: number
+  } | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+
+  const confirmDeletePatient = useCallback(async () => {
+    if (!deletingPatient) return
+    setDeleteBusy(true)
+    try {
+      const res = await apiFetch(`/api/patients/${deletingPatient.id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || "Failed to delete patient")
+      }
+      invalidate("patients")
+      invalidate("patient-records")
+      invalidate("screenings")
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        // The rows this patient contributed are gone.
+        for (const s of screeningsByPatient.get(deletingPatient.id) ?? []) next.delete(s.id)
+        return next
+      })
+      toast.success(`${deletingPatient.name} deleted`)
+      setDeletingPatient(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete patient")
+    } finally {
+      setDeleteBusy(false)
+    }
+  }, [deletingPatient, screeningsByPatient])
+
+  /* The 3-dot menu for a row.
+
+     When a patient has been screened more than once, the row is only one page
+     of their history, so the menu lists the whole history and each entry jumps
+     straight to it. The dates are shown because "the one from last week" is how
+     people refer to a screening, not "the second one".
+
+     One shared component, because the table row and the phone card are the
+     same menu and were already two copies of it. */
+  const ScreeningMenu = ({
+    screening,
+    label,
+  }: {
+    screening: Screening
+    label: string
+  }) => {
+    const history = screeningsByPatient.get(screening.patient_id) ?? [screening]
+    const hasHistory = history.length > 1
+    return (
+      <>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
+            {label}
+          </DropdownMenuLabel>
+          {hasHistory && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+                {history.length} screening{history.length === 1 ? "" : "s"}
+              </DropdownMenuLabel>
+              {history.map((h, i) => (
+                <DropdownMenuItem
+                  key={h.id}
+                  onSelect={() => navigate(`/dashboard/screenings/${h.id}`)}
+                  className="gap-2"
+                >
+                  <span className="w-16 shrink-0 font-mono text-[11px] tabular-nums text-aura-muted">
+                    {h.screening_number ? `#${h.screening_number}` : `#${i + 1}`}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {new Date(h.created_at).toLocaleDateString()}
+                  </span>
+                  {h.id === screening.id && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-aura-forest" aria-hidden="true" />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => navigate(`/dashboard/screenings/${screening.id}`)}
+            className="gap-2"
+          >
+            <Eye className="h-4 w-4" aria-hidden="true" />
+            View details
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => void downloadPDF(screening.id)}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Download PDF
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => setDeletingPatient({
+              id: screening.patient_id,
+              name: label,
+              count: history.length,
+            })}
+            className="gap-2 text-destructive focus:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Delete patient and all records
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </>
+    )
+  }
 
   /*
    * Bulk export: one PDF, one page per record.
@@ -506,26 +682,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                             <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
-                            {label}
-                          </DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() => navigate(`/dashboard/screenings/${screening.id}`)}
-                            className="gap-2"
-                          >
-                            <Eye className="h-4 w-4" aria-hidden="true" />
-                            View details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => void downloadPDF(screening.id)}
-                            className="gap-2"
-                          >
-                            <Download className="h-4 w-4" aria-hidden="true" />
-                            Download PDF
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
+                        <ScreeningMenu screening={screening} label={label} />
                       </DropdownMenu>
                     </div>
 
@@ -619,7 +776,18 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           aria-hidden="true"
                           className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                         />
-                        <div className="text-base font-medium">{screening.patient_name || "Anonymous Screening"}</div>
+                        <div className="flex items-baseline gap-2">
+                          <div className="text-base font-medium">{screening.patient_name || "Anonymous Screening"}</div>
+                          {/* Which screening this is for the patient. A patient
+                              can be screened repeatedly, so "the second one"
+                              is the difference between a re-test and a
+                              genuine change. */}
+                          {screening.patient_screening_count && screening.patient_screening_count > 1 && (
+                            <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                              {screening.screening_number} of {screening.patient_screening_count}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-sm text-aura-muted">{screening.clinician_name}</div>
                       </TableCell>
                       <TableCell className="px-4 align-middle">
@@ -646,26 +814,10 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
-                                {screening.patient_name || "Anonymous Screening"}
-                              </DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onSelect={() => navigate(`/dashboard/screenings/${screening.id}`)}
-                                className="gap-2"
-                              >
-                                <Eye className="h-4 w-4" aria-hidden="true" />
-                                View details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => void downloadPDF(screening.id)}
-                                className="gap-2"
-                              >
-                                <Download className="h-4 w-4" aria-hidden="true" />
-                                Download PDF
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
+                            <ScreeningMenu
+                              screening={screening}
+                              label={screening.patient_name || "Anonymous Screening"}
+                            />
                           </DropdownMenu>
                         </div>
                       </TableCell>
@@ -680,6 +832,57 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
           </Card>
         </motion.div>
       </motion.div>
+
+      {/* Delete confirmation.
+
+          It says what goes with the patient, because "delete patient" and
+          "delete the screening" are different things and a clinician who
+          wanted to drop one bad reading should not lose the whole history by
+          reaching for the wrong button. */}
+      <Dialog
+        open={Boolean(deletingPatient)}
+        onOpenChange={(open) => {
+          if (!open && !deleteBusy) setDeletingPatient(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" aria-hidden="true" />
+              Delete {deletingPatient?.name}?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              This removes the patient record and{" "}
+              <span className="font-semibold text-destructive">
+                every screening recorded against them
+              </span>
+              {deletingPatient?.count
+                ? ` (${deletingPatient.count} screening${deletingPatient.count === 1 ? "" : "s"})`
+                : ""}
+              , along with the recordings themselves. It cannot be undone.
+              <br />
+              To remove a single screening instead, open it and use the delete
+              button on that page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingPatient(null)}
+              disabled={deleteBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void confirmDeletePatient()}
+              disabled={deleteBusy}
+            >
+              {deleteBusy ? "Deleting…" : "Delete patient and all records"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

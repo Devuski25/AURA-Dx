@@ -51,6 +51,9 @@ interface Screening {
   reviewed_at: string | null
   review_notes: string | null
   created_at: string
+  // Which screening this is for the patient, and how many they have.
+  screening_number: number | null
+  patient_screening_count: number | null
 }
 
 export function PatientDetail() {
@@ -409,7 +412,18 @@ export function PatientDetail() {
                   {screenings.map((s) => (
                     <TableRow key={s.id} className="transition-colors hover:bg-aura-surface-alt">
                       <TableCell>
-                        <div>{new Date(s.created_at).toLocaleDateString()}</div>
+                        {/* Which reading this is, for this patient. A patient
+                            can be screened repeatedly, so "the second one" is
+                            the difference between a re-test and a genuine
+                            change in the patient's condition. */}
+                        <div className="flex items-baseline gap-2">
+                          <div>{new Date(s.created_at).toLocaleDateString()}</div>
+                          {s.patient_screening_count && s.patient_screening_count > 1 && (
+                            <span className="rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                              {s.screening_number} of {s.patient_screening_count}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-aura-muted">{new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       </TableCell>
                       <TableCell>
