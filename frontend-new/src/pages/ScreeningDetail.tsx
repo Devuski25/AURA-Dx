@@ -314,8 +314,6 @@ function TierCard({
   flagged,
   statusLabel,
   confidence,
-  modelVersion,
-  decisions,
   className,
   children,
 }: {
@@ -324,8 +322,6 @@ function TierCard({
   flagged: boolean
   statusLabel: string
   confidence: number | null
-  modelVersion: string | null
-  decisions?: { label: string; value: string }[]
   className?: string
   children: React.ReactNode
 }) {
@@ -360,18 +356,6 @@ function TierCard({
       <div className="grid grid-cols-[150px_minmax(0,1fr)] gap-3 px-4 py-5 sm:grid-cols-[200px_1fr] sm:gap-8 sm:px-6 sm:py-6">
         <div className="flex flex-col items-start gap-3 sm:items-start sm:gap-4">
           <ConfidenceRing value={confidence ?? 0} flagged={flagged} />
-          {modelVersion && (
-            <div>
-              <FieldLabel>Model Version</FieldLabel>
-              <div className="font-mono text-[11px] font-medium text-aura-ink sm:text-[12.5px]">{modelVersion}</div>
-            </div>
-          )}
-          {decisions?.map((d, i) => (
-            <div key={i}>
-              <FieldLabel>{d.label}</FieldLabel>
-              <div className="text-[12px] font-medium leading-snug text-aura-ink sm:text-[13px]">{d.value}</div>
-            </div>
-          ))}
         </div>
         <div className="max-w-2xl min-w-0">{children}</div>
       </div>
@@ -628,14 +612,10 @@ export function ScreeningDetail() {
       {/* Screening Details */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, ...sectionSpring }} className="mt-6">
       <InfoCard title="Screening Details">
-        <div className="mb-5 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-5 grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3">
           <div>
             <FieldLabel>Screening Date</FieldLabel>
             <div className="text-[13.5px] font-medium tabular-nums text-aura-ink">{dateTimeFormat.format(new Date(screening.created_at))}</div>
-          </div>
-          <div>
-            <FieldLabel>Model Version</FieldLabel>
-            <div className="font-mono text-[13.5px] font-medium text-aura-ink">{screening.model_version}</div>
           </div>
           <div>
             <FieldLabel>Audio Duration</FieldLabel>
@@ -693,31 +673,7 @@ export function ScreeningDetail() {
           name="Respiratory Classifier"
           flagged={respFlagged}
           statusLabel={screening.respiratory_result || "Healthy"}
-          confidence={screening.respiratory_confidence ?? 0}
-          modelVersion={screening.model_version}
-          decisions={[
-            { label: "Outcome", value: "Final Classification" },
-            ...(screening.recording_paths?.length
-              ? [
-                  {
-                    label: "Takes fused",
-                    value: `${screening.recording_paths.length}`,
-                  },
-                ]
-              : []),
-            ...(screening.cascade_path
-              ? [
-                  {
-                    label: "Fusion",
-                    value:
-                      screening.cascade_path === "mean_then_safety_override"
-                        ? "Mean of takes, safety override"
-                        : screening.cascade_path,
-                  },
-                ]
-              : []),
-          ]}
-        >
+          confidence={screening.respiratory_confidence ?? 0}>
           {screening.respiratory_probabilities && (
             <div>
               <div className="mb-4 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">
