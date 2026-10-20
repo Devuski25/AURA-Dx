@@ -8,7 +8,6 @@ import {
   TARGET_CYCLES_LOW,
   TARGET_CYCLES_HIGH,
   siteByCode,
-  suggestedSite,
 } from "@/lib/recording-protocol"
 import { cn } from "@/lib/utils"
 
@@ -107,53 +106,6 @@ export function RecordingProtocolCard({ className }: { className?: string }) {
         </section>
       </div>
     </details>
-  )
-}
-
-/** Compact per-take reminder. Shows the last take's site so repeating one is visible. */
-export function SitePrompt({
-  takenCount,
-  lastSiteCode,
-}: {
-  takenCount: number
-  lastSiteCode?: string
-}) {
-  const site = suggestedSite(takenCount)
-  const last = lastSiteCode ? siteByCode(lastSiteCode) : undefined
-  const repeats = last?.code === site.code
-
-  return (
-    <div className="rounded-lg border border-aura-border-soft bg-aura-surface-alt p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-aura-muted">
-            Take {Math.min(takenCount + 1, 5)} · suggested site
-          </p>
-          <p className="mt-1 text-base font-semibold text-aura-ink">{site.name}</p>
-          <p className="mt-0.5 text-xs leading-relaxed text-aura-muted">
-            {site.where}. {site.how}
-          </p>
-        </div>
-      </div>
-
-      {last && (
-        <p
-          className={cn(
-            "mt-2.5 border-t border-aura-border-soft pt-2.5 text-xs",
-            repeats ? "text-amber-700" : "text-aura-muted"
-          )}
-        >
-          {repeats
-            ? `Your last take was also ${last.name}. If you listen from the same `
-              + `place, this adds nothing — try a different site.`
-            : `Last take: ${last.name}. Different from this one — good.`}
-        </p>
-      )}
-
-      <p className="mt-2 text-[0.6875rem] leading-relaxed text-aura-muted">
-        A suggestion, not a requirement. Record wherever is clinically right.
-      </p>
-    </div>
   )
 }
 

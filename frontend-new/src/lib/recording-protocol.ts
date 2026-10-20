@@ -89,11 +89,6 @@ export const AUSCULTATION_SITES = [
 export type Site = (typeof AUSCULTATION_SITES)[number]
 export type SiteCode = Site["code"]
 
-/** Which site to suggest for the next take. */
-export function suggestedSite(takenCount: number): Site {
-  return AUSCULTATION_SITES[Math.min(takenCount, AUSCULTATION_SITES.length - 1)]
-}
-
 export function siteByCode(code: string): Site | undefined {
   return AUSCULTATION_SITES.find((s) => s.code === code)
 }

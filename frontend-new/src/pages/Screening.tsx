@@ -35,10 +35,9 @@ import {
   useAudioInput,
   DeviceBanner,
   LevelMeter,
-  StethoscopeCheck,
   NO_STETHOSCOPE_MESSAGE,
 } from "@/components/AudioCapture"
-import { SitePrompt, SiteChip } from "@/components/RecordingProtocol"
+import { SiteChip } from "@/components/RecordingProtocol"
 import {
   AUSCULTATION_SITES,
   MIN_TAKE_SEC,
@@ -1160,62 +1159,29 @@ export function Screening() {
             <CardDescription>Patient: {selectedPatient?.name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              {/* Progress toward the required minimum, stated plainly so the
-                  clinician can see when the screening is ready to run. */}
-              <div className="rounded-lg border border-aura-border-soft bg-aura-surface-alt p-4">
-                <h3 className="text-lg font-medium">Digital Stethoscope Recording</h3>
-                <p className="mt-1 text-sm text-aura-muted">
-                  Record {MIN_TAKES} to {MAX_TAKES} takes. Each take is scored separately and the
-                  results are fused, so recording more than {MIN_TAKES} usually gives a steadier read
-                  {takes.length > 0
-                    ? ` — you have ${takes.length} of ${MIN_TAKES} needed.`
-                    : "."}
-                </p>
-              </div>
+            {/* What is actually plugged in. Without this a clinician cannot
+                tell the stethoscope from the built-in microphone, and the two
+                are indistinguishable until the takes come back useless. This
+                also carries the audio-input picker, so it is the one place
+                the device is chosen. */}
+            <DeviceBanner
+              devices={audioInput.devices}
+              device={audioInput.device}
+              permission={audioInput.permission}
+              selectedId={audioInput.selectedId}
+              mismatch={audioInput.deviceMismatch}
+              onSelect={audioInput.setSelectedId}
+              onRefresh={() => void audioInput.refreshDevices()}
+            />
 
-              {/* What is actually plugged in. Without this a clinician cannot
-                  tell the stethoscope from the built-in microphone, and the two
-                  are indistinguishable until the takes come back useless. */}
-              <DeviceBanner
-                devices={audioInput.devices}
-                device={audioInput.device}
-                permission={audioInput.permission}
-                selectedId={audioInput.selectedId}
-                mismatch={audioInput.deviceMismatch}
-                onSelect={audioInput.setSelectedId}
-                onRefresh={() => void audioInput.refreshDevices()}
-              />
-
-              {/* Prove it before trusting it. The banner can only read the device
-                  label; this records five seconds and plays it back so the
-                  clinician hears a chest or a room. Nothing is saved or
-                  uploaded. Placed before the recorder so it is read as part of
-                  setting up, not as an optional extra. */}
-              {!recording && !atMaxTakes && (
-                <StethoscopeCheck
-                  devices={audioInput.devices}
-                  device={audioInput.device}
-                  permission={audioInput.permission}
-                  selectedId={audioInput.selectedId}
-                  level={audioInput.level}
-                  onSelect={audioInput.setSelectedId}
-                  onRefresh={() => void audioInput.refreshDevices()}
-                />
-              )}
-
-              {/* Site for this take. Suggested, never enforced. */}
-              {!recording && !atMaxTakes && (
-                <div>
-                  <SitePrompt
-                    takenCount={takes.length}
-                    lastSiteCode={takes[takes.length - 1]?.siteCode}
-                  />
-                  {/* Stacked on a phone, side by side from sm. Both selects are
-                      short controls; on a 375px screen they need the full width
-                      to stay tappable, and on a tablet they are wasting a row
-                      each. */}
-                  <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+            {/* Site for this take. Suggested, never enforced. */}
+            {!recording && !atMaxTakes && (
+              <div>
+                {/* Stacked on a phone, side by side from sm. Both selects are
+                    short controls; on a 375px screen they need the full width
+                    to stay tappable, and on a tablet they are wasting a row
+                    each. */}
+                <div className="grid gap-2.5 sm:grid-cols-2">
                     <div>
                       <label
                         htmlFor="aura-site"
@@ -1401,7 +1367,6 @@ export function Screening() {
                   </ul>
                 </div>
               )}
-            </div>
 
             {/* Submit — gated on the minimum take count. */}
             <div className="space-y-2">
