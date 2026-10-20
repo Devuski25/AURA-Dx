@@ -457,20 +457,33 @@ export function Dashboard() {
                           to={`/dashboard/screenings/${screening.id}`}
                           className="group flex w-full items-center gap-4 px-6 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand hover:bg-aura-surface-alt active:bg-aura-bg-alt"
                         >
-                            <div className={cn(
-                              "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold",
-                              isAnonymous(screening)
-                                ? "border border-dashed border-aura-border bg-aura-sage text-aura-muted"
-                                : "bg-aura-forest/10 text-aura-forest"
-                            )}>
-                              {isAnonymous(screening) ? (
-                                <FileText className="h-5 w-5" aria-hidden="true" />
-                              ) : (
-                                screening.patient_name?.split(" ").map((part) => part[0]).slice(0, 2).join("")
-                              )}
-                            </div>
+                          {/* No avatar. The block of initials sat between the
+                              row's left edge and the name, so the name was
+                              never aligned with the card's own left padding
+                              -- it was indented past a 48px square and the
+                              gap after it. The name is the first thing in
+                              the row now and lines up with the card's
+                              content edge.
 
-                          <div className="min-w-0 flex-1">
+                              The name block no longer grows to fill the row
+                              either. It used to be flex-1, which pushed the
+                              badges hard against the right edge and left a
+                              void between the details and the badges. From
+                              `sm` up it now takes the width it needs, so the
+                              details, the result badge, the confidence
+                              figure, the status tag and the chevron sit in
+                              one evenly spaced group, with no gap anywhere
+                              along the row. On a phone the name block still
+                              fills the row, because there the badges are
+                              stacked underneath it and the chevron has to
+                              stay on the right edge.
+
+                              An anonymous screening still reads as one: the
+                              name is set in italics as "Anonymous Screening",
+                              which is the same signal the icon used to
+                              give, and the wording is clearer than an
+                              icon was. */}
+                          <div className="min-w-0 flex-1 sm:flex-initial">
                             <p className={cn(
                               "truncate text-base font-semibold",
                               isAnonymous(screening) ? "italic text-aura-muted" : "text-aura-ink"
@@ -480,20 +493,23 @@ export function Dashboard() {
                             <p className="mt-1 truncate text-sm text-aura-muted">
                               {formatRelativeTime(screening.created_at)} · {shortDateFormat.format(new Date(screening.created_at))} · {screening.clinician_name || "—"}
                             </p>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">
+                            <div className="mt-2 flex flex-wrap items-center gap-2 sm:hidden">
                               {renderResultBadges(screening.respiratory_result)}
                               <ConfidenceChip value={screening.respiratory_confidence} />
                               {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                             </div>
                           </div>
 
-                          <div className="hidden shrink-0 flex-wrap items-center gap-1.5 sm:flex">
+                          {/* One even rhythm across the badges, the confidence
+                              figure and the status tag, so none of them sits
+                              in its own pocket of space. */}
+                          <div className="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
                             {renderResultBadges(screening.respiratory_result)}
                             <ConfidenceChip value={screening.respiratory_confidence} />
                             {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                           </div>
 
-                          <ChevronRight className="h-5 w-5 shrink-0 text-aura-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-aura-ink" />
+                          <ChevronRight className="ml-auto h-5 w-5 shrink-0 text-aura-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-aura-ink sm:ml-0" />
                         </Link>
                       ))}
                     </div>
