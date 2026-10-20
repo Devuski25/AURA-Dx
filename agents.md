@@ -63,6 +63,7 @@ cd frontend-new && npm run dev
 | Unreferenced files | `python scripts/find-unused.py` |
 | Responsive contract | `python scripts/check-responsive.py` |
 | Table column alignment | `python scripts/check-table-alignment.py` |
+| Patient picker header matches its rows | `python scripts/check-picker-grid.py` |
 | Selected-site card matches the dropdown | `node frontend-new/scripts/check-site-card.mjs` |
 | Environment gating (fail-closed) | `python backend/test_app_env.py` |
 | CORS LAN scoping | `python backend/test_cors_lan.py` |

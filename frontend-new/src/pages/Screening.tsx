@@ -207,9 +207,24 @@ const statusBadgeForLatest = (latest?: { status: string } | null): PatientStatus
    Rows are a <div>, not a <button>, because the menu trigger is itself a button
    and nesting one interactive element inside another is invalid HTML -- it also
    makes the row unclickable in some browsers. The whole row stays clickable via
-   a stretched overlay button sitting underneath the menu at a lower z-index. */
+   a stretched overlay button sitting underneath the menu at a lower z-index.
+
+   PHONE: three tracks -- avatar, name, and the one action control. The chevron
+   is desktop-only. On a phone it was a second control saying the same thing as
+   the row itself ("tap here to select"), competing with the 3-dot menu for the
+   right-hand margin, and the two together pushed the name into a corner. One
+   control on the right leaves the name the width it needs and the margin
+   clean.
+
+   The header row is why the two must agree on the track count. It has the same
+   number of children as the row only from `sm` up, where both are six. On a
+   phone the header's extra headings are hidden, so what is left is an empty
+   avatar cell and "Patient" -- two children for three tracks. The row has
+   three. When the header still had all six headings in a three-track grid
+   they wrapped onto a second row, and "Action" broke across two lines as
+   "Acti on" over a clipped row. */
 const PATIENT_GRID =
-  "grid grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-x-3 px-3 py-2 sm:grid-cols-[32px_minmax(0,1.1fr)_minmax(0,1.5fr)_122px_auto_auto]"
+  "grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[32px_minmax(0,1.1fr)_minmax(0,1.5fr)_122px_auto_auto] sm:px-3"
 
 /* How many patient rows the picker shows before it starts scrolling.
    Five is roughly a screenful on a phone with the search box and the New
@@ -930,16 +945,27 @@ export function Screening() {
                               )}
                               {visiblePatients.length > 0 && (
                                 <div className={cn(PATIENT_LIST_MAX_H, "aura-table-scroll overflow-y-auto overscroll-contain")}>
-                                  {/* Column labels (decorative; rows are self-describing buttons) */}
+                                  {/* Column labels (decorative; rows are self-describing buttons).
+
+                                      On a phone only "Patient" is shown. The
+                                      other headings describe columns that are
+                                      not on screen at that width, and putting
+                                      them in the header made the row wrap:
+                                      the labels did not fit the tracks the
+                                      rows use, so "Action" broke across two
+                                      lines as "Acti on" and the list was
+                                      clipped. From `sm` up the row has the
+                                      details, status and action columns, and
+                                      the headings come back with them. */}
                                   <div
                                     aria-hidden="true"
-                                    className={cn(PATIENT_GRID, "sticky top-0 z-10 border-b border-aura-border-soft bg-aura-surface-alt pb-2 pt-3 text-xs font-medium text-aura-muted sm:grid")}
+                                    className={cn(PATIENT_GRID, "sticky top-0 z-10 border-b border-aura-border-soft bg-aura-surface-alt pb-2 pt-3 text-xs font-medium text-aura-muted")}
                                   >
                                     <span />
                                     <span>Patient</span>
-                                    <span>Details</span>
-                                    <span>Status</span>
-                                    <span className="text-right">Action</span>
+                                    <span className="hidden sm:block">Details</span>
+                                    <span className="hidden sm:block">Status</span>
+                                    <span className="hidden text-right sm:block">Action</span>
                                     <span />
                                   </div>
                                   {visiblePatients.map(patient => {
@@ -989,7 +1015,13 @@ export function Screening() {
                                             {badge.label}
                                           </span>
                                         </span>
-                                        <span className="flex justify-end">
+                                        {/* The chevron is desktop only. On a
+                                            phone it duplicated the row's own
+                                            tap-to-select affordance and took
+                                            the width the name needed. The
+                                            3-dot menu is the one control on
+                                            the right at every width. */}
+                                        <span className="hidden justify-end sm:flex">
                                           <ChevronRight
                                             aria-hidden="true"
                                             className="h-4 w-4 shrink-0 text-aura-muted transition-transform group-hover:translate-x-0.5"
