@@ -212,12 +212,27 @@ def main():
 try:
     code = main()
 finally:
+    # Each removal gets its own try block.
+    #
+    # They used to share one, which meant the auth delete throwing -- it does
+    # that intermittently, on a read timeout -- skipped the profile delete and
+    # left a live account behind with a super_admin role. Two of those
+    # survived in the database until they were found and removed by hand.
     for uid in made_users:
         try:
-            supabase.auth.admin.delete_user(uid)
             supabase.table("profiles").delete().eq("id", uid).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  (profile cleanup failed for {uid}: {e!r})")
+        for _ in range(3):
+            try:
+                supabase.auth.admin.delete_user(uid)
+                break
+            except Exception as e:
+                if "not found" in str(e).lower():
+                    break
+                last = e
+        else:
+            print(f"  (auth cleanup failed for {uid}: {last!r})")
     if made_users:
         print(f"\n  cleaned up {len(made_users)} test account(s)")
 
