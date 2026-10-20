@@ -64,6 +64,7 @@ cd frontend-new && npm run dev
 | Responsive contract | `python scripts/check-responsive.py` |
 | Environment gating (fail-closed) | `python backend/test_app_env.py` |
 | CORS LAN scoping | `python backend/test_cors_lan.py` |
+| PDF report styles (no clipped type) | `python backend/test_pdf_styles.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
 

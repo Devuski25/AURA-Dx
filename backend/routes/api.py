@@ -1253,7 +1253,17 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
     story.append(Paragraph(
         f"<b>{verdict}</b> &nbsp;&middot;&nbsp; {confidence}"
         + (f" &nbsp;&middot;&nbsp; {resp_conf * 100:.1f}% model confidence" if resp_conf else ""),
-        ParagraphStyle('RPVerdict', parent=S["small"], fontSize=15,
+        # leading is set explicitly and must stay above the font size.
+        #
+        # ParagraphStyle inherits every attribute from its parent, and the
+        # parent here is "small", which inherits leading 12 from ReportLab's
+        # built-in Normal style. Overriding fontSize to 15 did not bring a
+        # matching leading with it, so the verdict was drawn as 15pt glyphs in
+        # a 12pt line box and the ascent was clipped off the top of the line.
+        # The text was in the file and a text search found it, but nothing was
+        # visible on the page -- which is why the result heading looked like
+        # it had been left out.
+        ParagraphStyle('RPVerdict', parent=S["small"], fontSize=15, leading=19,
                        textColor=vcolor, spaceAfter=2)))
 
     # --- Patient + screening details, one table -----------------------------
