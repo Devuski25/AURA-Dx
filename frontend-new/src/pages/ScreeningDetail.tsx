@@ -759,10 +759,13 @@ export function ScreeningDetail() {
             )}
           </div>
 
-          {/* No max-width. The paragraph is one sentence and a half about how
-              the takes combine; capped at 70 characters it wrapped into three
-              short lines with the right-hand third of the card empty. */}
-          <p className="mb-3 text-[13px] leading-relaxed text-aura-muted">
+          {/* No max-width, so the paragraph spans the card instead of
+              wrapping into three short lines with the right-hand third empty.
+              14px rather than 13px: it is the explanatory caption for the
+              table, and at 13px it read as fine print rather than as
+              something a clinician is meant to read before looking at the
+              numbers. */}
+          <p className="mb-3 text-sm leading-relaxed text-aura-muted">
             Every take is scored on its own and then averaged. A take that Stage 1
             calls healthy never reaches Stage 2, which is why its Stage 2 column is
             blank.
@@ -780,38 +783,34 @@ export function ScreeningDetail() {
               So there is one table now, and it changes density rather than
               shape.
 
-              Phone: smaller type, tighter cell padding, and the two long
-              column headings wrap onto two lines so the whole table still
-              fits a 375px screen without sideways scrolling. The values line
-              up under their own headings rather than being pushed to the far
-              edge of a narrow column.
+              The table spans the full card width and every column is centred,
+              header and value together. Sizing it to its content and centring
+              that left the columns clumped in the middle of the card with both
+              halves either side empty, and left-aligning the columns pushed
+              the take numbers hard against the left edge of their column
+              while the headings sat elsewhere. Centring the heading and the
+              value in the same column puts each number directly beneath the
+              word that labels it.
 
-              Tablet and up: normal type and comfortable padding, with the
-              table sized to its content and centred. Stretching it across the
-              full card was the other option, but five columns of short values
-              spread over 800px leaves every number stranded in the middle of
-              an empty column. Content-width and centred leaves balanced space
-              on both sides instead of all of it on the right.
+              Phone: smaller type and tighter cell padding, and the two long
+              column headings wrap onto two lines so the whole table still
+              fits a 375px screen without sideways scrolling.
+
+              Tablet and up: normal type, and generous horizontal padding
+              between the columns so they do not crowd each other now that
+              they are spread across the full width.
 
               The scroller is kept as a safety net for a narrower screen than
-              the one this was designed against.
-
-              Every column is left-aligned, header and value together. The two
-              probability columns used to be right-aligned, which meant the
-              number sat under the far end of its heading rather than directly
-              beneath it, while "Take" over "1" and "Duration" over "47.7s" sat
-              flush left. Mixed alignment across one row is what makes a table
-              feel like it is drifting. Left throughout, each heading sits
-              straight above the number it labels. */}
+              the one this was designed against. */}
           <div className="aura-table-scroll overflow-x-auto">
-            <table className="mx-auto w-full border-collapse text-[12px] md:w-fit md:text-sm">
+            <table className="w-full border-collapse text-[12px] md:text-sm">
               <thead>
-                <tr className="border-b border-aura-border-soft text-left">
-                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Take</th>
-                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Duration</th>
-                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Stage 1 healthy</th>
-                  <th scope="col" className="py-1.5 pr-2 align-bottom font-semibold text-aura-ink md:pr-4">Stage 2 pneumonia</th>
-                  <th scope="col" className="py-1.5 align-bottom font-semibold text-aura-ink">Result</th>
+                <tr className="border-b border-aura-border-soft">
+                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Take</th>
+                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Duration</th>
+                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Stage 1 healthy</th>
+                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Stage 2 pneumonia</th>
+                  <th scope="col" className="px-2 py-1.5 text-center align-bottom font-semibold text-aura-ink md:px-4">Result</th>
                 </tr>
               </thead>
               <tbody>
@@ -823,19 +822,19 @@ export function ScreeningDetail() {
                       c.index === overrideTakeIndex && "bg-aura-coral-soft/40"
                     )}
                   >
-                    <td className="py-1.5 pr-2 font-medium whitespace-nowrap text-aura-ink md:pr-4">{c.index + 1}</td>
-                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-muted md:pr-4">
+                    <td className="px-2 py-1.5 text-center font-medium whitespace-nowrap text-aura-ink md:px-4">{c.index + 1}</td>
+                    <td className="px-2 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-muted md:px-4">
                       {c.duration_sec.toFixed(1)}s
                     </td>
-                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-ink md:pr-4">
+                    <td className="px-2 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
                       {c.stage1_healthy_prob.toFixed(2)}
                     </td>
-                    <td className="py-1.5 pr-2 whitespace-nowrap tabular-nums text-aura-ink md:pr-4">
+                    <td className="px-2 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
                       {c.stage2_pneumonia_prob === null
                         ? "—"
                         : c.stage2_pneumonia_prob.toFixed(2)}
                     </td>
-                    <td className="py-1.5 whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-center whitespace-nowrap md:px-4">
                       <span
                         className={cn(
                           "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold md:px-2.5 md:text-xs",
