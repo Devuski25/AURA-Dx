@@ -739,9 +739,9 @@ export function ScreeningDetail() {
           initial={reduceMotion ? false : { opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, ...sectionSpring }}
-          className="aura-panel mt-6 rounded-[14px] py-5 px-6"
+          className="aura-panel mt-6 rounded-[14px] py-4 px-5"
         >
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
               Per-take scores
             </h2>
@@ -752,21 +752,28 @@ export function ScreeningDetail() {
             )}
           </div>
 
-          <p className="mb-4 max-w-[70ch] text-sm leading-relaxed text-aura-muted">
+          <p className="mb-3 max-w-[70ch] text-[13px] leading-relaxed text-aura-muted">
             Every take is scored on its own and then averaged. A take that Stage 1
             calls healthy never reaches Stage 2, which is why its Stage 2 column is
             blank.
           </p>
 
-          {/* Mobile: one compact block per take.
+          {/* Mobile: one card per take, with the full column names.
 
-              The desktop table below sets a fixed minimum width inside a
-              horizontal scroller, so on a 375px screen the Stage 2 column sits
-              off the right edge and a clinician sees only Stage 1 -- which is
-              the half that is usually blank. Scrolling sideways to read
-              per-take evidence is the wrong trade on a phone, so below `md`
-              each take becomes a two-line card that fits the width and carries
-              all four numbers.
+              The table below sets a fixed minimum width inside a horizontal
+              scroller, so on a 375px screen the Stage 2 column sits off the
+              right edge and a clinician sees only Stage 1 -- which is the half
+              that is usually blank. Scrolling sideways to read per-take
+              evidence is the wrong trade on a phone, so below `md` each take
+              becomes a card that fits the width.
+
+              The card carries the same four fields as the table, spelled out.
+              It previously compressed them to "S1 0.92 / S2 -", which fits but
+              reads as noise: the abbreviations had to be decoded, and the bare
+              dash for a skipped Stage 2 looked like a missing value rather
+              than a stage that was never reached. A label/value row per field
+              says what each number is without asking anyone to remember what
+              S1 and S2 stand for.
 
               Both render the same rows from the same source, so they cannot
               disagree. */}
@@ -779,50 +786,69 @@ export function ScreeningDetail() {
                   c.index === overrideTakeIndex && "border-aura-coral/30 bg-aura-coral-soft/40"
                 )}
               >
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-baseline justify-between gap-3">
                   <span className="text-[13px] font-semibold text-aura-ink">
                     Take {c.index + 1}
                   </span>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                      c.clip_label === "Healthy" && "bg-aura-mint-soft text-aura-pine",
-                      c.clip_label === "COPD" && "bg-amber-100 text-amber-800",
-                      c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral"
-                    )}
-                  >
-                    {c.clip_label}
+                  <span className="text-[11px] tabular-nums text-aura-muted">
+                    {c.duration_sec.toFixed(1)}s
                   </span>
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12px] tabular-nums text-aura-muted">
-                  <span>{c.duration_sec.toFixed(1)}s</span>
-                  <span>
-                    <span className="text-aura-muted/80">S1</span>{" "}
-                    <span className="font-medium text-aura-ink">
+                <dl className="mt-1.5 space-y-1">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[12px] leading-tight text-aura-muted">Stage 1 healthy</dt>
+                    <dd className="text-[13px] font-medium tabular-nums text-aura-ink">
                       {c.stage1_healthy_prob.toFixed(2)}
-                    </span>
-                  </span>
-                  <span>
-                    <span className="text-aura-muted/80">S2</span>{" "}
-                    <span className="font-medium text-aura-ink">
+                    </dd>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-[12px] leading-tight text-aura-muted">Stage 2 pneumonia</dt>
+                    <dd className="text-[13px] font-medium tabular-nums text-aura-ink">
                       {c.stage2_pneumonia_prob === null ? "—" : c.stage2_pneumonia_prob.toFixed(2)}
-                    </span>
-                  </span>
-                </div>
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[12px] leading-tight text-aura-muted">Read</dt>
+                    <dd>
+                      <span
+                        className={cn(
+                          "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                          c.clip_label === "Healthy" && "bg-aura-mint-soft text-aura-pine",
+                          c.clip_label === "COPD" && "bg-amber-100 text-amber-800",
+                          c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral"
+                        )}
+                      >
+                        {c.clip_label}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
               </li>
             ))}
           </ul>
 
-          {/* Desktop: the table. */}
+          {/* Desktop and tablet: the table.
+
+              Sized to its content rather than the full card width. It used to
+              stretch to 100% with a large fixed minimum, so on a wide screen
+              the five columns were spread across the whole card and short
+              values like "0.92" sat marooned in the middle of a 170px column
+              with big gaps either side. Sizing to content lets the columns sit
+              at the width their values need, so the numbers gather together
+              and the eye can follow a row across without travelling. A minimum
+              width is kept so the header labels still fit on one line.
+
+              Row padding is halved for the same reason: the card was taller
+              than the data in it needed to be. */}
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
+            <table className="w-auto min-w-[460px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-aura-border-soft text-left">
-                  <th scope="col" className="py-2 pr-4 font-semibold text-aura-ink">Take</th>
-                  <th scope="col" className="py-2 pr-4 font-semibold text-aura-ink">Duration</th>
-                  <th scope="col" className="py-2 pr-4 text-right font-semibold text-aura-ink">Stage 1 healthy</th>
-                  <th scope="col" className="py-2 pr-4 text-right font-semibold text-aura-ink">Stage 2 pneumonia</th>
-                  <th scope="col" className="py-2 font-semibold text-aura-ink">Read</th>
+                  <th scope="col" className="py-1.5 pr-3 font-semibold text-aura-ink">Take</th>
+                  <th scope="col" className="py-1.5 pr-3 font-semibold text-aura-ink">Duration</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold text-aura-ink">Stage 1 healthy</th>
+                  <th scope="col" className="py-1.5 pr-3 text-right font-semibold text-aura-ink">Stage 2 pneumonia</th>
+                  <th scope="col" className="py-1.5 font-semibold text-aura-ink">Read</th>
                 </tr>
               </thead>
               <tbody>
@@ -834,19 +860,19 @@ export function ScreeningDetail() {
                       c.index === overrideTakeIndex && "bg-aura-coral-soft/40"
                     )}
                   >
-                    <td className="py-2.5 pr-4 font-medium text-aura-ink">{c.index + 1}</td>
-                    <td className="py-2.5 pr-4 tabular-nums text-aura-muted">
+                    <td className="py-1.5 pr-3 font-medium whitespace-nowrap text-aura-ink">{c.index + 1}</td>
+                    <td className="py-1.5 pr-3 whitespace-nowrap tabular-nums text-aura-muted">
                       {c.duration_sec.toFixed(1)}s
                     </td>
-                    <td className="py-2.5 pr-4 text-right tabular-nums text-aura-ink">
+                    <td className="py-1.5 pr-3 text-right whitespace-nowrap tabular-nums text-aura-ink">
                       {c.stage1_healthy_prob.toFixed(2)}
                     </td>
-                    <td className="py-2.5 pr-4 text-right tabular-nums text-aura-ink">
+                    <td className="py-1.5 pr-3 text-right whitespace-nowrap tabular-nums text-aura-ink">
                       {c.stage2_pneumonia_prob === null
                         ? "—"
                         : c.stage2_pneumonia_prob.toFixed(2)}
                     </td>
-                    <td className="py-2.5">
+                    <td className="py-1.5 whitespace-nowrap">
                       <span
                         className={cn(
                           "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold",
