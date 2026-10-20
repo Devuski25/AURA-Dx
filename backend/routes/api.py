@@ -1354,12 +1354,23 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
     #
     # The wording comes from shared/clinical_copy.json, the same file the
     # screen reads, so the report and the screen cannot drift apart.
-    rec_text = class_recommendation(resp_result) if resp_result else ""
+    #
+    # Keyed on the REPORTED verdict, not on the raw classifier column. The
+    # heading above is the interpretation -- the fused result with its
+    # confidence -- and the recommendation has to agree with it. Keying off
+    # `respiratory_result` instead produced a page whose heading said "Healthy"
+    # and whose advice said "consider spirometry and pulmonology referral",
+    # because on that screening the classifier column read COPD while the
+    # fused interpretation read HEALTHY. A report that contradicts itself
+    # invites a referral nobody needed. `status_label` gives the same class
+    # name the heading shows, so the two cannot disagree.
+    rec_key = status_label(interp_status) if (interp_status and interp_level) else (resp_result or "")
+    rec_text = class_recommendation(rec_key) if rec_key else ""
     if rec_text:
         rec_bg = {
             "COPD": colors.HexColor('#fefce8'),
             "Pneumonia": colors.HexColor('#fef2f2'),
-        }.get(resp_result, colors.HexColor('#f0fdf4'))
+        }.get(rec_key, colors.HexColor('#f0fdf4'))
         story.append(Spacer(1, 8))
         story.append(Paragraph(
             f"<b>CLINICAL RECOMMENDATION:</b> {rec_text}",
