@@ -49,7 +49,13 @@ export function Login() {
 
   useEffect(() => {
     const statusParam = searchParams.get("status")
-    if (statusParam === "pending" || statusParam === "rejected" || statusParam === "deleted" || statusParam === "approved") {
+    if (
+      statusParam === "pending" ||
+      statusParam === "rejected" ||
+      statusParam === "deleted" ||
+      statusParam === "approved" ||
+      statusParam === "unregistered"
+    ) {
       setStatusDialog({ type: statusParam })
     }
     /* Arriving here with ?reason=session-expired means a 401 was caught
