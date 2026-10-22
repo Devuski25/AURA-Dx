@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, Trash2, Calendar, Stethoscope, Shield, FileText, AlertTriangle, RefreshCw } from "lucide-react"
+import { ArrowLeft, Trash2, Calendar, Shield, FileText, AlertTriangle, RefreshCw } from "lucide-react"
 import { motion } from "framer-motion"
 import { cardHover } from "@/lib/motion"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -176,8 +176,8 @@ export function PatientDetail() {
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-48" />
         </div>
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-          {Array.from({ length: 3 }).map((_, i) => (
+        <div className="grid gap-8 md:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
             /* White panels with the same top edge as the real cards, so the
                loading state doesn't read as a different page. */
             <div key={i} className="aura-panel aura-panel-edge h-28 rounded-2xl bg-white">
@@ -243,15 +243,15 @@ export function PatientDetail() {
     <div className="space-y-6">
       {/* Header — one back action, app-wide pattern (B6)
 
-          On a phone the back button is on its own line, with the name
-          below it.
+          The name is below the back button on every width.
 
-          They shared a row before, and a small back button next to a large
-          name is a bad pairing: the name was crowded against the button it
-          belongs with, and the name is the thing the clinician is looking
-          for. From `sm` up they sit side by side, where there is room. */}
+          They used to share a line from the tablet width up, and a small back
+          button next to a large name is a bad pairing: the name was crowded
+          against the button it belongs with, and the name is the thing the
+          clinician is looking for. The name gets its own line, and the back
+          button keeps its own above it. */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+        <div className="flex min-w-0 flex-col gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/patient-records")} className="-ml-2 shrink-0 gap-1 self-start">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back
@@ -295,17 +295,19 @@ export function PatientDetail() {
 
       {/* Patient Info Cards
 
-          Three cards, not four.
+          Two cards, and only what the screening itself was read against.
 
-          The fourth was "Clinic", and it repeated the line under the name
-          above it -- the clinic and the clinician are both written there.
-          A card that says the same thing twice is a card that takes up space
-          to say it again.
+          The smoking history, the past respiratory diseases and the current
+          symptoms used to be here as well. They are the patient's own notes,
+          and they belong with the result they were read against -- so they
+          are on the result page now, in the patient information box, where
+          the verdict and the notes that give the verdict its meaning sit
+          together.
 
           The age bracket went from the Gender card for the same reason: the
           Age card carries the exact age, and a band beside it is the same
           information in a vaguer form. */}
-      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+      <div className="grid gap-8 md:grid-cols-2">
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
           <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -329,63 +331,14 @@ export function PatientDetail() {
             </CardContent>
           </Card>
         </motion.div>
-        <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card className="aura-panel">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Smoking History</CardTitle>
-              <Stethoscope className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
-            </CardHeader>
-            <CardContent>
-              {patient.smoking_history ? (
-                <>
-                  <div className="break-words text-2xl font-bold text-aura-warning">Yes</div>
-                  <p className="text-xs text-aura-muted">{patient.pack_years ?? "—"} pack-years</p>
-                </>
-              ) : (
-                <div className="break-words text-2xl font-bold text-aura-accent-dark">No</div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
       </div>
 
-      {/* Medical History */}
-      <div className="grid gap-8 md:grid-cols-2 lg:gap-6">
-        <Card className="aura-panel">
-          <CardHeader>
-            <CardTitle>Past Respiratory Diseases</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {patient.past_respiratory_diseases?.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {patient.past_respiratory_diseases.map((d, i) => (
-                  <Badge key={i} variant="outline">{d}</Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-aura-muted">None recorded</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="aura-panel">
-          <CardHeader>
-            <CardTitle>Current Symptoms</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {patient.symptoms?.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {patient.symptoms.map((s, i) => (
-                  <Badge key={i} variant="secondary">{s}</Badge>
-                ))}
-              </div>
-            ) : (
-              <p className="text-aura-muted">None recorded</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Screenings History
 
-      {/* Screenings History */}
+          The smoking history, the past respiratory diseases and the current
+          symptoms were here as their own cards. They moved to the result
+          page, in the patient information box, because that is where the
+          reading they were taken with is shown. */}
       <Card className="aura-panel">
         <CardHeader>
           <CardTitle>Screening History ({screenings.length})</CardTitle>
@@ -410,7 +363,6 @@ export function PatientDetail() {
                     <TableHead>Date</TableHead>
                     <TableHead>Respiratory</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Reviewed By</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -441,18 +393,6 @@ export function PatientDetail() {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(s.status, s.reviewed_by_name)}</TableCell>
-                      <TableCell>
-                        {s.reviewed_by_name ? (
-                          <>
-                            {s.reviewed_by_name}
-                            <div className="text-xs text-aura-muted">
-                              {new Date(s.reviewed_at!).toLocaleDateString()}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-aura-muted">Not reviewed</span>
-                        )}
-                      </TableCell>
                       <TableCell>
                         <Link to={`/dashboard/screenings/${s.id}`} className={buttonVariants({ variant: "ghost", size: "sm" })}>
                           View Details

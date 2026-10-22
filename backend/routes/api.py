@@ -1348,7 +1348,10 @@ def _enrich_screening(s):
         try:
             p = (
                 supabase.table("patients")
-                .select("id,full_name,date_of_birth,gender")
+                .select(
+                    "id,full_name,date_of_birth,gender,pack_years,"
+                    "past_respiratory_diseases,symptoms"
+                )
                 .eq("id", sid)
                 .single()
                 .execute()
@@ -1359,6 +1362,10 @@ def _enrich_screening(s):
                 s["patient_dob"] = p.get("date_of_birth")
                 s["patient_gender"] = p.get("gender")
                 s["age_bracket"] = _calc_age_bracket(p.get("date_of_birth"))
+                # The patient's own notes, for the result page.
+                s["pack_years"] = p.get("pack_years")
+                s["past_respiratory_diseases"] = p.get("past_respiratory_diseases") or []
+                s["symptoms"] = p.get("symptoms") or []
         except Exception:
             pass
 
@@ -1465,6 +1472,43 @@ def _enrich_screenings(rows: list) -> list:
         s["reviewed_by_name"] = people.get(s.get("reviewed_by"))
         s["clinic_name"] = clinics.get(s.get("clinic_id"))
     return rows
+
+
+def _attach_patient_history(row: dict) -> dict:
+    """Add the patient's own clinical notes to a screening row.
+
+    The screening history view carries the patient's name, age and sex, but
+    not the history the clinician typed in: smoking, past respiratory
+    diseases, current symptoms. Those live on the patient row.
+
+    The result page shows them beside the result, because a verdict means
+    something different depending on what the patient brought in with them.
+
+    One extra query, for one screening. The result page is a single
+    screening, so this is a single row.
+    """
+    row = dict(row)
+    patient_id = row.get("patient_id")
+    if not patient_id:
+        return row
+    try:
+        found = (
+            supabase.table("patients")
+            .select("pack_years,past_respiratory_diseases,symptoms")
+            .eq("id", patient_id)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception as e:
+        print(f"[patient history] lookup failed: {e!r}")
+        return row
+    if not found:
+        return row
+    p = found[0]
+    row["pack_years"] = p.get("pack_years")
+    row["past_respiratory_diseases"] = p.get("past_respiratory_diseases") or []
+    row["symptoms"] = p.get("symptoms") or []
+    return row
 
 
 def _screening_row(row: dict) -> ScreeningResponse:
@@ -1616,7 +1660,8 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
             scoped(supabase.table("screening_history_view").select("*").eq("id", screening_id))
         )
         if row:
-            return _screening_row(row)
+            # The patient's own notes, for the result page.
+            return _screening_row(_attach_patient_history(row))
     except Exception as e:
         print(f"[get_screening] view query failed: {e!r}")
 

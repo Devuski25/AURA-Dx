@@ -213,6 +213,17 @@ class ScreeningResponse(BaseModel):
     patient_dob: Optional[str] = None
     age_bracket: Optional[str] = None
     patient_gender: Optional[str] = None
+    # The patient's own clinical notes, so the result page can show them next
+    # to the result they belong to.
+    #
+    # The screening history view carries the patient's name, age and sex, but
+    # not what the clinician typed in at the patient record -- smoking,
+    # past respiratory diseases, current symptoms. Those are read from the
+    # patient row by the route that needs them.
+    smoking_history: Optional[bool] = None
+    pack_years: Optional[int] = None
+    past_respiratory_diseases: Optional[List[str]] = None
+    symptoms: Optional[List[str]] = None
     clinic_name: Optional[str] = None
     clinician_name: Optional[str] = None
     reviewed_by_name: Optional[str] = None

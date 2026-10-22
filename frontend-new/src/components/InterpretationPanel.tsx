@@ -85,7 +85,7 @@ export function InterpretationPanel({
     <section
       aria-label="Clinical interpretation"
       className={cn(
-        "rounded-2xl border border-aura-border bg-white p-5 shadow-aura-xs sm:p-6",
+        "rounded-2xl border border-aura-border bg-white p-4 shadow-aura-xs sm:p-5",
         className
       )}
     >
@@ -105,10 +105,10 @@ export function InterpretationPanel({
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-aura-muted">
             Screening result
           </p>
-          <h3 className="mt-1.5 font-display text-lg font-semibold leading-tight text-balance text-aura-ink sm:text-2xl">
+          <h3 className="mt-1 font-display text-lg font-semibold leading-tight text-balance text-aura-ink sm:text-2xl">
             {statusLabel(status)}
           </h3>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
+          <p className="mt-1 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
             {copy.headline}
           </p>
         </div>
@@ -129,14 +129,14 @@ export function InterpretationPanel({
         </span>
       </div>
 
-      <p className="mt-3 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
+      <p className="mt-2.5 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
         {copy.message}
       </p>
 
       {/* What to do next. The most prominent line on the panel. */}
       <div
         className={cn(
-          "mt-4 rounded-xl border p-3.5",
+          "mt-3 rounded-xl border p-3.5",
           tone === "red" ? TONE_STYLES.red : tone === "amber" ? TONE_STYLES.amber : TONE_STYLES.slate
         )}
       >
@@ -159,7 +159,7 @@ export function InterpretationPanel({
           single words with the label stranded on the left. The label above
           the value is how the same pair reads on the screens above it, and
           it is the only arrangement that fits. */}
-      <dl className="mt-4 grid gap-x-6 gap-y-3 text-[13.5px] sm:grid-cols-2 sm:text-sm">
+      <dl className="mt-3 grid gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-2 sm:text-sm">
         {totalCount > 0 && (
           <div className="flex min-w-0 flex-col gap-0.5">
             <dt className="text-aura-muted">Recordings</dt>
@@ -179,13 +179,13 @@ export function InterpretationPanel({
       </dl>
 
       {decisionDetail && (
-        <p className="mt-3 text-xs leading-relaxed text-aura-muted">{decisionDetail}</p>
+        <p className="mt-2.5 text-xs leading-relaxed text-aura-muted">{decisionDetail}</p>
       )}
 
       {/* Warnings. Each one is a specific, different situation, so each gets its
           own line rather than being folded into a generic caveat. */}
       {(isOverride || lowAgreement || (flaggedCount > 0 && status === "HEALTHY")) && (
-        <ul className="mt-4 flex list-none flex-col gap-2 p-0">
+        <ul className="mt-3 flex list-none flex-col gap-2 p-0">
           {isOverride && (
             <li className="flex gap-2 rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -214,7 +214,7 @@ export function InterpretationPanel({
           be allowed to shrink: a flex item keeps its widest word as its
           minimum width otherwise, and a long word in the disclaimer would
           push past the edge of the card instead of wrapping. */}
-      <p className="mt-4 flex gap-2 border-t border-aura-border-soft pt-4 text-xs leading-relaxed text-aura-muted">
+      <p className="mt-3 flex gap-2 border-t border-aura-border-soft pt-3 text-xs leading-relaxed text-aura-muted">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0">{DISCLOSURE.scope}</span>
       </p>

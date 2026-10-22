@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
@@ -88,6 +89,17 @@ interface ScreeningDetail {
   patient_dob: string
   age_bracket: string
   patient_gender: string
+  /* The patient's own notes.
+
+     They came from the patient record and they are shown here, beside the
+     result, because a verdict means something different depending on what
+     the patient brought in with them. Nullable: a screening with no patient
+     attached has none of these, and a patient recorded before the notes were
+     collected has none either. */
+  smoking_history: boolean | null
+  pack_years: number | null
+  past_respiratory_diseases: string[] | null
+  symptoms: string[] | null
   clinic_name: string
   clinician_name: string
   reviewed_by_name: string | null
@@ -213,8 +225,8 @@ function InfoCard({ title, className, children }: { title: string; className?: s
   return (
     /* Sits directly on the canvas, not inside a white card, so it takes the
    full panel treatment. Were it nested, it would revert to a light tile. */
-  <div className={cn("aura-panel rounded-2xl py-5 px-6", className)}>
-      <h2 className="mb-4 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
+  <div className={cn("aura-panel rounded-2xl py-4 px-5 sm:px-6", className)}>
+      <h2 className="mb-3 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
         {title}
       </h2>
       {children}
@@ -272,7 +284,7 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
       initial={reduceMotion ? false : { opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className={cn("mb-6 flex items-center gap-3 rounded-2xl border border-t-[3px] p-4 shadow-[0_2px_4px_rgba(15,61,51,0.08),0_16px_32px_-12px_rgba(15,61,51,0.30)] sm:gap-4 sm:p-5", cfg.container)}
+      className={cn("mb-4 flex items-center gap-3 rounded-2xl border border-t-[3px] p-4 shadow-[0_2px_4px_rgba(15,61,51,0.08),0_16px_32px_-12px_rgba(15,61,51,0.30)] sm:gap-4 sm:p-5", cfg.container)}
     >
       <div className={cn("relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white shadow-sm")}>
         {/* Severity pulse — only for flagged results */}
@@ -387,7 +399,7 @@ function TierCard({
           Centred on the phone but flush left from `sm` up, so on a wide screen
           it lines up with the edge of the card instead of floating in the
           middle of its column. */}
-      <div className="grid grid-cols-1 gap-5 px-4 py-5 sm:grid-cols-[184px_1fr] sm:gap-8 sm:px-6 sm:py-6">
+      <div className="grid grid-cols-1 gap-5 px-4 py-4 sm:grid-cols-[184px_1fr] sm:gap-8 sm:px-6 sm:py-5">
         <div className="flex items-center justify-center sm:justify-start">
           <ConfidenceRing value={confidence ?? 0} flagged={flagged} />
         </div>
@@ -695,7 +707,7 @@ export function ScreeningDetail() {
       <ResultBanner screening={screening} />
 
       {/* Header / topbar */}
-      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, ...sectionSpring }} className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, ...sectionSpring }} className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-aura-ink">Screening Result</h1>
           <div className="mt-1 flex items-center gap-2 text-[13.5px] text-aura-muted">
@@ -810,15 +822,28 @@ export function ScreeningDetail() {
           tells a clinician nothing, while the clinician who performed the
           screening does.
 
+          The patient's own notes are in here too, and that is the point of
+          the box.
+
+          A screening is read against the person who brought it in. A history
+          of asthma changes what a recording of wheeze means, and a smoker
+          with a cough is a different question from a non-smoker with a
+          cough. The smoking history, the past respiratory diseases and the
+          current symptoms used to sit on the patient's own record, a click
+          away -- which meant reading a verdict without the notes that give
+          it meaning. They are here now, in the same box as the result they
+          were read against.
+
           Two columns on a phone, with no column spanning the full width:
           Name and Age share the first row, Gender and Clinician the second.
-          Name used to span both columns and Clinician sat alone on a third
-          row, which on a 375px screen made the card three rows tall for four
-          values and pushed the age below the fold. Nothing here is long enough
-          to need the extra width -- the longest is a name, and it truncates. */}
+          The notes take a row of their own below that, one column each from
+          the tablet width up and stacked on a phone, because a list of
+          diseases needs the width to be readable. Nothing here is long
+          enough to need the extra width -- the longest is a name, and it
+          truncates. */}
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, ...sectionSpring }}>
       <InfoCard title="Patient Information">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:gap-8 lg:grid-cols-4 lg:gap-6">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-8 lg:grid-cols-4 lg:gap-6">
           <div className="min-w-0">
             <FieldLabel>Name</FieldLabel>
             <div className={cn("truncate text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
@@ -844,12 +869,58 @@ export function ScreeningDetail() {
             </div>
           </div>
         </div>
+
+        {/* The patient's own notes, under a rule so they read as a second
+            group rather than as more of the same fields. */}
+        <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-4 border-t border-aura-border-soft pt-4 sm:grid-cols-3 sm:gap-8">
+          <div className="min-w-0">
+            <FieldLabel>Smoking History</FieldLabel>
+            <div className="text-[13.5px] font-medium leading-snug text-aura-ink">
+              {screening.smoking_history === true ? (
+                <>
+                  Yes
+                  {screening.pack_years != null && (
+                    <span className="text-aura-muted"> · {screening.pack_years} pack-years</span>
+                  )}
+                </>
+              ) : screening.smoking_history === false ? (
+                "No"
+              ) : (
+                <span className="text-aura-muted">Not recorded</span>
+              )}
+            </div>
+          </div>
+          <div className="min-w-0">
+            <FieldLabel>Past Respiratory Diseases</FieldLabel>
+            {screening.past_respiratory_diseases?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {screening.past_respiratory_diseases.map((d, i) => (
+                  <Badge key={i} variant="outline" className="text-[11px]">{d}</Badge>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[13.5px] font-medium text-aura-ink">None recorded</div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <FieldLabel>Current Symptoms</FieldLabel>
+            {screening.symptoms?.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {screening.symptoms.map((s, i) => (
+                  <Badge key={i} variant="secondary" className="text-[11px]">{s}</Badge>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[13.5px] font-medium text-aura-ink">None recorded</div>
+            )}
+          </div>
+        </div>
       </InfoCard>
       </motion.div>
       {/* Screening Details */}
-      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, ...sectionSpring }} className="mt-6">
+      <motion.div initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18, ...sectionSpring }} className="mt-4">
       <InfoCard title="Screening Details">
-        <div className="mb-5 grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-cols-3">
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-3">
           <div>
             <FieldLabel>Screening Date</FieldLabel>
             <div className="text-[13.5px] font-medium tabular-nums text-aura-ink">{dateTimeFormat.format(new Date(screening.created_at))}</div>
@@ -889,7 +960,7 @@ export function ScreeningDetail() {
           transition={{ delay: 0.22, ...sectionSpring }}
         >
           <InterpretationPanel
-            className="mt-6"
+            className="mt-4"
             status={screening.interpretation_status}
             level={screening.confidence_level}
             decisionRule={screening.decision_rule}
@@ -908,7 +979,7 @@ export function ScreeningDetail() {
            no confidence and no probability vector yet, and rendering the
            classifier card with them empty would look like a broken page
            rather than a running one. */
-        <div className="aura-panel mt-6 rounded-2xl px-5 py-8 text-center sm:px-6">
+        <div className="aura-panel mt-4 rounded-2xl px-5 py-8 text-center sm:px-6">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-aura-surface-alt">
             <Loader2 className="h-6 w-6 animate-spin text-aura-forest" aria-hidden="true" />
           </div>
@@ -923,7 +994,7 @@ export function ScreeningDetail() {
         </div>
       ) : screening.respiratory_result && (
         <TierCard
-          className="mt-6"
+          className="mt-4"
           eyebrow="Classification"
           name="Respiratory Classifier"
           flagged={respFlagged}
@@ -939,32 +1010,39 @@ export function ScreeningDetail() {
           )}
 
           {screening.respiratory_result === "Pneumonia" && (
-            <div className="mt-5 rounded-lg border border-aura-coral/20 bg-aura-coral-soft p-4">
-              <h3 className="flex items-center gap-2 font-semibold text-aura-coral">
-                <AlertCircle className="h-5 w-5" />
+            /* The type is a size smaller on a phone.
+
+               This block sits under the confidence ring, and at 16px/14px it
+               was the loudest thing in the classifier card -- louder than the
+               verdict above it. On a phone it drops to the size of the
+               per-take scores caption, so it reads as the explanation of the
+               verdict rather than as a second headline. */
+            <div className="mt-4 rounded-lg border border-aura-coral/20 bg-aura-coral-soft p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-coral sm:text-base">
+                <AlertCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 High Priority: Pneumonia Suspected
               </h3>
-              <p className="mt-2 text-sm text-aura-ink">Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines.</p>
+              <p className="mt-2 text-[13px] leading-relaxed text-aura-ink sm:text-sm">Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines.</p>
             </div>
           )}
 
           {screening.respiratory_result === "COPD" && (
-            <div className="bg-aura-surface rounded-lg p-4 mt-5">
-              <h3 className="flex items-center gap-2 font-semibold text-aura-forest">
-                <AlertCircle className="h-5 w-5" />
+            <div className="mt-4 rounded-lg bg-aura-surface p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-forest sm:text-base">
+                <AlertCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Moderate Priority: COPD Suspected
               </h3>
-              <p className="mt-2 text-sm text-aura-ink">Clinical evaluation recommended. Consider spirometry and pulmonology referral.</p>
+              <p className="mt-2 text-[13px] leading-relaxed text-aura-ink sm:text-sm">Clinical evaluation recommended. Consider spirometry and pulmonology referral.</p>
             </div>
           )}
 
           {screening.respiratory_result === "Healthy" && (
-            <div className="bg-aura-surface rounded-lg p-4 mt-5">
-                <h3 className="flex items-center gap-2 font-semibold text-aura-mint">
-                  <CheckCircle className="h-5 w-5" />
+            <div className="mt-4 rounded-lg bg-aura-surface p-4">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-mint sm:text-base">
+                  <CheckCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                   Low Priority: No Acute Findings
               </h3>
-              <p className="mt-2 text-sm text-aura-ink">No urgent action required. Routine follow-up as clinically indicated.</p>
+              <p className="mt-2 text-[13px] leading-relaxed text-aura-ink sm:text-sm">No urgent action required. Routine follow-up as clinically indicated.</p>
             </div>
           )}
         </TierCard>
@@ -1111,13 +1189,17 @@ export function ScreeningDetail() {
         </motion.div>
       )}
 
-      {/* Actions */}
-      <div className="mt-6 print:hidden">
-        <Button variant="outline" onClick={() => navigate("/dashboard/patient-records")}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Patient Records
-        </Button>
-      </div>
+      {/* There was a second back button at the foot of this page -- "Back to
+          Patient Records" -- under a heading called Actions, beside the
+          delete dialog's trigger. Two back buttons on one screen means two
+          different destinations, and the one at the top is the one that
+          belongs to the page: it goes to the patient's record, which is where
+          this screening was opened from.
+
+          The one at the foot went to the records list, skipping the
+          patient's record entirely, and it sat at the very bottom of a long
+          page where nobody sees it until they have already scrolled past
+          everything. It is gone. The one at the top is the way back. */}
 
       {/* Delete this screening. The patient and their other readings stay --
           deleting the patient is a different action, in the list's row menu,
