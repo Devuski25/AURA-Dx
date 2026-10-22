@@ -253,9 +253,13 @@ async def forgot_password(payload: ForgotPassword, request: Request):
         print(f"[forgot-password] profile lookup failed: {exc!r}")
         return generic
 
-    # No such account, or one that cannot sign in yet. Nothing to send, and
-    # saying so would answer the question the generic message refuses to.
-    if not found or found[0].get("status") != "approved":
+    # No such account: nothing to send, and the generic answer is the point.
+    #
+    # A pending account does get a link. It cannot sign in until an admin
+    # approves it, but choosing a password before that is harmless, and the
+    # alternative -- silence for an address that does exist -- makes the
+    # message above a lie to exactly the person most likely to be waiting.
+    if not found:
         return generic
 
     base = _public_base_url(request)

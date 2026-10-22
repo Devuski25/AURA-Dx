@@ -180,8 +180,17 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     return res.json()
   }, [accessToken])
 
+  /* Kept current while the page is open. A screening is added from another
+     screen -- the wizard, or another clinician's tab -- and this list is the
+     record of them, so a copy that ages out while you read it is the wrong
+     default. 15s is short enough to look live without turning a phone's screen
+     into a poll loop; the cached copy paints instantly either way. */
   const { data: screeningsData, isLoading: loading } =
-    useCachedData<Screening[]>(user && accessToken ? "screenings" : null, screeningsFetcher)
+    useCachedData<Screening[]>(
+      user && accessToken ? "screenings" : null,
+      screeningsFetcher,
+      { ttlMs: 15_000, revalidateMs: 15_000 },
+    )
   const screenings = useMemo(() => screeningsData ?? [], [screeningsData])
 
   const reduceMotion = useReducedMotion()

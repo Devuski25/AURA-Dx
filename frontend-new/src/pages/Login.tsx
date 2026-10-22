@@ -29,10 +29,11 @@ import {
 } from "@/components/ui/dialog"
 import { AuthShell } from "@/components/auth/AuthShell"
 import { AuthSwitchLink } from "@/components/auth/AuthSwitchLink"
-import { AuthField, PasswordStrengthMeter } from "@/components/auth/AuthField"
+import { AUTH_SECONDARY_BUTTON, AuthField, PasswordStrengthMeter } from "@/components/auth/AuthField"
 import { PasswordToggle } from "@/components/auth/PasswordToggle"
 import { authCardVariants, authFieldGroupVariants, authFieldVariants } from "@/components/auth/auth-motion"
 import { useAuth } from "@/hooks/useAuth"
+import { GoogleIcon } from "@/components/GoogleIcon"
 import { StatusIndicator } from "@/components/StatusIndicator"
 import { scorePassword, type PasswordStrengthLevel } from "@/lib/password-strength"
 import { getApiUrl } from "@/lib/api"
@@ -42,7 +43,7 @@ export function Login() {
    name is referenced solely inside the `import.meta.env.DEV` branch below.
    Destructuring it here would run in every build and leave the name in dist. */
   const auth = useAuth()
-  const { signIn, confirmLogin, signOut, user, loading: authLoading } = auth
+  const { signIn, confirmLogin, signInWithOAuth, signOut, user, loading: authLoading } = auth
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -212,11 +213,20 @@ export function Login() {
 
       if (!res.ok) {
         let detail = "We could not send the reset link. Please try again."
-        try {
-          const body = await res.json()
-          if (typeof body?.detail === "string") detail = body.detail
-        } catch {
-          /* non-JSON error body: keep the fallback sentence */
+        if (res.status === 404) {
+          /* The route is missing, which means the page is newer than the
+             process serving it. Saying "Not Found" here would read like the
+             account is missing, which is the one thing this dialog must not
+             imply. */
+          detail =
+            "Password reset is not available right now. Please try again shortly, or email supportauradx@gmail.com."
+        } else {
+          try {
+            const body = await res.json()
+            if (typeof body?.detail === "string") detail = body.detail
+          } catch {
+            /* non-JSON error body: keep the fallback sentence */
+          }
         }
         setForgotMessage(detail)
         setForgotIsError(true)
@@ -354,6 +364,43 @@ export function Login() {
                     <span>Sign In</span>
                   )}
                 </span>
+              </motion.button>
+            </motion.div>
+
+            {/* Google is offered here and only here. Registration stays a form
+                so every new account arrives with a clinic name; an OAuth
+                sign-up would skip that field. */}
+            <motion.div variants={authFieldVariants} className="flex items-center gap-3">
+              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
+              <span className="text-xs font-medium uppercase tracking-[0.14em] text-aura-muted">
+                Or continue with
+              </span>
+              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
+            </motion.div>
+
+            <motion.div variants={authFieldVariants}>
+              <motion.button
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  setError(null)
+                  setLoading(true)
+                  try {
+                    const { error } = await signInWithOAuth("google")
+                    if (error) {
+                      setError(error.message)
+                    }
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+                whileHover={reduced ? undefined : { y: -1 }}
+                whileTap={reduced ? undefined : { scale: 0.99 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+                className={AUTH_SECONDARY_BUTTON + " w-full"}
+              >
+                <GoogleIcon className="h-4 w-4" />
+                Continue with Google
               </motion.button>
             </motion.div>
 

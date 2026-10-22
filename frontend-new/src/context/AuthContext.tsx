@@ -38,6 +38,10 @@ interface AuthContextType {
     specialization?: string
     clinic_name?: string
   }) => Promise<{ error: Error | null; autoApproved?: boolean }>
+  /* Google sign-in lives on the Login page only. Registration is deliberately
+     form-only: an OAuth sign-up skips the clinic-name field the rest of the
+     app is organised around, and lands in the approval queue with no clinic. */
+  signInWithOAuth: (provider: "google") => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
   confirmLogin: () => Promise<void>
@@ -265,6 +269,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastProfileIdRef.current = null
   }, [])
 
+  const signInWithOAuth = useCallback(async (provider: "google") => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: "select_account",
+        },
+      },
+    })
+    return { error: error ? new Error(error.message) : null }
+  }, [])
+
   const refreshUser = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
@@ -278,6 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken,
     signIn,
     signUp,
+    signInWithOAuth,
     signOut,
     refreshUser,
     confirmLogin,
@@ -287,6 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken,
     signIn,
     signUp,
+    signInWithOAuth,
     signOut,
     refreshUser,
     confirmLogin,

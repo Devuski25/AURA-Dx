@@ -459,18 +459,19 @@ export function Admin() {
     return metrics.total_requests || 0
   }, [accessToken])
 
-  /* revalidateMs lowered from the 60s default to match the 15s TTL.
+  /* Ten seconds, both for freshness and for the re-check timer.
 
      This is a backstop, not the primary mechanism. The realtime subscription
-     below is now real -- `profiles` is in the supabase_realtime publication as
-     of 20261018130000 -- but before that migration it matched no table and the
-     60s poll was the only thing keeping this list alive, which meant an admin
-     who approved someone saw nothing happen for up to a minute. 15s is the
-     floor that makes a missed realtime event cheap rather than confusing. */
+     below is real -- `profiles` is in the supabase_realtime publication as of
+     20261018130000 -- but a missed event used to leave an admin staring at a
+     list that was up to a minute out of date, which on this page is the
+     difference between approving someone now and approving them later. Ten
+     seconds is short enough to feel live and long enough that a phone left on
+     the page is not hammering the API. */
   const { data: usersData, isLoading: loading, error: usersError, refresh: refetchUsers } = useCachedData<any[]>(
     !authLoading && user && (user.role === "admin" || user.role === "super_admin") ? ADMIN_USERS_KEY : null,
     fetchAdminUsers,
-    { ttlMs: 15_000, revalidateMs: 15_000 },
+    { ttlMs: 10_000, revalidateMs: 10_000 },
   )
   const users = useMemo(() => usersData ?? [], [usersData])
 
@@ -1054,8 +1055,16 @@ export function Admin() {
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Name</TableHead>
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Email</TableHead>
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[6.5rem] text-center")}>Role</TableHead>
-                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[7.5rem] text-center")}>Status</TableHead>
-                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-20 text-center")} aria-label="Row actions" />
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[7rem] text-center")}>Status</TableHead>
+                        {/* Labelled now. It used to be an empty header with only
+                            an aria-label, so the column read as dead space to
+                            the right of Status and the three dots looked like
+                            they belonged to it. Widths are set so the gap
+                            between the role chip, the status pill and the menu
+                            button is even: 6.5 / 7 / 5rem gives roughly 15px,
+                            18px and 24px of slack around each, which reads as
+                            one rhythm rather than three. */}
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[5rem] text-center")}>Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
