@@ -35,6 +35,51 @@ export function ResetPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState<0 | 1 | 2 | 3 | 4>(0)
 
+  /* The emailed link arrives as /reset-password?token_hash=...&type=recovery.
+   *
+   * The backend builds that link from the recovery token but delivers it
+   * through Resend, so the URL stays on auradx.xyz instead of pointing at
+   * *.supabase.co -- a raw project URL in a mailbox reads like phishing. A
+   * token_hash is not a session, so it is exchanged here with verifyOtp; the
+   * form below then has a session to call updateUser on.
+   *
+   * Links made before this change (and Supabase's own recovery emails) put the
+   * tokens straight into the URL fragment instead, which supabase-js consumes
+   * on load. That path still works: `isPasswordRecovery` already saw
+   * type=recovery, and the PASSWORD_RECOVERY listener below confirms it. */
+  const [verifying, setVerifying] = useState(
+    () => new URLSearchParams(window.location.search).has("token_hash")
+  )
+  useEffect(() => {
+    const tokenHash = new URLSearchParams(window.location.search).get("token_hash")
+    if (!tokenHash) return
+
+    let cancelled = false
+    void supabase.auth
+      .verifyOtp({ type: "recovery", token_hash: tokenHash })
+      .then(({ error: verifyError }) => {
+        if (cancelled) return
+        if (verifyError) {
+          setError(
+            "This reset link has expired or has already been used. Request a new one from the sign-in page."
+          )
+          setIsPasswordRecovery(false)
+          return
+        }
+        setIsPasswordRecovery(true)
+        // Drop the single-use token from the address bar, so a reload does not
+        // replay it and fail with "already used".
+        window.history.replaceState({}, "", window.location.pathname)
+      })
+      .finally(() => {
+        if (!cancelled) setVerifying(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
@@ -48,7 +93,7 @@ export function ResetPassword() {
   // When the user clicks a reset link, Supabase auto-establishes a session
   // (PASSWORD_RECOVERY event) which sets `user`.  We must NOT redirect them
   // to the dashboard here — the password form below handles recovery.
-  if (user && !authLoading && !isPasswordRecovery) {
+  if (user && !authLoading && !isPasswordRecovery && !verifying) {
     return (
       <motion.div
         variants={pageVariants}
@@ -91,6 +136,28 @@ export function ResetPassword() {
             </CardContent>
           </Card>
         </div>
+      </motion.div>
+    )
+  }
+
+  /* Between opening the link and the token being exchanged. Brief, but the
+     alternative is a password form that refuses to submit because there is no
+     session yet, which reads as a broken page. */
+  if (verifying) {
+    return (
+      <motion.div
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        className="relative min-h-screen overflow-hidden flex items-center justify-center bg-[radial-gradient(ellipse_at_center,#9edfc1_0%,#b5e7d0_40%,#dcf2e8_74%,#effaf4_100%)] px-4 py-12"
+      >
+        <Card className="w-full max-w-md" role="status" aria-live="polite">
+          <CardHeader className="text-center">
+            <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin text-aura-pine" aria-hidden="true" />
+            <CardTitle className="text-xl font-bold">Checking your reset link</CardTitle>
+            <CardDescription>One moment.</CardDescription>
+          </CardHeader>
+        </Card>
       </motion.div>
     )
   }

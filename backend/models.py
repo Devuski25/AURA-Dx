@@ -65,6 +65,17 @@ class VerifyOtp(BaseModel):
     code: str = Field(..., min_length=4, max_length=12)
 
 
+class ForgotPassword(BaseModel):
+    """A password-reset request.
+
+    Email only: the new password is chosen on the reset page, after the link
+    has proved the request came from the owner of the mailbox. Accepting a new
+    password here would let anyone who knows an address change that account's
+    password."""
+
+    email: EmailStr
+
+
 class UserResponse(BaseModel):
     id: str
     email: str
@@ -75,6 +86,7 @@ class UserResponse(BaseModel):
     phone: Optional[str]
     specialization: Optional[str]
     license_number: Optional[str]
+    clinic_name: Optional[str] = None
     last_login_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
@@ -89,6 +101,7 @@ class UserCreate(BaseModel):
     phone: Optional[str] = None
     specialization: Optional[str] = None
     license_number: Optional[str] = None
+    clinic_name: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -96,6 +109,7 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     specialization: Optional[str] = None
     license_number: Optional[str] = None
+    clinic_name: Optional[str] = None
     status: Optional[UserStatus] = None
     role: Optional[UserRole] = None
     password: Optional[str] = None

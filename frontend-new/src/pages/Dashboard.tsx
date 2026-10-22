@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAuth } from "@/hooks/useAuth"
 import { apiFetch } from "@/lib/api"
+import { ADMIN_USERS_KEY, fetchAdminUsers } from "@/lib/admin-fetchers"
 import { supabase } from "@/lib/supabase"
 import { useCachedData } from "@/hooks/useCachedData"
 import { useCountUp } from "@/hooks/useCountUp"
@@ -82,14 +83,17 @@ export function Dashboard() {
 
   const canManageUsers = user?.role === "admin" || user?.role === "super_admin"
   const isClinician = user?.role === "clinician"
-  const usersFetcher = useCallback(async (): Promise<any[]> => {
-    const res = await apiFetch("/api/users")
-    if (!res.ok) return []
-    return res.json()
-  }, [accessToken])
+  /* The same request the Users page makes, under the same cache key.
+   *
+   * It is fetched here because this page needs the counts anyway, and sharing
+   * the key means an admin who lands on the Dashboard has the accounts list in
+   * hand before they click Users -- so that page opens on data instead of on a
+   * skeleton, and its own refresh runs behind the rendered list. Two keys for
+   * one endpoint (this used to be "dashboard-users") meant paying for it twice
+   * and then still watching the second one load. */
   const { data: usersData, refresh: refreshUsers } = useCachedData<any[]>(
-    canManageUsers ? "dashboard-users" : null,
-    usersFetcher,
+    canManageUsers ? ADMIN_USERS_KEY : null,
+    fetchAdminUsers,
     { ttlMs: 15_000 },
   )
   const users = useMemo(() => usersData ?? [], [usersData])
@@ -349,8 +353,15 @@ export function Dashboard() {
                 Respiratory care overview · Updated {timeLabel}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {isClinician ? (
+            {/* Clinicians get the one action this page is for. Admins get
+                nothing here on purpose: the button that used to sit in this
+                corner said "Add User" and opened the User Management dialog on
+                an empty form. Accounts are created by the person who owns them
+                -- by registering -- and the admin's job is to decide what
+                happens to the ones that arrive. A call to action that mints an
+                account with a password the admin chose was the wrong shape. */}
+            {isClinician && (
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   onClick={() => navigate("/dashboard/screening")}
                   className="h-10 gap-2 rounded-lg bg-white font-semibold text-aura-forest shadow-lg shadow-black/10 transition-all lg:hover:bg-white/95 lg:hover:shadow-xl"
@@ -358,16 +369,8 @@ export function Dashboard() {
                   <Plus className="h-4 w-4" />
                   <span>New Screening</span>
                 </Button>
-              ) : (
-                <Button
-                  onClick={() => navigate("/dashboard/admin")}
-                  className="h-10 gap-2 rounded-lg bg-white font-semibold text-aura-forest shadow-lg shadow-black/10 transition-all lg:hover:bg-white/95 lg:hover:shadow-xl"
-                >
-                  <Users className="h-4 w-4" />
-                  <span>Add User</span>
-                </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 

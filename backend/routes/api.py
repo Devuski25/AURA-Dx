@@ -35,12 +35,16 @@ from models import (
     InferenceRequest, InferenceResponse,
     MetricsSummary,
     UserRole, UserStatus, ScreeningStatus,
-    ErrorResponse, HealthResponse, SendOtp, VerifyOtp
+    ErrorResponse, HealthResponse, SendOtp, VerifyOtp, ForgotPassword
 )
 from auth import get_current_user, get_current_user_id, require_role, invalidate_profile
 from database import supabase, supabase_anon
 from config import settings
-from email_service import send_account_status_email, send_verification_email
+from email_service import (
+    send_account_status_email,
+    send_password_reset_email,
+    send_verification_email,
+)
 from httpx_client import get_client
 # Same wording source as the React result screen. See pdf_copy.py.
 from pdf_copy import status_label, disclosure, confidence_label, class_recommendation
@@ -184,6 +188,111 @@ async def verify_otp(payload: VerifyOtp, request: Request):
 
     supabase.table("email_verification_codes").update({"verified": True}).eq("id", row["id"]).execute()
     return {"verified": True, "email": email}
+
+
+# ───────────────────────── Password reset (public) ─────────────────────────
+
+def _public_base_url(request: Request) -> str:
+    """Where the emailed reset link should send the reader back to.
+
+    Taken from the Origin when that origin is one this API already trusts for
+    CORS -- so the link works from the dev server (localhost:5174) as well as
+    from auradx.xyz, without a new environment variable and without trusting
+    an arbitrary header. Anything else falls back to the production site,
+    because a link pointing somewhere unconfigured is a link that 404s.
+    """
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    if origin and origin in settings.cors_origins:
+        return origin
+    return "https://auradx.xyz"
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(payload: ForgotPassword, request: Request):
+    """Email a password reset link.
+
+    Supabase normally sends this itself (auth.resetPasswordForEmail). It cannot
+    on this project: its auth mailer answers every recovery send with HTTP 500
+    "Error sending recovery email", so the Login page had nothing to report but
+    that sentence. The link generation works fine through the service-role
+    client, so the link is made here and delivered over Resend -- the transport
+    the verification code and the approval notice already use.
+
+    The link carries a token_hash, not the tokens themselves: the reset page
+    exchanges it with supabase.auth.verifyOtp. That keeps the emailed URL on
+    auradx.xyz instead of a raw *.supabase.co address, which reads like a
+    phishing link in a mailbox.
+    """
+    email = payload.email.lower().strip()
+
+    # Same shape of limit as the verification code: 5 per address per 10
+    # minutes, so this endpoint cannot be used to flood a mailbox.
+    if not _auth_rate_limit(f"pw_reset:{email}", 5, 600):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many reset requests. Please wait a few minutes before trying again.",
+        )
+
+    # One answer for every outcome, so this cannot be used to find out which
+    # addresses have accounts. The wording matches what the page says.
+    generic = {
+        "success": True,
+        "message": "If an account exists for that email, a reset link has been sent.",
+    }
+
+    try:
+        found = (
+            supabase.table("profiles")
+            .select("email, full_name, status")
+            .eq("email", email)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception as exc:
+        print(f"[forgot-password] profile lookup failed: {exc!r}")
+        return generic
+
+    # No such account, or one that cannot sign in yet. Nothing to send, and
+    # saying so would answer the question the generic message refuses to.
+    if not found or found[0].get("status") != "approved":
+        return generic
+
+    base = _public_base_url(request)
+    try:
+        link = supabase.auth.admin.generate_link({
+            "type": "recovery",
+            "email": email,
+            "options": {"redirect_to": f"{base}/reset-password"},
+        })
+        token_hash = link.properties.hashed_token
+    except Exception as exc:
+        print(f"[forgot-password] generate_link failed: {exc!r}")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not create a reset link. Please try again, or email supportauradx@gmail.com.",
+        )
+
+    reset_url = f"{base}/reset-password?token_hash={token_hash}&type=recovery"
+
+    try:
+        # SMTP is blocking; off the event loop or it stalls every other request
+        # for the second and a half the send takes.
+        await asyncio.to_thread(
+            send_password_reset_email, email, found[0].get("full_name") or "", reset_url
+        )
+    except Exception as exc:
+        # This is the honest failure: the user is waiting for an email that was
+        # never sent, so the page has to say so rather than show "check your
+        # inbox". Logged with the reason for whoever reads the service log.
+        print(f"[forgot-password] send failed: {exc!r}")
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to send the reset email. Please try again, or email supportauradx@gmail.com.",
+        )
+
+    return generic
+
 
 def _scope_query(query, role: str, user_clinic_id: str, target_clinic_id=None):
     """Scope a query to the user's clinic unless they are super_admin."""
@@ -427,16 +536,28 @@ async def upload_audio(
 # a list that grows with the project rather than with the clinic.
 _confirmed_emails_cache = None
 _confirmed_emails_cache_time = 0.0
-CONFIRMED_EMAILS_TTL_SECONDS = 30
+# Five minutes, not thirty seconds.
+#
+# This is the slowest part of the users list: it is a call to the auth service
+# for every account in the project, measured at ~830 ms from a cold connection
+# against ~0 ms once held. At 30 s it was almost always cold, because nobody
+# opens the users page twice in half a minute -- so the cost landed on the one
+# page load that matters.
+#
+# The set changes only when an account is created or confirmed, and accounts
+# created through this app are confirmed as they are created (the project has
+# mailer_autoconfirm on), so in practice it does not change at all between one
+# load and the next. A hand-made confirmation in Supabase shows up within five
+# minutes, and the list itself refreshes on every visit regardless.
+CONFIRMED_EMAILS_TTL_SECONDS = 300
 
 
 async def _confirmed_emails() -> set:
     """The emails that have been confirmed.
 
-    Read from the auth service, and cached briefly. An account created
-    through this app is confirmed as it is created, so the set does not
-    usually change; a confirmation made by hand shows up within the cache
-    window.
+    Read from the auth service, and cached. An account created through this app
+    is confirmed as it is created, so the set does not usually change; a
+    confirmation made by hand shows up within the cache window.
     """
     global _confirmed_emails_cache, _confirmed_emails_cache_time
     now = time.monotonic()

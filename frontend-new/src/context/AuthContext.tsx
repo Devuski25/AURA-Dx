@@ -16,6 +16,8 @@ interface Profile {
   phone: string | null
   specialization: string | null
   license_number: string | null
+  /** The clinic or hospital they work at. Free text, set at registration. */
+  clinic_name: string | null
   last_login_at: string | null
   created_at: string
   updated_at: string
@@ -34,9 +36,8 @@ interface AuthContextType {
     role: "clinician" | "admin"
     phone?: string
     specialization?: string
-    license_number?: string
+    clinic_name?: string
   }) => Promise<{ error: Error | null; autoApproved?: boolean }>
-  signInWithOAuth: (provider: "google") => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
   confirmLogin: () => Promise<void>
@@ -209,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: "clinician" | "admin"
     phone?: string
     specialization?: string
-    license_number?: string
+    clinic_name?: string
   }) => {
     skipAuthEventRef.current = true
     const { data: signUpData, error } = await supabase.auth.signUp({
@@ -221,7 +222,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: data.role,
           phone: data.phone,
           specialization: data.specialization,
-          license_number: data.license_number,
+          /* The signup trigger copies this into profiles.clinic_name. A value
+             the trigger does not know about is a value that never gets saved. */
+          clinic_name: data.clinic_name,
         },
       },
     })
@@ -262,19 +265,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     lastProfileIdRef.current = null
   }, [])
 
-  const signInWithOAuth = useCallback(async (provider: "google") => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: {
-          prompt: "select_account",
-        },
-      },
-    })
-    return { error: error ? new Error(error.message) : null }
-  }, [])
-
   const refreshUser = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
@@ -288,7 +278,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken,
     signIn,
     signUp,
-    signInWithOAuth,
     signOut,
     refreshUser,
     confirmLogin,
@@ -298,7 +287,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessToken,
     signIn,
     signUp,
-    signInWithOAuth,
     signOut,
     refreshUser,
     confirmLogin,

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Dev-only API mock — lets the authenticated pages render with realistic data
  * while the FastAPI backend is not running.
  *
@@ -38,7 +38,7 @@ type MockUser = {
   status: "approved" | "pending" | "rejected" | "deleted"
   phone: string | null
   specialization: string | null
-  license_number: string | null
+  clinic_name: string | null
   clinic_id: string | null
   last_login_at: string | null
   created_at: string
@@ -47,13 +47,13 @@ type MockUser = {
 }
 
 const USERS: MockUser[] = [
-  { id: "u1", email: "superadmin@auradx.xyz", full_name: "Preview Admin", role: "super_admin", status: "approved", phone: null, specialization: null, license_number: null, clinic_id: null, last_login_at: iso(0, 8), created_at: iso(180), updated_at: iso(0, 8), avatar_url: null },
-  { id: "u2", email: "m.delacruz@auradx.clinic", full_name: "Dr. Maria Cristina Santos-Delacruz", role: "clinician", status: "approved", phone: "+63 917 555 0142", specialization: "Pulmonology", license_number: "PRC 104382", clinic_id: "c1", last_login_at: iso(0, 7), created_at: iso(120), updated_at: iso(1), avatar_url: null },
-  { id: "u3", email: "r.villanueva@auradx.clinic", full_name: "Dr. Rafael Villanueva", role: "clinician", status: "approved", phone: "+63 918 555 0198", specialization: "Internal Medicine", license_number: "PRC 118204", clinic_id: "c1", last_login_at: iso(1, 14), created_at: iso(96), updated_at: iso(2), avatar_url: null },
-  { id: "u4", email: "a.merano@auradx.clinic", full_name: "Dr. Andrea Merano", role: "clinician", status: "approved", phone: "+63 919 555 0110", specialization: "Pediatrics", license_number: "PRC 127715", clinic_id: "c1", last_login_at: iso(2, 10), created_at: iso(74), updated_at: iso(3), avatar_url: null },
-  { id: "u5", email: "j.primus@auradx.clinic", full_name: "Jose Primus", role: "clinician", status: "pending", phone: "+63 920 555 0177", specialization: "Respiratory Therapy", license_number: null, clinic_id: null, last_login_at: null, created_at: iso(1, 21), updated_at: iso(1, 21), avatar_url: null },
-  { id: "u6", email: "l.santiago@auradx.clinic", full_name: "Lorraine Santiago", role: "clinician", status: "pending", phone: null, specialization: null, license_number: null, clinic_id: null, last_login_at: null, created_at: iso(3, 16), updated_at: iso(3, 16), avatar_url: null },
-  { id: "u7", email: "k.bautista@auradx.clinic", full_name: "Dr. Kristine Bautista-Imperial", role: "clinician", status: "rejected", phone: "+63 917 555 0163", specialization: "Family Medicine", license_number: "PRC 99812", clinic_id: null, last_login_at: null, created_at: iso(40), updated_at: iso(38), avatar_url: null },
+  { id: "u1", email: "superadmin@auradx.xyz", full_name: "Preview Admin", role: "super_admin", status: "approved", phone: null, specialization: null, clinic_name: null, clinic_id: null, last_login_at: iso(0, 8), created_at: iso(180), updated_at: iso(0, 8), avatar_url: null },
+  { id: "u2", email: "m.delacruz@auradx.clinic", full_name: "Dr. Maria Cristina Santos-Delacruz", role: "clinician", status: "approved", phone: "+63 917 555 0142", specialization: "Pulmonology", clinic_name: "St. Luke's Medical Center", clinic_id: "c1", last_login_at: iso(0, 7), created_at: iso(120), updated_at: iso(1), avatar_url: null },
+  { id: "u3", email: "r.villanueva@auradx.clinic", full_name: "Dr. Rafael Villanueva", role: "clinician", status: "approved", phone: "+63 918 555 0198", specialization: "Internal Medicine", clinic_name: "St. Luke's Medical Center", clinic_id: "c1", last_login_at: iso(1, 14), created_at: iso(96), updated_at: iso(2), avatar_url: null },
+  { id: "u4", email: "a.merano@auradx.clinic", full_name: "Dr. Andrea Merano", role: "clinician", status: "approved", phone: "+63 919 555 0110", specialization: "Pediatrics", clinic_name: "Makati Medical Center", clinic_id: "c1", last_login_at: iso(2, 10), created_at: iso(74), updated_at: iso(3), avatar_url: null },
+  { id: "u5", email: "j.primus@auradx.clinic", full_name: "Jose Primus", role: "clinician", status: "pending", phone: "+63 920 555 0177", specialization: "Respiratory Therapy", clinic_name: null, clinic_id: null, last_login_at: null, created_at: iso(1, 21), updated_at: iso(1, 21), avatar_url: null },
+  { id: "u6", email: "l.santiago@auradx.clinic", full_name: "Lorraine Santiago", role: "clinician", status: "pending", phone: null, specialization: null, clinic_name: null, clinic_id: null, last_login_at: null, created_at: iso(3, 16), updated_at: iso(3, 16), avatar_url: null },
+  { id: "u7", email: "k.bautista@auradx.clinic", full_name: "Dr. Kristine Bautista-Imperial", role: "clinician", status: "rejected", phone: "+63 917 555 0163", specialization: "Family Medicine", clinic_name: "Rizal Provincial Hospital", clinic_id: null, last_login_at: null, created_at: iso(40), updated_at: iso(38), avatar_url: null },
 ]
 
 type MockPatient = {

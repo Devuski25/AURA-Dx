@@ -6,9 +6,9 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import {
   AlertCircle,
   ArrowRight,
-  BadgeCheck,
   CheckCircle2,
   Hash,
+  Hospital,
   Loader2,
   Lock,
   LockKeyhole,
@@ -39,11 +39,10 @@ import {
 } from "@/components/auth/auth-motion"
 import { useAuth } from "@/hooks/useAuth"
 import { getApiUrl } from "@/lib/api"
-import { GoogleIcon } from "@/components/GoogleIcon"
 import { scorePassword, type PasswordStrengthLevel } from "@/lib/password-strength"
 
 export function Register() {
-  const { signUp, signInWithOAuth, user, loading: authLoading } = useAuth()
+  const { signUp, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(false)
@@ -58,7 +57,7 @@ export function Register() {
     confirmPassword: "",
     phone: "",
     specialization: "",
-    license_number: "",
+    clinic_name: "",
   })
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrengthLevel>(0)
   const [showApprovalDialog, setShowApprovalDialog] = useState(false)
@@ -218,6 +217,11 @@ export function Register() {
       return
     }
 
+    if (!formData.clinic_name.trim()) {
+      setError("Enter the clinic or hospital you work at")
+      return
+    }
+
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?"':{}|<>]).{8,}$/
     if (!passwordRegex.test(formData.password)) {
       setError("Password must be at least 8 characters with uppercase, lowercase, number, and special character")
@@ -233,7 +237,7 @@ export function Register() {
       role: "clinician",
       phone: formData.phone || undefined,
       specialization: formData.specialization || undefined,
-      license_number: formData.license_number || undefined,
+      clinic_name: formData.clinic_name.trim(),
     })
 
     if (signUpError) {
@@ -266,6 +270,7 @@ export function Register() {
   const canRegister =
     !!formData.email &&
     !!formData.full_name &&
+    !!formData.clinic_name.trim() &&
     !!formData.password &&
     passwordStrength >= 3 &&
     formData.password === formData.confirmPassword &&
@@ -475,10 +480,13 @@ export function Register() {
               />
             </motion.div>
 
-            {/* The three optional details trail the required fields. Phone and
-                Licence Number pair up — both are short enough for half the
-                column. Specialisation takes the full width because it can run
-                to several words. */}
+            {/* Clinic / Hospital Name pairs with Phone — both are short
+                enough for half the column. Specialisation takes the full width
+                because it can run to several words.
+
+                The clinic is required: it is what an admin reads when
+                deciding whether to approve the account, and the rest of the
+                app is organised around the clinic a clinician belongs to. */}
             <motion.div variants={authFieldVariants}>
               <AuthField
                 id="phone"
@@ -496,13 +504,14 @@ export function Register() {
 
             <motion.div variants={authFieldVariants}>
               <AuthField
-                id="license_number"
-                name="license_number"
-                label="License Number (optional)"
-                icon={BadgeCheck}
+                id="clinic_name"
+                name="clinic_name"
+                label="Clinic / Hospital Name"
+                icon={Hospital}
                 type="text"
-                placeholder="PRC 1234567"
-                value={formData.license_number}
+                autoComplete="organization"
+                placeholder="e.g. Rizal Provincial Hospital"
+                value={formData.clinic_name}
                 onChange={handleChange}
                 disabled={loading}
               />
@@ -543,37 +552,6 @@ export function Register() {
                     <span>Create Account</span>
                   )}
                 </span>
-              </motion.button>
-            </motion.div>
-
-            <motion.div variants={authFieldVariants} className="flex items-center gap-3 lg:col-span-2">
-              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-aura-muted">
-                Or continue with
-              </span>
-              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
-            </motion.div>
-
-            <motion.div variants={authFieldVariants} className="lg:col-span-2">
-              <motion.button
-                type="button"
-                disabled={loading}
-                onClick={async () => {
-                  setError(null)
-                  setLoading(true)
-                  const { error } = await signInWithOAuth("google")
-                  if (error) {
-                    setError(error.message)
-                    setLoading(false)
-                  }
-                }}
-                whileHover={reduced ? undefined : { y: -1 }}
-                whileTap={reduced ? undefined : { scale: 0.99 }}
-                transition={{ duration: 0.16, ease: "easeOut" }}
-                className={AUTH_SECONDARY_BUTTON + " w-full"}
-              >
-                <GoogleIcon className="h-4 w-4" />
-                Continue with Google
               </motion.button>
             </motion.div>
 

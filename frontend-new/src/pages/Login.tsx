@@ -29,21 +29,20 @@ import {
 } from "@/components/ui/dialog"
 import { AuthShell } from "@/components/auth/AuthShell"
 import { AuthSwitchLink } from "@/components/auth/AuthSwitchLink"
-import { AUTH_SECONDARY_BUTTON, AuthField, PasswordStrengthMeter } from "@/components/auth/AuthField"
+import { AuthField, PasswordStrengthMeter } from "@/components/auth/AuthField"
 import { PasswordToggle } from "@/components/auth/PasswordToggle"
 import { authCardVariants, authFieldGroupVariants, authFieldVariants } from "@/components/auth/auth-motion"
 import { useAuth } from "@/hooks/useAuth"
-import { GoogleIcon } from "@/components/GoogleIcon"
 import { StatusIndicator } from "@/components/StatusIndicator"
 import { scorePassword, type PasswordStrengthLevel } from "@/lib/password-strength"
-import { supabase } from "@/lib/supabase"
+import { getApiUrl } from "@/lib/api"
 
 export function Login() {
   /* Kept as a single object rather than destructured, so the dev-only property
    name is referenced solely inside the `import.meta.env.DEV` branch below.
    Destructuring it here would run in every build and leave the name in dist. */
   const auth = useAuth()
-  const { signIn, confirmLogin, signInWithOAuth, signOut, user, loading: authLoading } = auth
+  const { signIn, confirmLogin, signOut, user, loading: authLoading } = auth
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
@@ -73,6 +72,14 @@ export function Login() {
   const [forgotEmail, setForgotEmail] = useState("")
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotMessage, setForgotMessage] = useState<string | null>(null)
+  /**
+   * Whether the message above is a failure.
+   *
+   * Tracked rather than inferred from the sentence: the success text and the
+   * old Supabase error both contain "send"/"sent", so a substring test coloured
+   * failures green.
+   */
+  const [forgotIsError, setForgotIsError] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrengthLevel>(0)
 
   /* Framer Motion is JS-driven, so the project's global reduced-motion CSS
@@ -182,23 +189,51 @@ export function Login() {
     navigate("/dashboard")
   }
 
+  /* Ask the backend to email the reset link.
+   *
+   * It used to be supabase.auth.resetPasswordForEmail, which answered every
+   * request with 500 "Error sending recovery email" -- that is the sentence the
+   * dialog was showing, and it is Supabase's own auth mailer failing, not this
+   * app. The backend builds the same link with the service-role client and
+   * delivers it over Resend, the transport the verification code already uses.
+   */
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setForgotLoading(true)
     setForgotMessage(null)
+    setForgotIsError(false)
 
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
+    try {
+      const res = await fetch(getApiUrl("/api/auth/forgot-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
 
-    if (error) {
-      setForgotMessage(error.message)
+      if (!res.ok) {
+        let detail = "We could not send the reset link. Please try again."
+        try {
+          const body = await res.json()
+          if (typeof body?.detail === "string") detail = body.detail
+        } catch {
+          /* non-JSON error body: keep the fallback sentence */
+        }
+        setForgotMessage(detail)
+        setForgotIsError(true)
+        return
+      }
+
+      const body = await res.json().catch(() => null)
+      setForgotMessage(
+        body?.message ?? "If an account exists for this email, a password reset link has been sent."
+      )
+    } catch {
+      // fetch itself failed: no server, no connection, DNS.
+      setForgotMessage("Could not reach the server. Check your connection and try again.")
+      setForgotIsError(true)
+    } finally {
       setForgotLoading(false)
-      return
     }
-
-    setForgotMessage("If an account exists for this email, a password reset link has been sent.")
-    setForgotLoading(false)
   }
 
   return (
@@ -319,40 +354,6 @@ export function Login() {
                     <span>Sign In</span>
                   )}
                 </span>
-              </motion.button>
-            </motion.div>
-
-            <motion.div variants={authFieldVariants} className="flex items-center gap-3">
-              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
-              <span className="text-xs font-medium uppercase tracking-[0.14em] text-aura-muted">
-                Or continue with
-              </span>
-              <span aria-hidden="true" className="h-px flex-1 bg-aura-border" />
-            </motion.div>
-
-            <motion.div variants={authFieldVariants}>
-              <motion.button
-                type="button"
-                disabled={loading}
-                onClick={async () => {
-                  setError(null)
-                  setLoading(true)
-                  try {
-                    const { error } = await signInWithOAuth("google")
-                    if (error) {
-                      setError(error.message)
-                    }
-                  } finally {
-                    setLoading(false)
-                  }
-                }}
-                whileHover={reduced ? undefined : { y: -1 }}
-                whileTap={reduced ? undefined : { scale: 0.99 }}
-                transition={{ duration: 0.16, ease: "easeOut" }}
-                className={AUTH_SECONDARY_BUTTON + " w-full"}
-              >
-                <GoogleIcon className="h-4 w-4" />
-                Continue with Google
               </motion.button>
             </motion.div>
 
@@ -509,13 +510,22 @@ export function Login() {
             </div>
             {forgotMessage && (
               <div className="text-sm" role="alert">
-                <p className={forgotMessage.includes("sent") ? "text-aura-pine" : "text-destructive"}>
+                <p className={forgotIsError ? "text-destructive" : "text-aura-pine"}>
                   {forgotMessage}
                 </p>
               </div>
             )}
-            <DialogFooter>
-              <Button type="button" variant="cancel" onClick={() => { setShowForgotPassword(false); setForgotEmail(""); setForgotMessage(null) }}>
+            <DialogFooter className="gap-3 sm:gap-3">
+              <Button
+                type="button"
+                variant="cancel"
+                onClick={() => {
+                  setShowForgotPassword(false)
+                  setForgotEmail("")
+                  setForgotMessage(null)
+                  setForgotIsError(false)
+                }}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={forgotLoading}>

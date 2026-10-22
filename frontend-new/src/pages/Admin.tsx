@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef, type UIEvent } from "react"
-import { Loader2, Users, Mail, Edit, Trash2, ShieldAlert, Activity, Clock, Search, Check, CheckCircle, XCircle, Eye, EyeOff, MoreHorizontal } from "lucide-react"
+import { Loader2, Users, Mail, Edit, Trash2, ShieldAlert, Activity, Clock, Search, Check, CheckCircle, XCircle, MoreHorizontal } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCachedData } from "@/hooks/useCachedData"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
+import { ADMIN_USERS_KEY, fetchAdminUsers } from "@/lib/admin-fetchers"
 import {
   Dialog,
   DialogContent,
@@ -45,15 +46,14 @@ import { PageBanner } from "@/components/PageBanner"
 
 const userSchema = z.object({
   email: z.string().email("Invalid email"),
-  password: z.string().optional().refine(
-    val => !val || /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?"':{}|<>]).{8,}$/.test(val),
-    "Password must be at least 8 characters with uppercase, lowercase, number, and special character"
-  ),
   full_name: z.string().min(2, "Name must be at least 2 characters"),
   role: z.enum(["clinician", "admin"]),
   phone: z.string().optional(),
   specialization: z.string().optional(),
-  license_number: z.string().optional(),
+  /* Rendered as "Clinic / Hospital Name". Required because it is the field an
+     admin reads when deciding whether to approve an account, and because the
+     rest of the product is organised around the clinic a clinician belongs to. */
+  clinic_name: z.string().min(2, "Enter the clinic or hospital name"),
 })
 
 type UserFormData = z.infer<typeof userSchema>
@@ -412,7 +412,6 @@ export function Admin() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingUser, setDeletingUser] = useState<any | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
 
   const reduceMotion = useReducedMotion()
 
@@ -445,21 +444,13 @@ export function Admin() {
     resolver: zodResolver(userSchema),
     defaultValues: {
       email: "",
-      password: "",
       full_name: "",
       role: "clinician",
       phone: "",
       specialization: "",
-      license_number: "",
+      clinic_name: "",
     },
   })
-
-  const usersFetcher = useCallback(async (): Promise<any[]> => {
-    // Use API endpoint for proper auth + backend role handling
-    const res = await apiFetch("/api/users")
-    if (!res.ok) throw new Error("Failed to fetch users")
-    return res.json()
-  }, [accessToken])
 
   const metricsFetcher = useCallback(async (): Promise<number> => {
     const metricsRes = await apiFetch("/api/metrics/summary")
@@ -477,8 +468,8 @@ export function Admin() {
      who approved someone saw nothing happen for up to a minute. 15s is the
      floor that makes a missed realtime event cheap rather than confusing. */
   const { data: usersData, isLoading: loading, error: usersError, refresh: refetchUsers } = useCachedData<any[]>(
-    !authLoading && user && (user.role === "admin" || user.role === "super_admin") ? "admin-users" : null,
-    usersFetcher,
+    !authLoading && user && (user.role === "admin" || user.role === "super_admin") ? ADMIN_USERS_KEY : null,
+    fetchAdminUsers,
     { ttlMs: 15_000, revalidateMs: 15_000 },
   )
   const users = useMemo(() => usersData ?? [], [usersData])
@@ -598,7 +589,12 @@ export function Admin() {
      Edit only. There is no create path any more -- the Add User button is
      gone, and with it the POST that minted an account with a password the
      admin chose. A clinician registers themselves; an admin decides what
-     happens to the accounts that arrive. */
+     happens to the accounts that arrive.
+
+     No password either. An admin setting somebody else's password meant the
+     admin knew it, and the person had no way to change it back without saying
+     so out loud. Passwords are set by their owner now: at registration, or
+     from the reset link on the Login page. */
   const handleSubmit = async (data: UserFormData) => {
     if (!editingUser) return
     try {
@@ -607,10 +603,7 @@ export function Admin() {
         role: data.role,
         phone: data.phone,
         specialization: data.specialization,
-        license_number: data.license_number,
-      }
-      if (data.password) {
-        updateBody.password = data.password
+        clinic_name: data.clinic_name.trim(),
       }
       const res = await apiFetch(`/api/users/${editingUser.id}`, {
         method: "PATCH",
@@ -734,15 +727,13 @@ export function Admin() {
       return
     }
     setEditingUser(u)
-    setShowPassword(false)
     form.reset({
       email: u.email,
       full_name: u.full_name,
       role: u.role,
       phone: u.phone || "",
       specialization: u.specialization || "",
-      license_number: u.license_number || "",
-      password: "",
+      clinic_name: u.clinic_name || "",
     })
     setDialogOpen(true)
   }, [form, user?.role])
@@ -963,24 +954,63 @@ export function Admin() {
             </CardHeader>
             <CardContent className="p-0">
               {loading ? (
-                <div className="space-y-3" role="status" aria-live="polite">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between gap-4 rounded-lg border border-aura-forest/10 bg-white px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
-                        <div className="space-y-1.5">
-                          <Skeleton className="h-4 w-40" />
-                          <Skeleton className="h-3 w-32" />
+                <div role="status" aria-live="polite" aria-busy="true">
+                  {/* Said in words, not only in grey blocks: the list is
+                      fetched from the hosted database and takes a second or
+                      two, and a page of shapes with no label is indistinguishable
+                      from a page that has finished and found nothing. */}
+                  <p className="flex items-center gap-2 px-4 pt-4 text-xs font-medium text-aura-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Loading accounts…
+                  </p>
+
+                  {/* Phone and tablet: a card per account, matching the list
+                      that renders below `md`.
+
+                      The row skeleton used to run at every width. At 375px it
+                      is about 500px of content -- monogram, name block, role
+                      pill, status pill, two action circles -- inside a 340px
+                      card, so everything past the name was clipped off the
+                      right edge and the page read as empty rather than busy. */}
+                  <ul className="m-0 mt-3 flex list-none flex-col gap-2.5 p-0 md:hidden">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <li key={i} className="rounded-xl border border-aura-forest/10 bg-white p-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <Skeleton className="h-4 w-3/5" />
+                            <Skeleton className="h-3 w-4/5" />
+                          </div>
+                          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Skeleton className="h-5 w-20 rounded-full" />
+                          <Skeleton className="h-5 w-16 rounded-full" />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Desktop: the row shape the table actually uses. */}
+                  <div className="hidden space-y-3 px-4 pb-4 md:block">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between gap-4 rounded-lg border border-aura-forest/10 bg-white px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                          <div className="space-y-1.5">
+                            <Skeleton className="h-4 w-40" />
+                            <Skeleton className="h-3 w-32" />
+                          </div>
+                        </div>
+                        <Skeleton className="h-6 w-24 rounded-full" />
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                        <div className="flex gap-1.5">
+                          <Skeleton className="h-8 w-8 rounded-full" />
+                          <Skeleton className="h-8 w-8 rounded-full" />
                         </div>
                       </div>
-                      <Skeleton className="h-6 w-24 rounded-full" />
-                      <Skeleton className="h-6 w-20 rounded-full" />
-                      <div className="flex gap-1.5">
-                        <Skeleton className="h-8 w-8 rounded-full" />
-                        <Skeleton className="h-8 w-8 rounded-full" />
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : usersError && users.length === 0 ? (
                 /* A failed request used to leave the skeletons on screen for
@@ -1225,7 +1255,10 @@ export function Admin() {
           </motion.div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        {/* No corner X: the form has its own Cancel, and two ways to dismiss a
+            half-edited record -- one of them a 16px target away from the fields
+            -- is one too many. Same pattern as the patient modal. */}
+        <DialogContent className="max-w-lg" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>Update user information</DialogDescription>
@@ -1254,29 +1287,6 @@ export function Admin() {
                       <FormLabel>Email</FormLabel>
                       <FormControl>
                          <Input type="email" placeholder="you@clinic.com" autoComplete="email" autoCapitalize="none" spellCheck={false} disabled={!!editingUser} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input type={showPassword ? "text" : "password"} placeholder="New password" autoComplete="new-password" {...field} className="pr-10" />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover-tap:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
-                            aria-label={showPassword ? "Hide password" : "Show password"}
-                          >
-                            {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-                          </button>
-                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1332,18 +1342,33 @@ export function Admin() {
 
               <FormField
                 control={form.control}
-                name="license_number"
+                name="clinic_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>License Number (optional)</FormLabel>
+                    <FormLabel>Clinic / Hospital Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Professional license number" {...field} />
+                      <Input
+                        placeholder="e.g. Rizal Provincial Hospital"
+                        autoComplete="organization"
+                        {...field}
+                      />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
 
               <DialogFooter>
+                <Button
+                  type="button"
+                  variant="cancel"
+                  onClick={() => {
+                    setDialogOpen(false)
+                    form.reset()
+                  }}
+                >
+                  Cancel
+                </Button>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? "Saving…" : "Save Changes"}
                 </Button>
