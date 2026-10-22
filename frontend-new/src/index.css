@@ -32,6 +32,27 @@
    outright. */
 @custom-variant group-hover-tap (&:is(:where(.group):hover *, :where(html[data-tap] .group) *));
 
+/* A hover that only exists where the device can actually hover.
+ *
+ * `lg:hover:` says "wide enough", which is not the same thing as "has a
+ * mouse". A tablet in landscape is 1024px wide, so it was getting the
+ * desktop flourishes -- and on a touch screen a tap sets `:hover` and leaves
+ * it set, so the button that was tapped stayed lifted and shadowed. Gating
+ * the variant on `(hover: hover)` makes the flourish fire only where there is
+ * a pointer to make it with.
+ *
+ * This redefines Tailwind's own `hover`, so it covers `lg:hover:` and any
+ * bare `hover:` in one place. The two variants above are raw `:hover`
+ * selectors of their own, so this does not touch them: the touch colour is
+ * unchanged. */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

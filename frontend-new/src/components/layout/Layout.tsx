@@ -158,7 +158,7 @@ export function Layout() {
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setLogoutOpen(false)}>
+              <Button variant="cancel" onClick={() => setLogoutOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={confirmSignOut}>Sign out</Button>

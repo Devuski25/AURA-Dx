@@ -28,17 +28,39 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground lg:hover:bg-primary/90",
         destructive: "bg-destructive text-destructive-foreground lg:hover:bg-destructive/90",
-        /* A destructive button that does NOT change on hover.
+        /* A destructive button that does NOT change colour on hover.
 
            The confirm dialog is the hard stop in front of a deletion, so the
            button that opens it does not have to shout. But some deletions
            are worth shouting about -- a patient's whole history, a screening
            result -- and this is the one they live on.
 
-           It has no hover state at all, on any device: the red is the red
-           whether the pointer is over it or not. A button that changes
-           colour when you move towards it is a button you can mis-click. */
-        "destructive-solid": "bg-destructive text-white",
+           The red is the red whether the pointer is over it or not: a button
+           that changes colour when you move towards it is a button you can
+           mis-click. What it does instead is move -- a small lift and a
+           shadow, on a desktop with a mouse only. That is a flourish, not a
+           change of state, so it can be picked up and put down again by the
+           pointer without the button ever looking like a different button. */
+        "destructive-solid":
+          "bg-destructive text-white motion-safe:lg:hover:-translate-y-0.5 motion-safe:lg:hover:shadow-lg",
+
+        /* Green, and it stays green.
+
+           The action that takes you into a record. It is a button, not a
+           link, at every width, so it is filled at every width -- it used to
+           be an outline on a phone and a bare ghost on a tablet, and the
+           same action looked like two different things depending on which
+           one you were holding. No hover state: the colour is the affordance. */
+        "primary-solid": "bg-primary text-white",
+
+        /* The second button in a dialog. A way out, not a way forward.
+        
+           An outline that carries the brand green: a border, green text, and
+           no fill. It used to be a transparent-bordered white button, which
+           on a white dialog was a word with nothing around it, so "Cancel"
+           read as plain text next to the button that actually did something. */
+        cancel:
+          "border border-aura-forest/45 bg-transparent text-aura-forest hover-tap:bg-aura-mint-wash hover-tap:text-aura-forest",
         outline: "border border-transparent bg-background text-foreground hover-tap:bg-accent hover-tap:text-accent-foreground lg:border-input",
         secondary: "bg-secondary text-secondary-foreground lg:hover:bg-secondary/80",
         ghost: "hover-tap:bg-accent hover-tap:text-accent-foreground",

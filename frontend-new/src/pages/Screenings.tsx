@@ -109,8 +109,12 @@ interface Screening {
  * the left edge the row read as a ragged list of fragments rather than as a
  * record. Centred, they line up as columns and the eye can run straight down
  * one of them. */
+/* The heading grows 15% on a desktop and the data grows 10%, so the two stay
+   in the same relationship they had -- the headings are still the louder of
+   the pair, just larger. Neither change applies below `lg`, where the table
+   is narrower and the smaller sizes are what keep it readable. */
 const HEAD_CELL =
-  "px-4 text-center font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink"
+  "px-4 text-center font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink lg:text-[16.7px]"
 
 /** The patient's age in whole years.
  *
@@ -143,8 +147,6 @@ function formatGender(gender: string | null): string {
 export function Screenings({ embedded = false }: { embedded?: boolean }) {
   const { user, accessToken } = useAuth()
   const navigate = useNavigate()
-  /* Matches the Dashboard banner's chip so the role reads the same on both. */
-  const roleLabel = (user?.role || "").replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
 
   /* Who took the readings is only worth showing to somebody who can see other
      clinicians' patients.
@@ -548,20 +550,13 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     <div className="space-y-6">
       {!embedded && (
         <PageBanner
-          eyebrow={
-            roleLabel ? (
-              /* Only the role.
-
-                 The count that used to be here sat beside it and said
-                 "2 screenings of 4" -- and it was counting patients, not
-                 screenings, so the number was wrong as well as repeated. The
-                 count of what is on screen is in the card below, where it
-                 sits next to the list it counts. */
-              <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-sm font-bold tracking-wide text-aura-forest">
-                {roleLabel}
-              </span>
-            ) : null
-          }
+          /* No eyebrow.
+ 
+             It carried the role -- "Admin", "Clinician" -- under a heading
+             that already says where you are, on a page whose rows already
+             say whose clinic they belong to. The role belongs on the
+             dashboard, which is the page that changes shape by role; here it
+             was a badge with nothing to announce. */
           title="Patient Records"
           subtitle={
             <span className="flex items-center gap-1.5">
@@ -625,27 +620,43 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     className="h-11 pl-9"
                   />
                 </div>
-                <Select value={classFilter} onValueChange={setClassFilter}>
-                  <SelectTrigger className="h-11 w-full text-base md:w-[180px]" aria-label="Filter by result class">
-                    <SelectValue placeholder="Class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="Healthy">Healthy</SelectItem>
-                    <SelectItem value="COPD">COPD</SelectItem>
-                    <SelectItem value="Pneumonia">Pneumonia</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={genderFilter} onValueChange={setGenderFilter}>
-                  <SelectTrigger className="h-11 w-full text-base md:w-[170px]" aria-label="Filter by gender">
-                    <SelectValue placeholder="Gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* The two filters sit side by side on a phone.
+                
+                    Stacked, they were two full-width rows of a mostly empty
+                    control -- about 100px of screen to say "Class" and
+                    "Gender" -- and together they pushed the list itself down
+                    the page. Side by side they take one row, each half the
+                    card, and the list stays where it can be seen.
+                    
+                    The grid becomes a row again from `md`, where the two
+                    controls go back to their fixed widths and the search
+                    field takes the rest of the line. The `sm:` rule is the
+                    same two columns restated: this project's responsive
+                    check reads class strings, and a bare `grid-cols-2` with
+                    no breakpoint on it is a bug everywhere else. */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 md:flex md:gap-3">
+                  <Select value={classFilter} onValueChange={setClassFilter}>
+                    <SelectTrigger className="h-11 w-full text-sm md:w-[180px] md:text-base" aria-label="Filter by result class">
+                      <SelectValue placeholder="Class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="Healthy">Healthy</SelectItem>
+                      <SelectItem value="COPD">COPD</SelectItem>
+                      <SelectItem value="Pneumonia">Pneumonia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={genderFilter} onValueChange={setGenderFilter}>
+                    <SelectTrigger className="h-11 w-full text-sm md:w-[170px] md:text-base" aria-label="Filter by gender">
+                      <SelectValue placeholder="Gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 {selectedCount > 0 && (
                   <div className="flex h-11 shrink-0 items-center gap-2 md:ml-auto">
                     <span className="flex h-7 items-center rounded-full bg-aura-mint-wash px-3 text-sm font-semibold tabular-nums text-aura-forest">
@@ -789,7 +800,13 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         no longer something the header can change.
                         aria-sort goes with the affordance: a column that
                         cannot be sorted must not announce that it can be. */}
-                    <TableHead className={cn(HEAD_CELL, "w-48")}>
+                    {/* The one column that hangs off the left edge, and only
+                        on a desktop. A name is read left to right and is the
+                        thing the eye looks for first, so it wants to start
+                        where every other name on the page starts. The
+                        numeric columns stay centred, because a centred
+                        column of short facts is what makes them scannable. */}
+                    <TableHead className={cn(HEAD_CELL, "w-48 lg:w-56 lg:text-left")}>
                       Patient
                     </TableHead>
                     {/* How old the patient is.
@@ -801,7 +818,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     {!showClinician && (
                       <>
                         <TableHead className={cn(HEAD_CELL, "w-24")}>Age</TableHead>
-                        <TableHead className={cn(HEAD_CELL, "w-24")}>Gender</TableHead>
+                        <TableHead className={cn(HEAD_CELL, "w-24 lg:w-28")}>Gender</TableHead>
                       </>
                     )}
                     {/* How many readings this patient has.
@@ -810,7 +827,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         clinician that there is more than one -- and the
                         patient's record is where the readings themselves
                         are. */}
-                    <TableHead className={cn(HEAD_CELL, "w-28")}>
+                    <TableHead className={cn(HEAD_CELL, "w-28 lg:w-36")}>
                       Screenings
                     </TableHead>
                     {/* Who took the readings.
@@ -820,7 +837,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         created, so for them this column would be their own
                         name repeated down the page. */}
                     {showClinician && (
-                      <TableHead className={cn(HEAD_CELL, "w-40")}>
+                      <TableHead className={cn(HEAD_CELL, "w-40 lg:w-48")}>
                         Clinician
                       </TableHead>
                     )}
@@ -852,7 +869,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           />
                         </label>
                       </TableCell>
-                      <TableCell className="relative w-48 px-4 align-middle text-center">
+                      <TableCell className="relative w-48 px-4 align-middle text-center lg:w-56 lg:text-left">
                         {/* Monogram-style hover accent bar. It lives inside the
                             cell because a bare <span> as a direct child of
                             <tr> gets hoisted out of the table by the HTML
@@ -861,7 +878,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           aria-hidden="true"
                           className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:lg:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                         />
-                        <div className="break-words text-base font-medium">{group.name}</div>
+                        <div className="break-words text-base font-medium lg:text-[17.6px]">{group.name}</div>
                       </TableCell>
                       {/* Age and gender, for a clinician's own patients.
 
@@ -871,22 +888,22 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           grid rather than as three ragged blocks. */}
                       {!showClinician && (
                         <>
-                          <TableCell className="w-24 px-4 align-middle text-center text-base tabular-nums text-aura-muted">
+                          <TableCell className="w-24 px-4 align-middle text-center text-base tabular-nums text-aura-muted lg:text-[17.6px]">
                             {computeAgeLabel(group.latest)}
                           </TableCell>
-                          <TableCell className="w-24 px-4 align-middle text-center">
-                            <div className="break-words text-sm text-aura-muted">
+                          <TableCell className="w-24 px-4 align-middle text-center lg:w-28">
+                            <div className="break-words text-sm text-aura-muted lg:text-[15.4px]">
                               {formatGender(group.gender)}
                             </div>
                           </TableCell>
                         </>
                       )}
-                      <TableCell className="w-28 px-4 align-middle text-center text-base tabular-nums text-aura-muted">
+                      <TableCell className="w-28 px-4 align-middle text-center text-base tabular-nums text-aura-muted lg:w-36 lg:text-[17.6px]">
                         {group.count}
                       </TableCell>
                       {showClinician && (
-                        <TableCell className="w-40 px-4 align-middle text-center">
-                          <div className="break-words text-sm text-aura-muted">
+                        <TableCell className="w-40 px-4 align-middle text-center lg:w-48">
+                          <div className="break-words text-sm text-aura-muted lg:text-[15.4px]">
                             {group.clinician_name || "—"}
                           </div>
                         </TableCell>
@@ -957,7 +974,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="cancel"
               onClick={() => setDeletingPatient(null)}
               disabled={deleteBusy}
             >

@@ -515,7 +515,7 @@ export function Login() {
               </div>
             )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setShowForgotPassword(false); setForgotEmail(""); setForgotMessage(null) }}>
+              <Button type="button" variant="cancel" onClick={() => { setShowForgotPassword(false); setForgotEmail(""); setForgotMessage(null) }}>
                 Cancel
               </Button>
               <Button type="submit" disabled={forgotLoading}>

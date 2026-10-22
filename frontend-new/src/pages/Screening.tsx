@@ -243,6 +243,10 @@ type PatientOption = {
   dobRaw: string
   age: number | null
   gender: string
+  /** What the edit form reopens with. See patientsFetcher. */
+  smokingHistory: boolean
+  pastRespiratoryDiseases: string[]
+  symptoms: string[]
   /** How many screenings this patient has. */
   screeningCount: number
 }
@@ -390,7 +394,24 @@ export function Screening() {
 
   // Shared cache entries — "screenings" is the SAME payload Dashboard/Screenings use,
   // so the status badges cost zero extra network traffic on back-navigation.
-  const patientsFetcher = useCallback(async (): Promise<Array<{ id: string; full_name: string; date_of_birth: string; gender: string; screening_count?: number }>> => {
+  const patientsFetcher = useCallback(async (): Promise<Array<{
+    id: string
+    full_name: string
+    date_of_birth: string
+    gender: string
+    /* The three fields the edit form needs back.
+     *
+     * The list has always carried them -- the edit form was seeded with empty
+     * arrays instead, so opening "Edit details" showed a patient who had
+     * never smoked and had no conditions and no symptoms. Ticking them again
+     * on every edit was the only way to keep them, and the form did not even
+     * start with them ticked, so saving without touching them wiped the
+     * patient's history. */
+    smoking_history: boolean
+    past_respiratory_diseases: string[] | null
+    symptoms: string[] | null
+    screening_count?: number
+  }>> => {
     const res = await apiFetch("/api/patients")
     // An expired token must not read as "failed to fetch". apiFetch already
     // refreshes and retries once before this point, so reaching here means the
@@ -426,6 +447,11 @@ export function Screening() {
         dobRaw: p.date_of_birth ?? "",
         age: p.date_of_birth ? ageOf(p.date_of_birth) : null,
         gender: p.gender ?? "",
+        // Carried so the edit form can open with what the patient already
+        // told us, rather than with empty selections.
+        smokingHistory: p.smoking_history ?? false,
+        pastRespiratoryDiseases: p.past_respiratory_diseases ?? [],
+        symptoms: p.symptoms ?? [],
         // How many screenings this patient has. It comes with the patient list,
         // so the picker does not have to load the screening history to show it.
         screeningCount: p.screening_count ?? 0,
@@ -1166,9 +1192,9 @@ export function Screening() {
                 full_name: editingPatient.name,
                 date_of_birth: editingPatient.dobRaw,
                 gender: (editingPatient.gender || "male") as "male" | "female" | "other",
-                smoking_history: false,
-                past_respiratory_diseases: [] as string[],
-                symptoms: [] as string[],
+                smoking_history: editingPatient.smokingHistory,
+                past_respiratory_diseases: editingPatient.pastRespiratoryDiseases,
+                symptoms: editingPatient.symptoms,
               }
             : savedFormData
         }
@@ -1210,7 +1236,7 @@ export function Screening() {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="cancel"
               onClick={() => setDeletingPatient(null)}
               disabled={deleteBusy}
             >

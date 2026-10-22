@@ -14,6 +14,14 @@ const store = new Map<string, Entry>()
 const inflight = new Map<string, Promise<unknown>>()
 const listeners = new Map<string, Set<() => void>>()
 
+/* Bumped by clearAll().
+ *
+ * A request that was already in flight when the account changed was sent with
+ * the OLD account's token, so its answer is about the old account. Without
+ * this it would still be written into the store a moment later, and the person
+ * who just signed in would be looking at somebody else's data again. */
+let generation = 0
+
 function notify(key: string): void {
   listeners.get(key)?.forEach((cb) => cb())
 }
@@ -38,14 +46,19 @@ export function fetchWithCache<T>(key: string, fetcher: () => Promise<T>): Promi
   const existing = inflight.get(key)
   if (existing) return existing as Promise<T>
 
+  const started = generation
   const promise = (async () => {
     try {
       const data = await fetcher()
-      store.set(key, { data, fetchedAt: Date.now() })
-      notify(key)
+      if (started === generation) {
+        store.set(key, { data, fetchedAt: Date.now() })
+        notify(key)
+      }
       return data
     } finally {
-      inflight.delete(key)
+      /* Only give the slot back if it is still ours. clearAll() empties this
+         map, and a fresh request for the same key may already have taken it. */
+      if (started === generation) inflight.delete(key)
     }
   })()
 
@@ -60,6 +73,27 @@ export function fetchWithCache<T>(key: string, fetcher: () => Promise<T>): Promi
 export function invalidate(key: string): void {
   store.delete(key)
   notify(key)
+}
+
+/**
+ * Drops EVERY entry, and refuses anything already in flight.
+ *
+ * Called when the signed-in account changes. The store is module-level, so it
+ * outlives a sign-out: without this, the next account to sign in on the same
+ * tab renders whatever the last one was looking at -- an admin's whole-clinic
+ * list shown to a clinician, for as long as that entry is still fresh. A page
+ * reload empties the store, which is exactly why the wrong list used to vanish
+ * on refresh.
+ *
+ * Every mounted view is notified, so each one refetches with the new token
+ * instead of waiting out its TTL.
+ */
+export function clearAll(): void {
+  generation++
+  const keys = [...store.keys()]
+  store.clear()
+  inflight.clear()
+  for (const key of keys) notify(key)
 }
 
 /** Subscribes to changes for a key. Returns an unsubscribe function. */

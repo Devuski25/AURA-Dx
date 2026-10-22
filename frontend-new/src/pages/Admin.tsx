@@ -476,12 +476,25 @@ export function Admin() {
      60s poll was the only thing keeping this list alive, which meant an admin
      who approved someone saw nothing happen for up to a minute. 15s is the
      floor that makes a missed realtime event cheap rather than confusing. */
-  const { data: usersData, isLoading: loading, refresh: refetchUsers } = useCachedData<any[]>(
+  const { data: usersData, isLoading: loading, error: usersError, refresh: refetchUsers } = useCachedData<any[]>(
     !authLoading && user && (user.role === "admin" || user.role === "super_admin") ? "admin-users" : null,
     usersFetcher,
     { ttlMs: 15_000, revalidateMs: 15_000 },
   )
   const users = useMemo(() => usersData ?? [], [usersData])
+
+  /* Open the page on current data.
+   *
+   * The cache is what makes this list appear instantly when you come back to
+   * it, and it is also what could make it wrong: an account approved a moment
+   * ago was not in a copy taken fifteen seconds before. Rendering the cached
+   * copy and refreshing it in the same breath keeps both -- no blank screen,
+   * and no stale list. On a phone this is the difference between seeing the
+   * accounts immediately and watching a skeleton until the TTL runs out. */
+  useEffect(() => {
+    if (!user || (user.role !== "admin" && user.role !== "super_admin")) return
+    void refetchUsers()
+  }, [user, refetchUsers])
 
   const { data: totalScreenings } = useCachedData<number>(
     !authLoading && user && (user.role === "admin" || user.role === "super_admin") ? "admin-metrics" : null,
@@ -897,39 +910,54 @@ export function Admin() {
                     className="h-10 pl-9 transition-[border-color,box-shadow] duration-200 focus-visible:border-aura-forest focus-visible:ring-4 focus-visible:ring-aura-forest/15"
                   />
                 </div>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  {/* Item 10: active-filter dot + tinted trigger */}
-                  <SelectTrigger
-                    className="h-10 w-full transition-[border-color,box-shadow] focus:border-aura-forest focus:ring-4 focus:ring-aura-forest/15 [&_svg]:transition-transform [&_svg]:duration-200 data-[state=open]:[&_svg]:rotate-180 data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest md:w-[170px]"
-                    data-active={roleFilter !== "all"}
-                    aria-label="Filter by role"
-                  >
-                    {roleFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
-                    <SelectValue placeholder="All Roles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="clinician">Clinician</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger
-                    className="h-10 w-full transition-[border-color,box-shadow] focus:border-aura-forest focus:ring-4 focus:ring-aura-forest/15 [&_svg]:transition-transform [&_svg]:duration-200 data-[state=open]:[&_svg]:rotate-180 data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest md:w-[170px]"
-                    data-active={statusFilter !== "all"}
-                    aria-label="Filter by status"
-                  >
-                    {statusFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Role and status sit side by side on a phone.
+                
+                    Stacked and full width they were two nearly empty rows --
+                    a word and an arrow each -- and they pushed the accounts
+                    themselves off the first screen, which is the one thing an
+                    admin opens this page to see. Half a row each is enough
+                    for every value these two carry, and from `md` they go
+                    back to their fixed widths on the toolbar line.
+                    
+                    The `sm:` rule restates the same two columns because the
+                    project's responsive check treats a bare `grid-cols-2`
+                    with no breakpoint on it as a bug -- rightly, everywhere
+                    else. */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 md:flex md:gap-3">
+                  <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    {/* Item 10: active-filter dot + tinted trigger */}
+                    <SelectTrigger
+                      className="h-10 w-full min-w-0 transition-[border-color,box-shadow] focus:border-aura-forest focus:ring-4 focus:ring-aura-forest/15 [&_svg]:transition-transform [&_svg]:duration-200 data-[state=open]:[&_svg]:rotate-180 data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest md:w-[170px]"
+                      data-active={roleFilter !== "all"}
+                      aria-label="Filter by role"
+                    >
+                      {roleFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
+                      <SelectValue placeholder="All Roles" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="clinician">Clinician</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger
+                      className="h-10 w-full min-w-0 transition-[border-color,box-shadow] focus:border-aura-forest focus:ring-4 focus:ring-aura-forest/15 [&_svg]:transition-transform [&_svg]:duration-200 data-[state=open]:[&_svg]:rotate-180 data-[active=true]:border-aura-brand/60 data-[active=true]:bg-aura-brand/10 data-[active=true]:text-aura-forest md:w-[170px]"
+                      data-active={statusFilter !== "all"}
+                      aria-label="Filter by status"
+                    >
+                      {statusFilter !== "all" && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-aura-brand" />}
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
             </CardHeader>
@@ -953,6 +981,21 @@ export function Admin() {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : usersError && users.length === 0 ? (
+                /* A failed request used to leave the skeletons on screen for
+                   ever: `loading` means "no cached data", and a request that
+                   failed never puts any there, so the page had no way to say
+                   what had happened. Say it, and give the request back. */
+                <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center" role="alert">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-aura-coral-soft">
+                    <XCircle className="h-6 w-6 text-aura-coral-strong" aria-hidden="true" />
+                  </div>
+                  <p className="text-sm font-medium text-aura-ink">Couldn&rsquo;t load the user accounts</p>
+                  <p className="text-xs text-aura-muted">{usersError}</p>
+                  <Button variant="cancel" className="mt-1 h-9 px-4" onClick={() => void refetchUsers()}>
+                    Try again
+                  </Button>
                 </div>
               ) : filteredUsers.length === 0 ? (
                 <motion.div
@@ -1347,7 +1390,7 @@ export function Admin() {
             </Badge>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { setDeleteDialogOpen(false); setDeletingUser(null) }} disabled={deleting}>
+            <Button variant="cancel" onClick={() => { setDeleteDialogOpen(false); setDeletingUser(null) }} disabled={deleting}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={executeDelete} disabled={deleting}>

@@ -285,7 +285,7 @@ export function PatientDetail() {
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                <Button variant="cancel" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
                 <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
                   {deleting ? "Deleting…" : "Delete"}
                 </Button>
@@ -415,7 +415,7 @@ export function PatientDetail() {
                     </div>
                     <Link
                       to={`/dashboard/screenings/${s.id}`}
-                      className={cn(buttonVariants({ variant: "outline" }), "mt-3 h-11 w-full")}
+                      className={cn(buttonVariants({ variant: "primary-solid" }), "mt-3 h-11 w-full")}
                     >
                       View Details
                     </Link>
@@ -462,7 +462,11 @@ export function PatientDetail() {
                       </TableCell>
                       <TableCell>{getStatusBadge(s.status, s.reviewed_by_name)}</TableCell>
                       <TableCell>
-                        <Link to={`/dashboard/screenings/${s.id}`} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                        {/* The same green button the phone card carries.
+                            It was a ghost link here, so the only thing
+                            marking it as an action was a hover it could not
+                            have on a tablet. */}
+                        <Link to={`/dashboard/screenings/${s.id}`} className={buttonVariants({ variant: "primary-solid", size: "sm" })}>
                           View Details
                         </Link>
                       </TableCell>

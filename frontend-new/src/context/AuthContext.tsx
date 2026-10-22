@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from "react"
 import { supabase } from "@/lib/supabase"
 import { SESSION_EXPIRED_EVENT } from "@/lib/api"
+import { clearAll as clearCache } from "@/lib/cache"
 import type { User } from "@supabase/supabase-js"
 
 interface Profile {
@@ -51,8 +52,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const skipAuthEventRef = useRef(false)
   const pendingLoginUserIdRef = useRef<string | null>(null)
+  /* Whose data the page cache is currently holding. */
+  const lastProfileIdRef = useRef<string | null>(null)
 
   const fetchProfile = useCallback(async (userId: string) => {
+    /* A different account is signing in on this tab.
+     *
+     * The data cache is module-level, so it survives a sign-out. Left alone,
+     * the clinician who signs in next is shown the previous account's list --
+     * an admin's whole clinic, for example -- until that entry goes stale. A
+     * page reload used to be the fix, because a reload empties the store.
+     * Clearing it here makes a login do what a reload did, without one. */
+    if (lastProfileIdRef.current !== userId) {
+      clearCache()
+      lastProfileIdRef.current = userId
+    }
     try {
       const { data, error } = await supabase
         .from("profiles")
@@ -123,6 +137,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
         setAccessToken(null)
         setLoading(false)
+        /* Nothing on screen belongs to anybody now. */
+        clearCache()
+        lastProfileIdRef.current = null
       }
     })
 
@@ -239,6 +256,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     setUser(null)
+    /* Drop the cache with the session, so the next sign-in on this tab
+       starts from nothing rather than from this account's data. */
+    clearCache()
+    lastProfileIdRef.current = null
   }, [])
 
   const signInWithOAuth = useCallback(async (provider: "google") => {

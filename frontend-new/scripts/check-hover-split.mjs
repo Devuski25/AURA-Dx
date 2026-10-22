@@ -89,6 +89,9 @@ for (const file of walk(src)) {
       // A token is fine if it carries hover-tap:, or if its hover: is
       // behind an lg: breakpoint.
       if (token.includes("hover-tap:")) continue
+      // A media query is not a class. `(hover: none)` in a matchMedia string
+      // is asking the device a question, not styling anything.
+      if (token.includes("(hover:")) continue
       if (/(^|:)lg:hover:/.test(token)) continue
       if (/(^|:)lg:group-hover:/.test(token)) continue
       // Anything left is a stock hover, or a group-hover that was never

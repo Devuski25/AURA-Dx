@@ -332,7 +332,12 @@ export function Dashboard() {
                 <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1 text-xs font-medium text-white/70 backdrop-blur-sm">
                   {todayLabel}
                 </span>
-                <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-xs font-bold tracking-wide text-aura-forest">
+                {/* White, not the brand green. The chip sits on the banner's
+                    own dark green, and green-on-green was only readable
+                    because of the 20% wash behind it -- which made the chip
+                    look like a hole rather than a label. White reads as a
+                    label and clears AA against the wash underneath it. */}
+                <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-xs font-bold tracking-wide text-white">
                   {roleLabel || "Clinician"}
                 </span>
               </div>

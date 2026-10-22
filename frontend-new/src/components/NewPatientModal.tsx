@@ -104,11 +104,21 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
     },
   })
 
+  /* Seed the form when the dialog opens, not whenever the page above happens
+   * to re-render.
+   *
+   * `initialData` is written as an object literal at the call site, so it is a
+   * new object on every render of the page -- and resetting on identity meant
+   * a background re-render (a patient list refresh, a toast) could wipe
+   * whatever had been typed into the open form. Keyed on the patient instead:
+   * one seed per opening, and one per different patient. */
+  const initialDataRef = React.useRef(initialData)
+  initialDataRef.current = initialData
   React.useEffect(() => {
-    if (initialData) {
-      form.reset(initialData)
+    if (open && initialDataRef.current) {
+      form.reset(initialDataRef.current)
     }
-  }, [initialData])
+  }, [open, editingPatientId, form])
 
   const dobValue = form.watch("date_of_birth")
 
@@ -399,11 +409,17 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
             />
 
             <DialogFooter className="gap-2 pt-1">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="cancel" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Creating…" : "Create Patient & Continue"}
+                {form.formState.isSubmitting
+                  ? isEditing
+                    ? "Saving…"
+                    : "Creating…"
+                  : isEditing
+                    ? "Save Changes"
+                    : "Create Patient & Continue"}
               </Button>
             </DialogFooter>
         </Form>

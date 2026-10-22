@@ -1234,7 +1234,7 @@ export function ScreeningDetail() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
+            <Button variant="cancel" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={() => void handleDelete()} disabled={deleteBusy}>
@@ -1259,7 +1259,7 @@ export function ScreeningDetail() {
             rows={4}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewDialogOpen(false)}>
+            <Button variant="cancel" onClick={() => setReviewDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleReview} disabled={reviewSubmitting}>
