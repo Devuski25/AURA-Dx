@@ -56,6 +56,7 @@ cd frontend-new && npm run dev
 | Inference health | `curl http://localhost:8000/health` |
 | Fusion decision table | `python packages/inference/test_fusion.py` |
 | Feature layout contract | `python packages/inference/test_feature_layout.py` |
+| Batched Stage 2 gives the same verdict | `python packages/inference/test_batched_scoring.py` |
 | Service script regression | `powershell -ExecutionPolicy Bypass -File scripts/test-aura-start.ps1` |
 | Migration safety checks | `python scripts/check-migrations.py` |
 | Frontend↔backend API contract | `python scripts/audit-api-contract.py` |

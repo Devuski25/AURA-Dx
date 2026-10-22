@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -88,16 +86,25 @@
   --color-aura-border: #c5e4d4;
   --color-aura-border-soft: #e0f0e8;
 
-  /* Brand display font (logo typography) */
-  --font-display: "Space Grotesk", "Poppins", sans-serif;
+  /* Brand display font (logo typography)
 
-  /* Page-title face, used by the logged-in title bar. Manrope is a
-     geometric-humanist sans with real 400–800 weights, so semibold is a true
-     600 rather than a synthesised faux-bold. Segoe UI is the offline fallback. */
-  --font-page-title: "Manrope", "Space Grotesk", "Segoe UI", sans-serif;
+     The webfonts are loaded from index.html, not from here. An @import in
+     a stylesheet is render-blocking: the browser has to download this
+     stylesheet, discover the import, fetch that, and only then fetch the
+     font files -- four hops on the critical path, to a third-party origin,
+     on the clinic's connection. The <link> in index.html does it in one.
+
+     Only the faces the app actually renders are loaded. Space Grotesk is
+     the display face, IBM Plex Mono is the technical one, and Poppins is
+     what the public site sets on its own wrapper. Inter and Manrope were
+     being downloaded on every cold load and never drawn, because no
+     class asked for a body or page-title face.
+
+     The fallback is the platform's own UI font, so the display face has
+     something sensible to be until the real one arrives. */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
 
   /* Clinical precision typography */
-  --font-body: "Inter", "Poppins", sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
 
   /* AURA-Dx clinical color tokens */
@@ -182,7 +189,6 @@
   --shadow-aura-card-hover: 0 4px 12px rgba(14, 59, 54, 0.06), 0 12px 32px rgba(42, 154, 99, 0.12);
 
   /* Type scale */
-  --font-family-primary: "Poppins", "Inter", sans-serif;
   --text-aura-display: 2.75rem;
   --text-aura-heading: 1.875rem;
   --text-aura-sub: 1.375rem;

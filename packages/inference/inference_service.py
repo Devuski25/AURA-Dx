@@ -26,9 +26,12 @@ notes on build_stage1_features and build_stage2_tensor for the cell-by-cell
 mapping. Every constant below is taken from that notebook; do not "tidy" them
 into librosa defaults, the models were fitted on these exact values.
 """
+import asyncio
 import io
 import logging
 import os
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
 
@@ -204,6 +207,16 @@ MODEL_VERSION = "2.5.0-multi"
 # Populated at startup
 _stage1_model = None
 _stage2_model = None
+
+# Stage 2 runs behind a lock.
+#
+# The scoring work happens in a worker thread so the event loop stays free
+# to answer health checks while a screening is being scored. That means two
+# requests can be scoring at the same moment. XGBoost's booster is safe for
+# concurrent prediction; Keras' `predict` is not, so the model call is
+# serialised. The lock is held for the predict call only -- the feature
+# extraction around it runs in parallel.
+_stage2_lock = threading.Lock()
 
 
 def load_models():
@@ -506,35 +519,36 @@ def stage2_pneumonia_probability(audio: np.ndarray) -> float:
     """
     windows = stage2_windows(audio)
     batch = np.concatenate([build_stage2_tensor(w) for w in windows], axis=0)
-    outputs = _stage2_model.predict(batch, verbose=0)
+    with _stage2_lock:
+        outputs = _stage2_model.predict(batch, verbose=0)
     return float(np.max(np.asarray(outputs).ravel()))
 
 
-def score_single_clip(audio: np.ndarray, index: int) -> dict:
-    """Run the sequential cascade over one recording and return raw scores.
+def _healthy_result(index: int, audio: np.ndarray, p_healthy: float) -> dict:
+    """The result for a recording that Stage 1 called healthy.
 
-    Stage 1 terminates the clip early when it is Healthy; such a clip is pinned
-    to (p_healthy = 1.0, p_pneumonia = 0.0) and never reaches Stage 2.
+    Such a recording is pinned to (p_healthy = 1.0, p_pneumonia = 0.0) and
+    never reaches Stage 2.
     """
-    p_healthy = stage1_healthy_probability(audio)
+    return {
+        "index": index,
+        "duration_sec": round(len(audio) / SAMPLE_RATE, 2),
+        "stage1_healthy_prob": round(p_healthy, 4),
+        "stage1_routed_to_stage2": False,
+        "stage2_pneumonia_prob": None,
+        "healthy_prob": 1.0,
+        "pneumonia_prob": 0.0,
+        "copd_prob": 0.0,
+        "clip_label": "Healthy",
+    }
 
-    if p_healthy >= STAGE1_HEALTHY_THRESHOLD:
-        return {
-            "index": index,
-            "duration_sec": round(len(audio) / SAMPLE_RATE, 2),
-            "stage1_healthy_prob": round(p_healthy, 4),
-            "stage1_routed_to_stage2": False,
-            "stage2_pneumonia_prob": None,
-            "healthy_prob": 1.0,
-            "pneumonia_prob": 0.0,
-            "copd_prob": 0.0,
-            "clip_label": "Healthy",
-        }
 
-    p_pneumonia = stage2_pneumonia_probability(audio)
+def _pathological_result(
+    index: int, audio: np.ndarray, p_healthy: float, p_pneumonia: float
+) -> dict:
+    """The result for a recording that reached Stage 2."""
     p_copd = 1.0 - p_pneumonia
     label = "Pneumonia" if p_pneumonia >= STAGE2_PNEUMONIA_THRESHOLD else "COPD"
-
     return {
         "index": index,
         "duration_sec": round(len(audio) / SAMPLE_RATE, 2),
@@ -546,6 +560,94 @@ def score_single_clip(audio: np.ndarray, index: int) -> dict:
         "copd_prob": round(p_copd, 4),
         "clip_label": label,
     }
+
+
+def score_single_clip(audio: np.ndarray, index: int) -> dict:
+    """Run the sequential cascade over one recording and return raw scores.
+
+    Stage 1 terminates the clip early when it is Healthy; such a clip is pinned
+    to (p_healthy = 1.0, p_pneumonia = 0.0) and never reaches Stage 2.
+
+    This scores one recording at a time. `score_batch` is what the endpoint
+    uses; it reaches the same numbers with one pass through the model
+    instead of one per recording.
+    """
+    p_healthy = stage1_healthy_probability(audio)
+
+    if p_healthy >= STAGE1_HEALTHY_THRESHOLD:
+        return _healthy_result(index, audio, p_healthy)
+
+    p_pneumonia = stage2_pneumonia_probability(audio)
+    return _pathological_result(index, audio, p_healthy, p_pneumonia)
+
+
+class RecordingError(Exception):
+    """A recording could not be scored. Carries which recording it was, so
+    the caller can still say "Recording 3: ..." the way it always has."""
+
+    def __init__(self, index: int, message: str, bad_request: bool = False):
+        super().__init__(message)
+        self.index = index
+        self.message = message
+        self.bad_request = bad_request
+
+
+def score_batch(payloads: List[bytes]) -> List[dict]:
+    """Score a batch of recordings, and do it in ONE pass through Stage 2.
+
+    Stage 1 is cheap, so it runs on every recording first. Stage 2 is the
+    expensive one -- a Keras forward pass per window -- and it used to run
+    once per recording, so a five-take screening paid five separate
+    dispatches through TensorFlow, each carrying its own fixed overhead.
+
+    The windows of every recording that reaches Stage 2 are now gathered
+    into ONE batch and predicted in a single pass. The numbers do not
+    change: a recording's headline is still the maximum over that
+    recording's own windows, and each window is still an independent
+    sample of the model, so batching them cannot mix them. Only the number
+    of passes through the model goes down.
+
+    This is CPU-bound and blocks for as long as the batch takes. It is
+    called from a worker thread, never from the event loop.
+    """
+    results: List[Optional[dict]] = [None] * len(payloads)
+    # (index, audio, p_healthy) for the recordings that need Stage 2.
+    pending: List[tuple] = []
+
+    for index, payload in enumerate(payloads):
+        try:
+            audio = load_audio(payload)
+            p_healthy = stage1_healthy_probability(audio)
+        except ValueError as exc:
+            raise RecordingError(index, str(exc), bad_request=True) from exc
+        except Exception as exc:
+            raise RecordingError(index, str(exc)) from exc
+
+        if p_healthy >= STAGE1_HEALTHY_THRESHOLD:
+            results[index] = _healthy_result(index, audio, p_healthy)
+        else:
+            pending.append((index, audio, p_healthy))
+
+    if pending:
+        windows_per_clip: List[List[np.ndarray]] = []
+        all_tensors: List[np.ndarray] = []
+        for _index, audio, _p_healthy in pending:
+            tensors = [build_stage2_tensor(w) for w in stage2_windows(audio)]
+            windows_per_clip.append(tensors)
+            all_tensors.extend(tensors)
+
+        batch = np.concatenate(all_tensors, axis=0)
+        with _stage2_lock:
+            outputs = np.asarray(_stage2_model.predict(batch, verbose=0)).ravel()
+
+        offset = 0
+        for (index, audio, p_healthy), tensors in zip(pending, windows_per_clip):
+            count = len(tensors)
+            p_pneumonia = float(np.max(outputs[offset:offset + count]))
+            offset += count
+            results[index] = _pathological_result(index, audio, p_healthy, p_pneumonia)
+
+    return [r for r in results if r is not None]
 
 
 # --------------------------------------------------------------------------
@@ -790,12 +892,26 @@ def fuse_clips(clip_results: List[dict]) -> dict:
 # --------------------------------------------------------------------------
 # HTTP surface
 # --------------------------------------------------------------------------
-app = FastAPI(title="AURA-Dx Inference Service", version=MODEL_VERSION)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Load the models once, at startup.
 
+    They stay in memory for the life of the process, and every request
+    reuses the same two objects -- so the cost of a screening is the
+    screening, and never a re-read of a Keras model from disk.
 
-@app.on_event("startup")
-async def startup_event():
+    The lifespan form is used rather than the older `on_event` hook because
+    that one is deprecated and warns on every startup.
+    """
     load_models()
+    yield
+
+
+app = FastAPI(
+    title="AURA-Dx Inference Service",
+    version=MODEL_VERSION,
+    lifespan=lifespan,
+)
 
 
 class ClipScore(BaseModel):
@@ -841,21 +957,36 @@ async def inference(audios: List[UploadFile] = File(...), _=Depends(_verify_api_
             detail=f"Too many recordings: {len(audios)}. Maximum is {MAX_RECORDINGS}.",
         )
 
-    clip_results = []
     for index, upload in enumerate(audios):
         if not upload.filename or not upload.filename.lower().endswith(".wav"):
             raise HTTPException(
                 status_code=400,
                 detail=f"Recording {index + 1} ({upload.filename}) is not a .wav file",
             )
-        try:
-            audio = load_audio(await upload.read())
-            clip_results.append(score_single_clip(audio, index))
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"Recording {index + 1}: {exc}")
-        except Exception as exc:
-            logger.exception("Inference failed on recording %s", index)
-            raise HTTPException(status_code=500, detail=f"Recording {index + 1}: {exc}")
+
+    # Reading the uploads is I/O and is quick, so it stays on the event
+    # loop. The scoring is CPU-bound and takes as long as the batch takes,
+    # so it goes to a worker thread: while the last screening is being
+    # scored, this service can still answer a health check or accept the
+    # next upload. It used to run here on the loop itself, which meant a
+    # screening in progress made /health time out -- and the backend polls
+    # /health, so a slow screening could make the whole stack look down.
+    payloads = [await upload.read() for upload in audios]
+
+    try:
+        clip_results = await asyncio.to_thread(score_batch, payloads)
+    except RecordingError as exc:
+        if exc.bad_request:
+            raise HTTPException(
+                status_code=400, detail=f"Recording {exc.index + 1}: {exc.message}"
+            )
+        logger.exception("Inference failed on recording %s", exc.index + 1)
+        raise HTTPException(
+            status_code=500, detail=f"Recording {exc.index + 1}: {exc.message}"
+        )
+    except Exception as exc:
+        logger.exception("Inference failed")
+        raise HTTPException(status_code=500, detail=str(exc))
 
     fused = fuse_clips(clip_results)
     logger.info(

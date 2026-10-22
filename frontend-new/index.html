@@ -27,15 +27,26 @@
          non-blocking, and the `onload` handler puts it back to `all` once
          it has arrived. The <noscript> copy is for the rare browser with
          scripting off, where the trick would otherwise leave the font
-         unstyled for good. -->
+         unstyled for good.
+
+         Both families the app actually draws are in this one request:
+         Space Grotesk for the display face and IBM Plex Mono for the
+         technical one, plus Poppins for the public site, which sets it on
+         its own wrapper. Inter and Manrope were in the list and nothing
+         ever asked for them.
+
+         One request, not two: the same stylesheet used to be fetched
+         twice -- once by this <link> and once by an @import inside
+         index.css, which is render-blocking and so made the careful
+         non-blocking work here pointless. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
       media="print"
       onload="this.media='all'; this.onload=null;"
     />
     <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     </noscript>
     <title>AURA-Dx - AI-Assisted Respiratory Screening</title>
     <meta name="description" content="AURA-Dx (Acoustic Unit for Respiratory Assessment) screens breathing audio for COPD, Pneumonia, and healthy lungs through an acoustic AI classification pipeline." />
