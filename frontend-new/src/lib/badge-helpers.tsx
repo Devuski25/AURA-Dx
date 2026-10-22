@@ -126,11 +126,18 @@ export function renderResultBadges(respResult: string | null) {
  * Item 13: inline confidence chip for list views. The Screening Result page
  * shows full percentages; lists get the same number compactly so a 51% vs
  * 98% classification is visible without opening each record.
+ *
+ * The number is the point of the chip, and it used to be the smallest text
+ * in the application -- 11px, hand-written, in a codebase that had
+ * deliberately raised every other size on the scale. A clinician reading
+ * "51% conf." was reading it at a size smaller than the footnote next to
+ * it. It is on the scale now, and set in a semibold with tabular figures
+ * so a column of them lines up on the decimal.
  */
 export function ConfidenceChip({ value, className = "" }: { value: number | null; className?: string }) {
   if (value == null) return null
   return (
-    <span className={`text-[11px] font-medium tabular-nums ${getConfidenceColor(value)} ${className}`}>
+    <span className={`text-sm font-semibold tabular-nums ${getConfidenceColor(value)} ${className}`}>
       {Math.round(value * 100)}% conf.
     </span>
   )
@@ -140,7 +147,12 @@ export function getConfidenceColor(conf: number | null): string {
   if (conf === null) return "text-muted-foreground"
   // Item 13 semantics: confidence >= 0.7 is clinically usable, 0.5-0.7 is a
   // caution zone, < 0.5 means the classifier is barely above chance.
+  //
+  // The caution band was the bright amber, which is 3.19:1 on white -- it
+  // failed AA at the size it was rendered, and it is the band a clinician
+  // most needs to read carefully. The strong amber carries the same meaning
+  // and clears 4.5:1.
   if (conf >= 0.7) return "text-aura-forest"
-  if (conf >= 0.5) return "text-aura-warning"
-  return "text-destructive"
+  if (conf >= 0.5) return "text-aura-warning-strong"
+  return "text-aura-coral-strong"
 }

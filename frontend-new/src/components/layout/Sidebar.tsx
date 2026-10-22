@@ -486,7 +486,7 @@ export function Sidebar({
                 <span
                   aria-hidden="true"
                   title={user?.role?.replace("_", " ") || "Clinician"}
-                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white/60 bg-aura-accent text-[13.5px] font-bold uppercase text-white"
+                  className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white/60 bg-aura-accent text-xs font-bold uppercase text-white"
                 >
                   {(user?.role || "c").charAt(0).toUpperCase()}
                 </span>

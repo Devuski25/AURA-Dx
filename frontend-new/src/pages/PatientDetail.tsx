@@ -402,7 +402,7 @@ export function PatientDetail() {
                           the difference between a re-test and a genuine
                           change in the patient's condition. */}
                       {s.patient_screening_count && s.patient_screening_count > 1 && (
-                        <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                        <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-aura-muted">
                           {s.screening_number} of {s.patient_screening_count}
                         </span>
                       )}
@@ -444,7 +444,7 @@ export function PatientDetail() {
                         <div className="flex items-baseline gap-2">
                           <div className="whitespace-nowrap">{new Date(s.created_at).toLocaleDateString()}</div>
                           {s.patient_screening_count && s.patient_screening_count > 1 && (
-                            <span className="rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                            <span className="rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-aura-muted">
                               {s.screening_number} of {s.patient_screening_count}
                             </span>
                           )}

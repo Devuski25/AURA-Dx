@@ -98,7 +98,7 @@ export function Register() {
           className="w-full max-w-md rounded-2xl border border-aura-border bg-white p-8 shadow-aura-xl"
         >
           <div className="flex flex-col items-center gap-3 text-center">
-            <CheckCircle2 className="h-8 w-8 text-aura-accent" aria-hidden="true" />
+            <CheckCircle2 className="h-8 w-8 text-aura-pine" aria-hidden="true" />
             <h1 className="font-display text-2xl font-bold text-aura-text">Already Signed In</h1>
             <p className="text-aura-muted">Welcome back, {user.full_name?.split(" ")[0] || "Clinician"}</p>
           </div>
@@ -351,7 +351,7 @@ export function Register() {
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : otpVerified ? (
                       <>
-                        <CheckCircle2 className="h-4 w-4 text-aura-accent" />
+                        <CheckCircle2 className="h-4 w-4 text-aura-pine" />
                         <span>Sent</span>
                       </>
                     ) : otpCooldown > 0 ? (
@@ -612,7 +612,7 @@ export function Register() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-aura-accent" />
+              <ShieldCheck className="h-5 w-5 text-aura-pine" />
               Registration Submitted
             </DialogTitle>
             <DialogDescription className="pt-2">

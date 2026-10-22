@@ -311,7 +311,7 @@ export function Dashboard() {
   if (error) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <AlertTriangle className="h-10 w-10 text-aura-warning" />
+        <AlertTriangle className="h-10 w-10 text-aura-warning-strong" />
         <p className="text-aura-text">{error}</p>
         <Button onClick={() => void refreshScreenings()} className="gap-2">
           <RefreshCw className="h-4 w-4" /> Retry
@@ -332,7 +332,7 @@ export function Dashboard() {
                 <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1 text-xs font-medium text-white/70 backdrop-blur-sm">
                   {todayLabel}
                 </span>
-                <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-xs font-bold tracking-wide text-aura-accent">
+                <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-xs font-bold tracking-wide text-aura-forest">
                   {roleLabel || "Clinician"}
                 </span>
               </div>
@@ -386,7 +386,7 @@ export function Dashboard() {
                         {/* min-w-0 so a long label shrinks instead of pushing
                             the card wider; break-words so it wraps rather than
                             clipping when it must. */}
-                        <p className="min-w-0 font-mono text-[10px] font-medium uppercase leading-[1.4] tracking-[0.06em] break-words text-aura-muted sm:text-[11px] sm:tracking-[0.08em]">
+                        <p className="min-w-0 font-mono text-xs font-medium uppercase leading-[1.4] tracking-[0.06em] break-words text-aura-muted sm:tracking-[0.08em]">
                           {card.title.map((line) => <span key={line} className="block">{line}</span>)}
                         </p>
                         <span className={cn(
@@ -410,7 +410,7 @@ export function Dashboard() {
                       {/* Item 9: a zero on an alert-stat means "checked and clear",
                           not "no data" — say so explicitly. */}
                       {card.value === 0 && card.tone !== "neutral" && card.tone !== "healthy" && (
-                        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+                        <p className="mt-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-aura-muted">
                           Checked &middot; clear
                         </p>
                       )}
@@ -418,7 +418,7 @@ export function Dashboard() {
                           in none of the class counts. Saying so keeps the row
                           adding up. */}
                       {"note" in card && card.note && (
-                        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-aura-muted">
+                        <p className="mt-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-aura-muted">
                           {card.note}
                         </p>
                       )}
@@ -562,7 +562,7 @@ export function Dashboard() {
                 <CardHeader className="aura-card-band px-6 py-5">
                   <div className="flex items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2 text-base text-aura-ink">
-                      <AlertTriangle className="h-5 w-5 text-aura-warning" aria-hidden="true" />
+                      <AlertTriangle className="h-5 w-5 text-aura-warning-strong" aria-hidden="true" />
                       Needs Attention
                     </CardTitle>
                     {pendingAccounts.length > 0 && (
@@ -610,7 +610,7 @@ export function Dashboard() {
                                     onClick={() => void handleDashboardReject(u.id)}
                                     aria-label={`Reject ${u.full_name}`}
                                   >
-                                    <XCircle className="h-4 w-4 text-aura-coral" />
+                                    <XCircle className="h-4 w-4 text-aura-coral-strong" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Reject user</TooltipContent>

@@ -191,7 +191,7 @@ export function PublicLayout() {
               aria-label={navItem.label}
               className={cn(
                 "flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[0.8125rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent md:text-[0.9375rem]",
-                active ? "bg-aura-accent/10 text-aura-accent" : "text-aura-muted hover-tap:text-aura-text"
+                active ? "bg-aura-accent/10 text-aura-pine" : "text-aura-muted hover-tap:text-aura-text"
               )}
             >
               <Icon className="h-6 w-6 shrink-0 md:h-5 md:w-5" aria-hidden="true" />

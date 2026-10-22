@@ -188,7 +188,7 @@ export function ServiceHealthPanel() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={`h-2 w-2 shrink-0 rounded-full ${STATE_STYLE[c.state]}`} aria-hidden="true" />
-                  <p className="text-[13px] font-semibold leading-tight text-aura-ink">{c.label}</p>
+                  <p className="text-xs font-semibold leading-tight text-aura-ink">{c.label}</p>
                   <Badge
                     variant="outline"
                     className={`border-transparent ${STATE_TEXT[c.state]}`}
@@ -196,14 +196,14 @@ export function ServiceHealthPanel() {
                     {c.state}
                   </Badge>
                 </div>
-                <p className="mt-1 text-[11px] leading-snug text-aura-muted">{c.detail}</p>
+                <p className="mt-1 text-xs leading-snug text-aura-muted">{c.detail}</p>
               </div>
             </li>
           ))}
         </ul>
 
         {checkedAt && (
-          <p className="mt-3 text-[11px] text-aura-muted">
+          <p className="mt-3 text-xs text-aura-muted">
             Checked {new Date(checkedAt).toLocaleTimeString()}
             {/* The heartbeat age is only worth saying when there is one. The
                 "No heartbeat recorded" fallback was a statement about the

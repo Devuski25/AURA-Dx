@@ -67,12 +67,20 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* AURA-Dx green theme tokens */
-  --color-aura-bg: #f7fcf9;
-  --color-aura-bg-alt: #e8f6ef;
+  /* AURA-Dx green theme tokens
+
+     `aura-bg` and `aura-bg-alt` are ALIASES now, not second copies of the
+     same two hexes. They used to repeat `--color-aura-surface` and
+     `--color-aura-surface-alt` exactly, so a surface could be re-tuned in
+     one place and not the other, and the pair drifted the first time
+     anyone edited one of them. An alias cannot drift. */
+  --color-aura-bg: var(--color-aura-surface);
+  --color-aura-bg-alt: var(--color-aura-surface-alt);
   --color-aura-bg-card: #ffffff;
   --color-aura-text: #1a3c30;
-  --color-aura-muted: #5c7a6c;
+  /* `--color-aura-muted` lives in the clinical token block below. It used to
+     be declared here as well, at a different value, and the second
+     declaration silently won. One token, one value. */
   --color-aura-accent: #3cb87a;
   --color-aura-accent-dark: #2a9a63;
   --color-aura-accent-light: #a8e6c8;
@@ -100,7 +108,13 @@
   --color-aura-mint-soft: #E3F5EC;
   --color-aura-coral: #E2543A;
   --color-aura-coral-soft: #FCEAE6;
-  --color-aura-sage: #EAF1EC;
+  /* `aura-sage` and `aura-mint-wash` were two more names for the same
+     near-white mint. Within two percent of `--color-aura-surface-alt` on
+     every channel, so nobody could see which one they had picked, which
+     made the choice arbitrary at 27 call sites. All three are the same
+     surface now, and they are aliases so they cannot drift apart again. */
+  --color-aura-sage: var(--color-aura-surface-alt);
+  --color-aura-mint-wash: var(--color-aura-surface-alt);
   /* Darkened from #6B7B76 (4.45:1) to meet WCAG AA (≥4.5:1) on white,
      surface, and surface-alt backgrounds */
   --color-aura-muted: #5C6D66;
@@ -111,9 +125,10 @@
   --color-aura-elevated: #ffffff;
   --color-aura-elevated-hover: #f2fbf6;
 
-  /* Brand aliases */
-  --color-aura-brand: #3cb87a;
-  --color-aura-brand-soft: #d4f0e3;
+  /* Brand aliases -- the same colour under a second name, aliased so the
+     two cannot drift apart. */
+  --color-aura-brand: var(--color-aura-accent);
+  --color-aura-brand-soft: var(--color-aura-accent-soft);
 
   /* Semantic status tokens — warning family */
   --color-aura-warning: #d97706;
@@ -122,9 +137,13 @@
   --color-aura-warning-border: #fde68a;
 
   /* Marketing site section tones (Part A spec) — exactly three backgrounds:
-     dark green (hero/footer), white, and one mint wash reused everywhere. */
+     dark green (hero/footer), white, and one mint wash reused everywhere.
+
+     The mint wash is the same surface the app uses everywhere else, aliased
+     rather than re-declared. It used to carry its own hex here, three units
+     of green away from the surface it was supposed to match, so the
+     "one mint wash" was in fact two. */
   --color-aura-cream: #FAF9F5;
-  --color-aura-mint-wash: #E8F3ED;
   --color-aura-mint-wash-deep: #EEF5F1;
   --color-aura-footer-link: #B8D4C8;
   --color-aura-legal-text: #1A2E26;
@@ -212,28 +231,47 @@
   --card-foreground: #1a3c30;
   --popover: #ffffff;
   --popover-foreground: #1a3c30;
-  --primary: #3cb87a;
+  /* The action green.
+     `--primary`, `--accent` and `--ring` used to be the bright brand green
+     #3cb87a. White text on that is 2.52:1 and the focus ring on a white
+     card is 2.52:1 as well, so every primary button, every text link and
+     every focus indicator failed WCAG AA (4.5:1 for text, 3:1 for a UI
+     boundary). The brand green cannot carry white text at all -- it is too
+     light, and no amount of tuning the thing behind it fixes that.
+     So the brand green stays a BRAND colour: glows, gradients, icon tints
+     and decorative fills, where contrast is not what carries the meaning.
+     Anything that carries text or outlines a control points at the pine
+     green instead, which is the same family and does clear AA:
+       #0E7A55 on white   5.34:1
+       white on #0E7A55  5.34:1
+     --color-aura-accent is still the bright green for decoration. */
+  --primary: #0E7A55;
   --primary-foreground: #ffffff;
   --secondary: #e8f6ef;
   --secondary-foreground: #1a3c30;
   --muted: #e8f6ef;
   --muted-foreground: #5c7a6c;
-  --accent: #3cb87a;
+  --accent: #0E7A55;
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e0f0e8;
-  --input: #c5e4d4;
-  --ring: #3cb87a;
+  /* A form field's boundary is the only thing that says "this is a box you
+     can type in", so WCAG 1.4.11 asks for 3:1 against what is behind it.
+     The old #c5e4d4 was 1.36:1 on white -- the outline was all but
+     invisible. This is the same green, taken down to a level you can
+     actually see. */
+  --input: #3f8f6c;
+  --ring: #0E7A55;
   --radius: 0.625rem;
   --sidebar-background: #ffffff;
   --sidebar-foreground: #1a3c30;
-  --sidebar-primary: #3cb87a;
+  --sidebar-primary: #0E7A55;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #e8f6ef;
   --sidebar-accent-foreground: #1a3c30;
   --sidebar-border: #e0f0e8;
-  --sidebar-ring: #3cb87a;
+  --sidebar-ring: #0E7A55;
 }
 
 /* Public page animations and utilities */

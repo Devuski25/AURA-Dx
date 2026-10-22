@@ -59,7 +59,7 @@ export function ResetPassword() {
           <Card className="w-full">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2 text-gray-900">
-                <CheckCircle2 className="h-6 w-6 text-aura-accent" />
+                <CheckCircle2 className="h-6 w-6 text-aura-pine" />
                 Already Signed In
               </CardTitle>
               <CardDescription>Welcome back, {user.full_name?.split(" ")[0] || "Clinician"}</CardDescription>
@@ -159,7 +159,7 @@ export function ResetPassword() {
           onClick={goToLogin}
           aria-label="Back to Website"
           title="Back to Website"
-          className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-aura-border-soft bg-white text-aura-accent shadow-aura-sm transition-all duration-200 hover-tap:border-aura-accent hover-tap:bg-aura-accent-soft hover-tap:text-aura-accent-dark lg:hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2"
+          className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-aura-border-soft bg-white text-aura-pine shadow-aura-sm transition-all duration-200 hover-tap:border-aura-accent hover-tap:bg-aura-accent-soft hover-tap:text-aura-pine lg:hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -167,13 +167,13 @@ export function ResetPassword() {
           <CardHeader className="text-center">
             {success ? (
               <>
-                <CheckCircle className="h-12 w-12 text-aura-accent mx-auto mb-4" />
+                <CheckCircle className="h-12 w-12 text-aura-pine mx-auto mb-4" />
                 <CardTitle className="text-2xl font-bold">Password Reset</CardTitle>
                 <CardDescription>Your password has been successfully updated</CardDescription>
               </>
             ) : (
               <>
-                <Lock className="h-12 w-12 text-aura-accent mx-auto mb-4" />
+                <Lock className="h-12 w-12 text-aura-pine mx-auto mb-4" />
                 <CardTitle className="text-2xl font-bold">Set New Password</CardTitle>
                 <CardDescription>Enter your new password below. Make sure it's strong and memorable.</CardDescription>
               </>

@@ -1047,7 +1047,7 @@ export function Screening() {
                                           <span className="flex min-w-0 items-center gap-2">
                                             <span className="truncate text-sm font-medium">{patient.name}</span>
                                             {isSelected && (
-                                              <span className="inline-flex shrink-0 items-center rounded-full border border-green-600 px-1.5 text-[13.5px] font-semibold leading-4 text-green-700">
+                                              <span className="inline-flex shrink-0 items-center rounded-full border border-green-600 px-1.5 text-xs font-semibold leading-4 text-green-700">
                                                 SELECTED
                                               </span>
                                             )}
@@ -1557,7 +1557,7 @@ export function Screening() {
                       .sort((a, b) => b[1] - a[1])
                       .map(([cls, prob]) => (
                       <div key={cls} className="flex items-center justify-between text-sm">
-                        <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-aura-warning" : "text-aura-accent-dark")}>{cls}</span>
+                        <span className={cn("font-medium", cls === "Pneumonia" ? "text-destructive" : cls === "COPD" ? "text-aura-warning-strong" : "text-aura-pine")}>{cls}</span>
                         <div className="flex items-center gap-2 w-full max-w-xs">
                           <Progress value={(prob * 100)} className="h-2 flex-1" />
                           <span className="font-mono w-16 text-right">{(prob * 100).toFixed(1)}%</span>

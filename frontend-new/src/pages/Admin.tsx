@@ -140,7 +140,7 @@ const MotionTableRow = motion(TableRow)
       * Each header repeated the same class string, so a fix to one that missed
         the others would be invisible in review. */
 const ADMIN_TABLE_HEAD =
-  "h-10 whitespace-nowrap px-3 font-mono text-[13px] font-semibold uppercase tracking-[0.06em] text-aura-muted"
+  "h-10 whitespace-nowrap px-3 font-mono text-xs font-semibold uppercase tracking-[0.06em] text-aura-muted"
 
 /* Cell padding, shared so the table and the mobile cards stay in step.
 
@@ -164,7 +164,7 @@ function UserMonogram({ user }: { user: AdminUser }) {
     <span
       aria-hidden="true"
       className={cn(
-        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 font-display text-[13px] font-bold tracking-tight",
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 font-display text-xs font-bold tracking-tight",
         user.role === "super_admin"
           ? "border-aura-pine/40 bg-aura-pine/10 text-aura-pine"
           : "border-aura-forest/25 bg-aura-sage text-aura-forest"

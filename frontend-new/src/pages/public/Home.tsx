@@ -122,7 +122,7 @@ export function Home() {
             {STEPS.map((step, i) => (
               <StaggerItem as="li" key={step.title} className="group">
                 <DrawRule className="h-0.5 bg-aura-forest" delay={0.2 + i * 0.12} />
-                <span aria-hidden="true" className={`mt-5 inline-block font-display text-4xl font-bold tabular-nums text-aura-accent-dark transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-2`}>{i + 1}</span>
+                <span aria-hidden="true" className={`mt-5 inline-block font-display text-4xl font-bold tabular-nums text-aura-pine transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-2`}>{i + 1}</span>
                 <h3 className="mt-3 text-base font-bold text-aura-text">{step.title}</h3>
                 <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-aura-muted">{step.desc}</p>
               </StaggerItem>
@@ -240,7 +240,7 @@ export function Home() {
               </p>
               <Link
                 to="/legal"
-                className="group mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-aura-accent-dark underline-offset-4 lg:hover:underline focus-visible:outline-none focus-visible:underline"
+                className="group mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-aura-pine underline-offset-4 lg:hover:underline focus-visible:outline-none focus-visible:underline"
               >
                 Read the Legal &amp; Privacy page
                 <ArrowRight className={`h-4 w-4 transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-1.5`} aria-hidden="true" />

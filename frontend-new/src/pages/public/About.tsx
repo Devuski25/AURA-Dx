@@ -37,7 +37,7 @@ function FlowNode({ icon: Icon, title, sub }: { icon: LucideIcon; title: string;
 
 function FlowArrow() {
   return (
-    <div aria-hidden="true" className="flex items-center justify-center text-aura-accent-dark">
+    <div aria-hidden="true" className="flex items-center justify-center text-aura-pine">
       <ChevronDown className="h-6 w-6 sm:hidden" />
       <ArrowRight className="hidden h-6 w-6 sm:block" />
     </div>
@@ -118,7 +118,7 @@ export function About() {
                 {PREP_STEPS.map(([step, detail], i) => (
                   <StaggerItem as="li" key={step} className="group relative grid grid-cols-[2rem_1fr] py-4">
                     <DrawRule className="absolute inset-x-0 top-0 h-px bg-aura-border" delay={i * 0.08} />
-                    <span className="text-sm font-bold tabular-nums text-aura-accent-dark">{i + 1}</span>
+                    <span className="text-sm font-bold tabular-nums text-aura-pine">{i + 1}</span>
                     <div className={`transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-1`}>
                       <p className="text-sm font-semibold text-aura-text">{step}</p>
                       <p className="mt-0.5 text-sm text-aura-muted">{detail}</p>

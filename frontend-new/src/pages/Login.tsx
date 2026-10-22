@@ -102,7 +102,7 @@ export function Login() {
         : status === "pending"
           ? "Awaiting Approval"
           : "Access Denied",
-      tone: approved ? "text-aura-accent" : status === "pending" ? "text-amber-600" : "text-destructive",
+      tone: approved ? "text-aura-pine" : status === "pending" ? "text-amber-600" : "text-destructive",
       body: approved
         ? `You are already logged in to your AURA-Dx account.`
         : status === "pending"
@@ -390,7 +390,7 @@ export function Login() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-aura-warning" />
+              <Clock className="h-5 w-5 text-aura-warning-strong" />
               Account Pending Approval
             </DialogTitle>
             <DialogDescription className="pt-2">
@@ -447,7 +447,7 @@ export function Login() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-aura-accent" />
+              <ShieldCheck className="h-5 w-5 text-aura-pine" />
               Welcome Back
             </DialogTitle>
             <DialogDescription className="pt-2">
@@ -485,7 +485,7 @@ export function Login() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5 text-aura-accent" />
+              <Key className="h-5 w-5 text-aura-pine" />
               Reset Password
             </DialogTitle>
             <DialogDescription className="pt-2">
@@ -509,7 +509,7 @@ export function Login() {
             </div>
             {forgotMessage && (
               <div className="text-sm" role="alert">
-                <p className={forgotMessage.includes("sent") ? "text-aura-accent-dark" : "text-destructive"}>
+                <p className={forgotMessage.includes("sent") ? "text-aura-pine" : "text-destructive"}>
                   {forgotMessage}
                 </p>
               </div>

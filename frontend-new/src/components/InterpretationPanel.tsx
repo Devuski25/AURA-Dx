@@ -102,13 +102,13 @@ export function InterpretationPanel({
           line as before. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 basis-full sm:basis-auto">
-          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-aura-muted">
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-aura-muted">
             Screening result
           </p>
           <h3 className="mt-1 font-display text-lg font-semibold leading-tight text-balance text-aura-ink sm:text-2xl">
             {statusLabel(status)}
           </h3>
-          <p className="mt-1 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
+          <p className="mt-1 text-xs leading-relaxed text-pretty text-aura-text sm:text-sm">
             {copy.headline}
           </p>
         </div>
@@ -129,7 +129,7 @@ export function InterpretationPanel({
         </span>
       </div>
 
-      <p className="mt-2.5 text-[13.5px] leading-relaxed text-pretty text-aura-text sm:text-sm">
+      <p className="mt-2.5 text-xs leading-relaxed text-pretty text-aura-text sm:text-sm">
         {copy.message}
       </p>
 
@@ -140,10 +140,10 @@ export function InterpretationPanel({
           tone === "red" ? TONE_STYLES.red : tone === "amber" ? TONE_STYLES.amber : TONE_STYLES.slate
         )}
       >
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] opacity-75">
+        <p className="font-mono text-xs uppercase tracking-[0.12em] opacity-75">
           Suggested next step
         </p>
-        <p className="mt-1 text-[13.5px] font-medium leading-relaxed text-pretty sm:text-sm">
+        <p className="mt-1 text-xs font-medium leading-relaxed text-pretty sm:text-sm">
           {copy.recommendation}
         </p>
       </div>
@@ -159,7 +159,7 @@ export function InterpretationPanel({
           single words with the label stranded on the left. The label above
           the value is how the same pair reads on the screens above it, and
           it is the only arrangement that fits. */}
-      <dl className="mt-3 grid gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-2 sm:text-sm">
+      <dl className="mt-3 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2 sm:text-sm">
         {totalCount > 0 && (
           <div className="flex min-w-0 flex-col gap-0.5">
             <dt className="text-aura-muted">Recordings</dt>

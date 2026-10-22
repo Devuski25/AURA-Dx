@@ -118,13 +118,13 @@ export function ArcGauge({ value, flagged, label, className }: ArcGaugeProps) {
         </div>
       </div>
 
-      <div className="mt-3 flex w-full items-center justify-between px-1 font-mono text-[13.5px] tabular-nums text-aura-muted">
+      <div className="mt-3 flex w-full items-center justify-between px-1 font-mono text-xs tabular-nums text-aura-muted">
         {ticks.map(tick => (
           <span key={tick}>{tick}</span>
         ))}
       </div>
 
-      <p className="mt-2 text-center font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">
+      <p className="mt-2 text-center font-mono text-xs uppercase tracking-[0.08em] text-aura-muted">
         {label}
       </p>
     </div>

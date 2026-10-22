@@ -117,7 +117,7 @@ const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium",
 /* ---------- Field label ---------- */
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">{children}</div>
+    <div className="mb-1.5 font-mono text-xs uppercase tracking-[0.08em] text-aura-muted">{children}</div>
   )
 }
 
@@ -159,10 +159,10 @@ function ConfidenceRing({ value, flagged }: { value: number; flagged: boolean })
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className={cn("font-display text-[28px] font-bold leading-none tabular-nums sm:text-[30px]", flagged ? "text-aura-coral" : "text-aura-mint")}>
+        <div className={cn("font-display text-[28px] font-bold leading-none tabular-nums sm:text-[30px]", flagged ? "text-aura-coral-strong" : "text-aura-pine")}>
           {shownPct}%
         </div>
-        <div className="mt-1 font-mono text-[12px] uppercase tracking-[0.08em] text-aura-muted sm:text-[13.5px]">Confidence</div>
+        <div className="mt-1 font-mono text-xs uppercase tracking-[0.08em] text-aura-muted">Confidence</div>
       </div>
     </div>
   )
@@ -173,7 +173,7 @@ function TierStatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-mono text-[13px] font-semibold",
+        "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 font-mono text-xs font-semibold",
         ok ? "bg-aura-mint-soft text-aura-pine" : "bg-aura-coral-soft text-aura-coral-strong"
       )}
     >
@@ -193,11 +193,11 @@ function ProbabilityBar({ label, prob, color }: { label: string; prob: number; c
   return (
     <div className="mb-4 last:mb-0">
       <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[13px] font-semibold text-aura-ink">
+        <div className="flex items-center gap-2 text-sm font-semibold text-aura-ink">
           <span aria-hidden="true" className="h-2 w-2 rounded-[2px]" style={{ backgroundColor: color }} />
           {label}
         </div>
-        <div className="font-mono text-[13px] font-semibold tabular-nums text-aura-ink">{pct.toFixed(1)}%</div>
+        <div className="font-mono text-sm font-semibold tabular-nums text-aura-ink">{pct.toFixed(1)}%</div>
       </div>
       <div
         className="h-3 w-full overflow-hidden rounded-full bg-aura-surface-alt"
@@ -226,7 +226,7 @@ function InfoCard({ title, className, children }: { title: string; className?: s
     /* Sits directly on the canvas, not inside a white card, so it takes the
    full panel treatment. Were it nested, it would revert to a light tile. */
   <div className={cn("aura-panel rounded-2xl py-4 px-5 sm:px-6", className)}>
-      <h2 className="mb-3 flex items-center gap-2 font-display text-[13px] font-semibold uppercase tracking-[0.04em] text-aura-muted">
+      <h2 className="mb-3 flex items-center gap-2 font-display text-xs font-semibold uppercase tracking-[0.04em] text-aura-muted">
         {title}
       </h2>
       {children}
@@ -245,7 +245,7 @@ function InfoCard({ title, className, children }: { title: string; className?: s
     label: "PNEUMONIA SUSPECTED",
     detail: "Flagged · urgent clinical evaluation recommended",
     container: "border-aura-coral/40 border-t-aura-coral bg-aura-coral-soft",
-    icon: <AlertTriangle className="h-6 w-6 text-aura-coral" />,
+    icon: <AlertTriangle className="h-6 w-6 text-aura-coral-strong" />,
     title: "text-aura-coral-strong",
     sub: "text-aura-coral-strong",
   },
@@ -253,7 +253,7 @@ function InfoCard({ title, className, children }: { title: string; className?: s
     label: "COPD DETECTED",
     detail: "Moderate finding · clinical evaluation recommended",
     container: "border-aura-warning-border bg-aura-warning-soft",
-    icon: <AlertCircle className="h-6 w-6 text-aura-warning" />,
+    icon: <AlertCircle className="h-6 w-6 text-aura-warning-strong" />,
     title: "text-aura-warning-strong",
     sub: "text-aura-warning-strong",
   },
@@ -310,7 +310,7 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
           about a fifth of the line's width gone. */}
       <div className="min-w-0 flex-1">
         <p className={cn("aura-pop-in font-display text-lg font-bold leading-tight tracking-wide text-balance sm:text-xl", cfg.title)}>{cfg.label}</p>
-        <p className={cn("mt-1 font-mono text-[11px] uppercase leading-relaxed tracking-[0.06em] sm:text-[13px] sm:tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
+        <p className={cn("mt-1 font-mono text-xs uppercase leading-relaxed tracking-[0.06em] sm:tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
       </div>
     </motion.div>
   )
@@ -335,7 +335,7 @@ function ScreeningSkeleton() {
 function ScreeningError({ message }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-[14px] border border-aura-coral/30 bg-aura-coral-soft px-6 py-14 text-center">
-      <AlertTriangle className="h-8 w-8 text-aura-coral" />
+      <AlertTriangle className="h-8 w-8 text-aura-coral-strong" />
       <div>
         <h3 className="font-display text-lg font-semibold text-aura-ink">Unable to load screening result</h3>
         <p className="mt-1 text-sm text-aura-muted">
@@ -375,7 +375,7 @@ function TierCard({
       <div className="flex items-center justify-between gap-4 border-b border-aura-border-soft px-6 py-5">
         <div className="flex items-center gap-2.5">
           <div>
-            <div className="font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">{eyebrow}</div>
+            <div className="font-mono text-xs uppercase tracking-[0.08em] text-aura-muted">{eyebrow}</div>
             <div className="font-display text-[17px] font-semibold text-aura-ink">{name}</div>
           </div>
         </div>
@@ -710,7 +710,7 @@ export function ScreeningDetail() {
       <motion.div initial={reduceMotion ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, ...sectionSpring }} className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-aura-ink">Screening Result</h1>
-          <div className="mt-1 flex items-center gap-2 text-[13.5px] text-aura-muted">
+          <div className="mt-1 flex items-center gap-2 text-xs text-aura-muted">
             <strong className={cn("font-semibold", !screening.patient_name && "italic text-aura-muted")}>
               {screening.patient_name || "Anonymous Screening"}
             </strong>
@@ -757,7 +757,7 @@ export function ScreeningDetail() {
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </Button>
               {screening?.patient_screening_count && screening.patient_screening_count > 1 && (
-                <span className="px-1 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                <span className="px-1 font-mono text-xs font-semibold tabular-nums text-aura-muted">
                   {screening.screening_number ?? siblingIndex + 1} of {screening.patient_screening_count}
                 </span>
               )}
@@ -846,25 +846,25 @@ export function ScreeningDetail() {
         <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-8 lg:grid-cols-4 lg:gap-6">
           <div className="min-w-0">
             <FieldLabel>Name</FieldLabel>
-            <div className={cn("truncate text-[13.5px] font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
+            <div className={cn("truncate text-xs font-medium", !screening.patient_name ? "italic text-aura-muted" : "text-aura-ink")}>
               {screening.patient_name || "Anonymous Screening"}
             </div>
           </div>
           <div>
             <FieldLabel>Age</FieldLabel>
-            <div className="text-[13.5px] font-medium tabular-nums text-aura-ink">
+            <div className="text-xs font-medium tabular-nums text-aura-ink">
               {patientAge !== null ? `${patientAge} years` : "—"}
             </div>
           </div>
           <div>
             <FieldLabel>Gender</FieldLabel>
-            <div className="text-[13.5px] font-medium capitalize text-aura-ink">
+            <div className="text-xs font-medium capitalize text-aura-ink">
               {screening.patient_gender || "—"}
             </div>
           </div>
           <div>
             <FieldLabel>Clinician</FieldLabel>
-            <div className="text-[13.5px] font-medium leading-snug text-aura-ink">
+            <div className="text-xs font-medium leading-snug text-aura-ink">
               {screening.clinician_name || "—"}
             </div>
           </div>
@@ -875,7 +875,7 @@ export function ScreeningDetail() {
         <div className="mt-5 grid grid-cols-1 gap-x-4 gap-y-4 border-t border-aura-border-soft pt-4 sm:grid-cols-3 sm:gap-8">
           <div className="min-w-0">
             <FieldLabel>Smoking History</FieldLabel>
-            <div className="text-[13.5px] font-medium leading-snug text-aura-ink">
+            <div className="text-xs font-medium leading-snug text-aura-ink">
               {screening.smoking_history === true ? (
                 <>
                   Yes
@@ -895,11 +895,11 @@ export function ScreeningDetail() {
             {screening.past_respiratory_diseases?.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {screening.past_respiratory_diseases.map((d, i) => (
-                  <Badge key={i} variant="outline" className="text-[11px]">{d}</Badge>
+                  <Badge key={i} variant="outline" className="text-xs">{d}</Badge>
                 ))}
               </div>
             ) : (
-              <div className="text-[13.5px] font-medium text-aura-ink">None recorded</div>
+              <div className="text-xs font-medium text-aura-ink">None recorded</div>
             )}
           </div>
           <div className="min-w-0">
@@ -907,11 +907,11 @@ export function ScreeningDetail() {
             {screening.symptoms?.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {screening.symptoms.map((s, i) => (
-                  <Badge key={i} variant="secondary" className="text-[11px]">{s}</Badge>
+                  <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>
                 ))}
               </div>
             ) : (
-              <div className="text-[13.5px] font-medium text-aura-ink">None recorded</div>
+              <div className="text-xs font-medium text-aura-ink">None recorded</div>
             )}
           </div>
         </div>
@@ -923,11 +923,11 @@ export function ScreeningDetail() {
         <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-3">
           <div>
             <FieldLabel>Screening Date</FieldLabel>
-            <div className="text-[13.5px] font-medium tabular-nums text-aura-ink">{dateTimeFormat.format(new Date(screening.created_at))}</div>
+            <div className="text-xs font-medium tabular-nums text-aura-ink">{dateTimeFormat.format(new Date(screening.created_at))}</div>
           </div>
           <div>
             <FieldLabel>Audio Duration</FieldLabel>
-            <div className="text-[13.5px] font-medium text-aura-ink">
+            <div className="text-xs font-medium text-aura-ink">
               {screening.audio_duration_sec ? `${screening.audio_duration_sec}s` : "N/A"}
             </div>
           </div>
@@ -935,7 +935,7 @@ export function ScreeningDetail() {
             <FieldLabel>Status</FieldLabel>
             <div
               className={cn(
-                "inline-flex items-center rounded-full px-3 py-1 font-mono text-[13px] font-semibold",
+                "inline-flex items-center rounded-full px-3 py-1 font-mono text-xs font-semibold",
                 screening.status === "pending_review"
                   ? "bg-aura-coral-soft text-aura-coral-strong"
                   : screening.reviewed_by
@@ -1002,7 +1002,7 @@ export function ScreeningDetail() {
           confidence={screening.respiratory_confidence ?? 0}>
           {screening.respiratory_probabilities && (
             <div>
-              <div className="mb-4 font-mono text-[13.5px] uppercase tracking-[0.08em] text-aura-muted">
+              <div className="mb-4 font-mono text-xs uppercase tracking-[0.08em] text-aura-muted">
                 Probability Distribution
               </div>
               {respProbabilityBars}
@@ -1018,11 +1018,11 @@ export function ScreeningDetail() {
                per-take scores caption, so it reads as the explanation of the
                verdict rather than as a second headline. */
             <div className="mt-4 rounded-lg border border-aura-coral/20 bg-aura-coral-soft p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-coral sm:text-base">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-coral-strong sm:text-base">
                 <AlertCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 High Priority: Pneumonia Suspected
               </h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-aura-ink sm:text-sm">Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines.</p>
+              <p className="mt-2 text-sm leading-relaxed text-aura-ink">Urgent clinical evaluation recommended. Consider chest imaging and antibiotics per guidelines.</p>
             </div>
           )}
 
@@ -1032,17 +1032,17 @@ export function ScreeningDetail() {
                 <AlertCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                 Moderate Priority: COPD Suspected
               </h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-aura-ink sm:text-sm">Clinical evaluation recommended. Consider spirometry and pulmonology referral.</p>
+              <p className="mt-2 text-sm leading-relaxed text-aura-ink">Clinical evaluation recommended. Consider spirometry and pulmonology referral.</p>
             </div>
           )}
 
           {screening.respiratory_result === "Healthy" && (
             <div className="mt-4 rounded-lg bg-aura-surface p-4">
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-mint sm:text-base">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-aura-pine sm:text-base">
                   <CheckCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
                   Low Priority: No Acute Findings
               </h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-aura-ink sm:text-sm">No urgent action required. Routine follow-up as clinically indicated.</p>
+              <p className="mt-2 text-sm leading-relaxed text-aura-ink">No urgent action required. Routine follow-up as clinically indicated.</p>
             </div>
           )}
         </TierCard>
@@ -1069,7 +1069,7 @@ export function ScreeningDetail() {
               Per-take scores
             </h2>
             {overrideTakeIndex !== null && (
-              <span className="rounded-full border border-aura-coral/30 bg-aura-coral-soft px-3 py-1 text-xs font-semibold text-aura-coral">
+              <span className="rounded-full border border-aura-coral/30 bg-aura-coral-soft px-3 py-1 text-xs font-semibold text-aura-coral-strong">
                 Safety override — take {overrideTakeIndex + 1} decided the result
               </span>
             )}
@@ -1132,7 +1132,7 @@ export function ScreeningDetail() {
               Stage 2 means. The full headings are kept from `md` up, where
               there is room for them. */}
           <div className="aura-table-scroll overflow-x-auto">
-            <table className="w-full border-collapse text-[12px] md:text-sm">
+            <table className="w-full border-collapse text-xs md:text-sm">
               <thead>
                 <tr className="border-b border-aura-border-soft">
                   <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Take</th>
@@ -1172,10 +1172,10 @@ export function ScreeningDetail() {
                     <td className="px-1.5 py-1.5 text-center whitespace-nowrap md:px-4">
                       <span
                         className={cn(
-                          "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold md:px-2.5 md:text-xs",
+                          "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold md:px-2.5 md:text-xs",
                           c.clip_label === "Healthy" && "bg-aura-mint-soft text-aura-pine",
                           c.clip_label === "COPD" && "bg-amber-100 text-amber-800",
-                          c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral"
+                          c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral-strong"
                         )}
                       >
                         {c.clip_label}

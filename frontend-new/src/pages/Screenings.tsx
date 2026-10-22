@@ -556,7 +556,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                  screenings, so the number was wrong as well as repeated. The
                  count of what is on screen is in the card below, where it
                  sits next to the list it counts. */
-              <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-sm font-bold tracking-wide text-aura-accent">
+              <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-sm font-bold tracking-wide text-aura-forest">
                 {roleLabel}
               </span>
             ) : null

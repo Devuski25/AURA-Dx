@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 const TONE_CLASS: Record<SignalTone, string> = {
   forest: "text-aura-forest",
   mint: "text-aura-mint",
-  coral: "text-aura-coral",
+  coral: "text-aura-coral-strong",
 }
 
 export type SignalTone = "forest" | "mint" | "coral"

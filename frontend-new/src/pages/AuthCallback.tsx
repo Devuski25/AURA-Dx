@@ -188,7 +188,7 @@ export function AuthCallback() {
         className="min-h-screen flex items-center justify-center bg-aura-surface px-4 py-12"
       >
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-aura-accent" role="status" aria-live="polite" />
+          <Loader2 className="h-8 w-8 animate-spin text-aura-pine" role="status" aria-live="polite" />
           <p className="text-aura-text">Completing sign in...</p>
         </div>
       </motion.div>
@@ -207,7 +207,7 @@ export function AuthCallback() {
           <CardHeader className="text-center">
             {accountStatus === "pending" ? (
               <>
-                <Clock className="h-12 w-12 text-aura-warning mx-auto mb-4" />
+                <Clock className="h-12 w-12 text-aura-warning-strong mx-auto mb-4" />
                 <CardTitle className="text-2xl font-bold">Account Pending Approval</CardTitle>
                 <CardDescription>
                   Your account registration is under review. An administrator will approve it shortly.
@@ -221,13 +221,13 @@ export function AuthCallback() {
               </>
             ) : success ? (
               <>
-                <CheckCircle className="h-12 w-12 text-aura-accent mx-auto mb-4" />
+                <CheckCircle className="h-12 w-12 text-aura-pine mx-auto mb-4" />
                 <CardTitle className="text-2xl font-bold">Welcome!</CardTitle>
                 <CardDescription>Successfully signed in with Google</CardDescription>
               </>
             ) : (
               <>
-                <Loader2 className="h-12 w-12 text-aura-accent mx-auto mb-4 animate-spin" role="status" aria-live="polite" />
+                <Loader2 className="h-12 w-12 text-aura-pine mx-auto mb-4 animate-spin" role="status" aria-live="polite" />
                 <CardTitle className="text-2xl font-bold">Processing...</CardTitle>
                 <CardDescription>Please wait while we complete your sign in</CardDescription>
               </>
