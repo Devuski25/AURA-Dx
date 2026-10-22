@@ -159,7 +159,7 @@ export function ResetPassword() {
           onClick={goToLogin}
           aria-label="Back to Website"
           title="Back to Website"
-          className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-aura-border-soft bg-white text-aura-accent shadow-aura-sm transition-all duration-200 hover:border-aura-accent hover:bg-aura-accent-soft hover:text-aura-accent-dark hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2"
+          className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border border-aura-border-soft bg-white text-aura-accent shadow-aura-sm transition-all duration-200 hover-tap:border-aura-accent hover-tap:bg-aura-accent-soft hover-tap:text-aura-accent-dark lg:hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
@@ -208,7 +208,7 @@ export function ResetPassword() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover-tap:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -258,7 +258,7 @@ export function ResetPassword() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-aura-muted transition-colors hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-aura-muted transition-colors hover-tap:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
                       aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                     >
                       {showConfirmPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -266,7 +266,7 @@ export function ResetPassword() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full h-10 bg-emerald-700 text-white shadow-sm transition-colors duration-200 hover:bg-emerald-800 focus-visible:ring-emerald-600" disabled={loading || passwordStrength < 3}>
+                <Button type="submit" className="w-full h-10 bg-emerald-700 text-white shadow-sm transition-colors duration-200 hover-tap:bg-emerald-800 focus-visible:ring-emerald-600" disabled={loading || passwordStrength < 3}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" role="status" aria-live="polite" />}
                   {loading ? "Updating…" : "Change Password"}
                 </Button>

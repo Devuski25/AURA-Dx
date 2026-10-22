@@ -24,7 +24,7 @@ export function FloatingHelpButton() {
             to="/help-support"
             className={cn(
               "flex items-center justify-center w-12 h-12 rounded-full bg-aura-forest text-white shadow-xl shadow-aura-forest/30",
-              "transition-all duration-300 hover:shadow-2xl hover:shadow-aura-forest/40 hover:scale-105",
+              "transition-all duration-300 lg:hover:shadow-2xl lg:hover:shadow-aura-forest/40 lg:hover:scale-105",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 focus-visible:ring-offset-aura-surface"
             )}
             aria-label="Help and Support"

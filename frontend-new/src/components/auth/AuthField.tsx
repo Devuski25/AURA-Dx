@@ -28,7 +28,7 @@ const LEADING_ICON =
 
 /** Secondary action — Send code, Verify, Continue with Google. */
 export const AUTH_SECONDARY_BUTTON =
-  "flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-3 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+  "flex h-11 items-center justify-center gap-2 rounded-lg border border-aura-border bg-white px-3 text-sm font-semibold text-aura-text shadow-aura-xs transition-colors duration-200 hover-tap:bg-aura-sage focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
 
 /* Label -> input -> footer sit 6px apart. `gap-1.5` rather than `gap-2` is what
    keeps an eight-field form from stacking up: across ten grid rows the 2px

@@ -256,7 +256,7 @@ export function Sidebar({
             whileTap={{ scale: 0.88 }}
             transition={{ type: "spring", stiffness: 500, damping: 20 }}
             className={cn(
-              "rounded-md p-2 text-white transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+              "rounded-md p-2 text-white transition-colors hover-tap:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
               !isMobile && "hidden"
             )}
             onClick={onClose}
@@ -325,7 +325,7 @@ export function Sidebar({
                   showLabels ? "justify-start" : "justify-center",
                   isActive
                     ? "text-[#14382a]"
-                    : "text-[#dff0e7] hover:bg-white/10 hover:text-white"
+                    : "text-[#dff0e7] hover-tap:bg-white/10 hover-tap:text-white"
                 )}
               >
                 <motion.span
@@ -354,8 +354,8 @@ export function Sidebar({
                       // Collapsed rail leans on the scale nudge; expanded gets
                       // a 2px slide so every nav item nudges the same way.
                       !showLabels
-                        ? "group-hover:scale-110"
-                        : "motion-safe:group-hover:translate-x-0.5"
+                        ? "lg:group-hover:scale-110"
+                        : "motion-safe:lg:group-hover:translate-x-0.5"
                     )}
                     aria-hidden="true"
                   />
@@ -433,7 +433,7 @@ export function Sidebar({
             indicator and the Android gesture bar, which `p-3` alone did not. */}
         <div className="shrink-0 border-t border-white/15 px-3 pt-3 pb-[max(0.75rem,var(--aura-safe-bottom))]">
           {showLabels ? (
-            <div className="flex items-start gap-3 rounded-xl border border-white/20 bg-white/10 p-3 transition-[background-color,transform] duration-200 hover:bg-white/15 motion-safe:hover:-translate-y-px">
+            <div className="flex items-start gap-3 rounded-xl border border-white/20 bg-white/10 p-3 transition-[background-color,transform] duration-200 hover-tap:bg-white/15 motion-safe:lg:hover:-translate-y-px">
               <Avatar className="h-9 w-9 shrink-0">
                 <AvatarImage
                   src={avatarSrc}
@@ -468,7 +468,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 shrink-0"
+                    className="rounded-lg p-2 text-white/80 transition-colors hover-tap:bg-white/15 hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 shrink-0"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>
@@ -499,7 +499,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    className="rounded-lg p-2 text-white/80 transition-colors hover-tap:bg-white/15 hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>

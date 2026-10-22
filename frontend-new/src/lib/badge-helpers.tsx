@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils"
 
    A map that never changes is created once. */
 const RESP_BADGE_STYLES: Record<string, string> = {
-  Healthy: "border-aura-mint/30 bg-aura-mint-soft text-aura-pine hover:bg-aura-mint-soft",
-  Pneumonia: "border-aura-coral/30 bg-aura-coral-soft text-aura-coral-strong hover:bg-aura-coral-soft",
-  COPD: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
+  Healthy: "border-aura-mint/30 bg-aura-mint-soft text-aura-pine lg:hover:bg-aura-mint-soft",
+  Pneumonia: "border-aura-coral/30 bg-aura-coral-soft text-aura-coral-strong lg:hover:bg-aura-coral-soft",
+  COPD: "border-amber-200 bg-amber-50 text-amber-700 lg:hover:bg-amber-100",
 }
 
 export function getRespBadge(label: string | null) {

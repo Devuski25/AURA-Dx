@@ -25,8 +25,8 @@ const SMOOTH = "ease-[cubic-bezier(0.22,1,0.36,1)]"
 
 function FlowNode({ icon: Icon, title, sub }: { icon: LucideIcon; title: string; sub: string }) {
   return (
-    <div className={`group flex h-full flex-col items-center gap-2 rounded-2xl border border-aura-border-soft bg-aura-bg-card p-6 text-center transition-all duration-500 ${SMOOTH} hover:-translate-y-1 hover:border-aura-accent/40 hover:shadow-aura-card-hover`}>
-      <span aria-hidden="true" className={`flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-white transition-transform duration-500 ${SMOOTH} group-hover:scale-110`}>
+    <div className={`group flex h-full flex-col items-center gap-2 rounded-2xl border border-aura-border-soft bg-aura-bg-card p-6 text-center transition-all duration-500 ${SMOOTH} lg:hover:-translate-y-1 hover-tap:border-aura-accent/40 lg:hover:shadow-aura-card-hover`}>
+      <span aria-hidden="true" className={`flex h-12 w-12 items-center justify-center rounded-full bg-aura-forest text-white transition-transform duration-500 ${SMOOTH} lg:group-hover:scale-110`}>
         <Icon className="h-6 w-6" />
       </span>
       <p className="text-sm font-bold leading-snug text-aura-text">{title}</p>
@@ -92,7 +92,7 @@ export function About() {
               <StaggerItem key={c.name} className="group">
                 <DrawRule className="h-0.5 bg-aura-forest" delay={0.15 + i * 0.1} />
                 <dt className="mt-5 flex items-center gap-3 font-display text-lg font-bold text-aura-text">
-                  <c.icon className={`h-5 w-5 text-aura-forest transition-transform duration-500 ${SMOOTH} group-hover:scale-125`} aria-hidden="true" />
+                  <c.icon className={`h-5 w-5 text-aura-forest transition-transform duration-500 ${SMOOTH} lg:group-hover:scale-125`} aria-hidden="true" />
                   {c.name}
                 </dt>
                 <dd className="m-0 mt-2 max-w-[40ch] text-sm leading-relaxed text-aura-muted">{c.desc}</dd>
@@ -119,7 +119,7 @@ export function About() {
                   <StaggerItem as="li" key={step} className="group relative grid grid-cols-[2rem_1fr] py-4">
                     <DrawRule className="absolute inset-x-0 top-0 h-px bg-aura-border" delay={i * 0.08} />
                     <span className="text-sm font-bold tabular-nums text-aura-accent-dark">{i + 1}</span>
-                    <div className={`transition-transform duration-500 ${SMOOTH} group-hover:translate-x-1`}>
+                    <div className={`transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-1`}>
                       <p className="text-sm font-semibold text-aura-text">{step}</p>
                       <p className="mt-0.5 text-sm text-aura-muted">{detail}</p>
                     </div>

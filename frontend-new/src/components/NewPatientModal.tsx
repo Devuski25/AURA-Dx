@@ -320,7 +320,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
                             "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm text-aura-text transition-colors cursor-pointer",
                             field.value.includes(disease)
                               ? "border-primary bg-primary text-primary-foreground"
-                              : "border-aura-border hover:border-primary/50"
+                              : "border-aura-border hover-tap:border-primary/50"
                           )}
                         >
                           <Checkbox
@@ -364,7 +364,7 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
                             "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm text-aura-text transition-colors cursor-pointer",
                             field.value.includes(symptom)
                               ? "border-primary bg-primary text-primary-foreground"
-                              : "border-aura-border hover:border-primary/50"
+                              : "border-aura-border hover-tap:border-primary/50"
                           )}
                         >
                           <Checkbox

@@ -531,7 +531,7 @@ export function Register() {
                 whileHover={reduced ? undefined : { y: -1 }}
                 whileTap={reduced ? undefined : { scale: 0.98 }}
                 transition={{ duration: 0.16, ease: "easeOut" }}
-                className="aura-sheen relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white shadow-aura-md transition-shadow duration-200 hover:shadow-aura-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                className="aura-sheen relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white shadow-aura-md transition-shadow duration-200 lg:hover:shadow-aura-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   {loading ? (

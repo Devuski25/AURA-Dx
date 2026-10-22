@@ -83,7 +83,7 @@ export function Legal() {
           <Stagger as="dl" className="m-0 divide-y divide-aura-border border-b border-aura-border">
             {RIGHTS.map(([right, meaning]) => (
               <StaggerItem key={right} className="group grid gap-1 py-4 first:pt-0 sm:grid-cols-[10rem_1fr] sm:gap-6">
-                <dt className="text-sm font-semibold text-aura-text transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-1">{right}</dt>
+                <dt className="text-sm font-semibold text-aura-text transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] lg:group-hover:translate-x-1">{right}</dt>
                 <dd className="m-0 text-sm leading-relaxed text-aura-legal-text">{meaning}</dd>
               </StaggerItem>
             ))}

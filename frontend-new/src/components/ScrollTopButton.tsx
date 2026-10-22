@@ -38,7 +38,7 @@ export function ScrollTopButton() {
             size="icon"
             aria-label="Scroll back to top"
             title="Back to top"
-            className="h-11 w-11 rounded-full border border-aura-border bg-aura-elevated text-aura-forest shadow-aura-lg transition-colors hover:bg-aura-surface-alt"
+            className="h-11 w-11 rounded-full border border-aura-border bg-aura-elevated text-aura-forest shadow-aura-lg transition-colors hover-tap:bg-aura-surface-alt"
           >
             <ArrowUp className="h-5 w-5" aria-hidden="true" />
           </Button>

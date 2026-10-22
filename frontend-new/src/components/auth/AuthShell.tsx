@@ -87,7 +87,7 @@ export function AuthShell({ brand, children, wideForm = false }: AuthShellProps)
             to="/"
             aria-label="Back to Website"
             title="Back to Website"
-            className="absolute left-5 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-white text-aura-forest shadow-aura-lg transition-all duration-200 hover:-translate-y-px hover:bg-aura-mint-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest md:left-8 md:top-8"
+            className="absolute left-5 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/70 bg-white text-aura-forest shadow-aura-lg transition-all duration-200 lg:hover:-translate-y-px hover-tap:bg-aura-mint-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest md:left-8 md:top-8"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>

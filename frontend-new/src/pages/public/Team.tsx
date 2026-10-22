@@ -44,8 +44,10 @@ function getInitials(name: string): string {
  * because each quoted fragment is still present in the source.
  *
  * Hover styling is gated twice:
- *   - `[@media(hover:hover)]` prevents a "stuck" hover state after a tap,
- *     since some touch browsers latch `:hover` onto the last-tapped element.
+ *   - `lg:hover:` keeps the lift, the shadow and the ring on the desktop
+ *     breakpoint only. A phone and a tablet are touched, not hovered, and
+ *     a tap latches `:hover` onto the last-tapped element, so a "stuck"
+ *     raised card is worse than a flat one.
  *   - `motion-safe:` suppresses the transform for prefers-reduced-motion.
  *     Framer's `useReducedMotion()` does not affect plain CSS transitions,
  *     so CSS-driven movement needs its own guard.
@@ -58,11 +60,11 @@ const CARD =
 const SHADOW_IDLE = "shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
 const SHADOW_ACTIVE = "shadow-[0_16px_34px_-14px_rgba(0,0,0,0.3)]"
 
-const HOVER_MOTION = "motion-safe:[@media(hover:hover)]:hover:-translate-y-1"
+const HOVER_MOTION = "motion-safe:lg:hover:-translate-y-1"
 const HOVER_SHADOW =
-  "motion-safe:[@media(hover:hover)]:hover:shadow-[0_16px_34px_-16px_rgba(0,0,0,0.24)]"
+  "motion-safe:lg:hover:shadow-[0_16px_34px_-16px_rgba(0,0,0,0.24)]"
 const HOVER_RING =
-  "motion-safe:[@media(hover:hover)]:hover:ring-2 hover:ring-aura-forest"
+  "motion-safe:lg:hover:ring-2 hover-tap:ring-aura-forest"
 
 const RING_IDLE = "ring-1 ring-black/10"
 const RING_ACTIVE = "ring-2 ring-aura-forest"
@@ -84,7 +86,7 @@ const PORTRAIT_SOLID = "opacity-100"
 const PHOTO_ZOOM =
   "absolute inset-0 " +
   "motion-safe:transition-transform motion-safe:duration-[900ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] " +
-  "motion-safe:[@media(hover:hover)]:group-hover:scale-[1.04]"
+  "motion-safe:lg:group-hover:scale-[1.04]"
 
 /*
  * The label is a sibling of the circle, NOT a child of it. The circle clips its

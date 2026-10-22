@@ -389,7 +389,7 @@ export function PublicHelpSupport() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3 text-center pt-4">
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center justify-center gap-3 text-sm text-aura-text hover:text-aura-forest transition-colors">
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="flex items-center justify-center gap-3 text-sm text-aura-text hover-tap:text-aura-forest transition-colors">
                 <Send className="h-5 w-5 text-aura-forest" aria-hidden="true" />
                 <span>{SUPPORT_EMAIL}</span>
               </a>

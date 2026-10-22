@@ -348,7 +348,7 @@ export function Dashboard() {
               {isClinician ? (
                 <Button
                   onClick={() => navigate("/dashboard/screening")}
-                  className="h-10 gap-2 rounded-lg bg-white font-semibold text-aura-forest shadow-lg shadow-black/10 transition-all hover:bg-white/95 hover:shadow-xl"
+                  className="h-10 gap-2 rounded-lg bg-white font-semibold text-aura-forest shadow-lg shadow-black/10 transition-all lg:hover:bg-white/95 lg:hover:shadow-xl"
                 >
                   <Plus className="h-4 w-4" />
                   <span>New Screening</span>
@@ -356,7 +356,7 @@ export function Dashboard() {
               ) : (
                 <Button
                   onClick={() => navigate("/dashboard/admin")}
-                  className="h-10 gap-2 rounded-lg bg-white font-semibold text-aura-forest shadow-lg shadow-black/10 transition-all hover:bg-white/95 hover:shadow-xl"
+                  className="h-10 gap-2 rounded-lg bg-white font-semibold text-aura-forest shadow-lg shadow-black/10 transition-all lg:hover:bg-white/95 lg:hover:shadow-xl"
                 >
                   <Users className="h-4 w-4" />
                   <span>Add User</span>
@@ -466,7 +466,7 @@ export function Dashboard() {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/dashboard/patient-records")}
-                      className="gap-1 text-base text-aura-forest hover:text-aura-ink"
+                      className="gap-1 text-base text-aura-forest hover-tap:text-aura-ink"
                     >
                       View All <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
@@ -491,7 +491,7 @@ export function Dashboard() {
                         <Link
                           key={screening.id}
                           to={`/dashboard/screenings/${screening.id}`}
-                          className="group flex w-full items-center justify-between gap-4 px-6 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand hover:bg-aura-surface-alt active:bg-aura-bg-alt"
+                          className="group flex w-full items-center justify-between gap-4 px-6 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-brand hover-tap:bg-aura-surface-alt active:bg-aura-bg-alt"
                         >
                           {/* LEFT: the patient and the screening's details.
 
@@ -544,7 +544,7 @@ export function Dashboard() {
                               <ConfidenceChip value={screening.respiratory_confidence} />
                               {renderStatusBadge(screening.status, screening.reviewed_by_name)}
                             </div>
-                            <ChevronRight className="h-5 w-5 shrink-0 text-aura-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-aura-ink" />
+                            <ChevronRight className="h-5 w-5 shrink-0 text-aura-muted transition-transform duration-200 lg:group-hover:translate-x-0.5 group-hover-tap:text-aura-ink" />
                           </div>
                         </Link>
                       ))}
@@ -592,7 +592,7 @@ export function Dashboard() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="touch-target h-8 w-8 rounded-full transition-all hover:bg-aura-mint-soft active:scale-90"
+                                    className="touch-target h-8 w-8 rounded-full transition-all hover-tap:bg-aura-mint-soft active:scale-90"
                                     onClick={() => void handleDashboardApprove(u.id)}
                                     aria-label={`Approve ${u.full_name}`}
                                   >
@@ -606,7 +606,7 @@ export function Dashboard() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="touch-target h-8 w-8 rounded-full transition-all hover:bg-aura-coral-soft active:scale-90"
+                                    className="touch-target h-8 w-8 rounded-full transition-all hover-tap:bg-aura-coral-soft active:scale-90"
                                     onClick={() => void handleDashboardReject(u.id)}
                                     aria-label={`Reject ${u.full_name}`}
                                   >

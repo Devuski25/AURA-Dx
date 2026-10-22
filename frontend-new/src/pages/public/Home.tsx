@@ -122,7 +122,7 @@ export function Home() {
             {STEPS.map((step, i) => (
               <StaggerItem as="li" key={step.title} className="group">
                 <DrawRule className="h-0.5 bg-aura-forest" delay={0.2 + i * 0.12} />
-                <span aria-hidden="true" className={`mt-5 inline-block font-display text-4xl font-bold tabular-nums text-aura-accent-dark transition-transform duration-500 ${SMOOTH} group-hover:translate-x-2`}>{i + 1}</span>
+                <span aria-hidden="true" className={`mt-5 inline-block font-display text-4xl font-bold tabular-nums text-aura-accent-dark transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-2`}>{i + 1}</span>
                 <h3 className="mt-3 text-base font-bold text-aura-text">{step.title}</h3>
                 <p className="mt-2 max-w-[34ch] text-sm leading-relaxed text-aura-muted">{step.desc}</p>
               </StaggerItem>
@@ -162,10 +162,10 @@ export function Home() {
           <Stagger as="ul" className="m-0 list-none divide-y divide-aura-border border-y border-aura-border p-0">
             {FEATURES.map((f) => (
               <StaggerItem as="li" key={f.title} className="group flex items-start gap-4 py-5">
-                <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-aura-forest transition-all duration-500 ${SMOOTH} group-hover:scale-110 group-hover:bg-aura-forest group-hover:text-white`}>
+                <span aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-aura-forest transition-all duration-500 ${SMOOTH} lg:group-hover:scale-110 group-hover-tap:bg-aura-forest group-hover-tap:text-white`}>
                   <f.icon className="h-5 w-5" />
                 </span>
-                <div className={`transition-transform duration-500 ${SMOOTH} group-hover:translate-x-1`}>
+                <div className={`transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-1`}>
                   <h3 className="text-sm font-bold text-aura-text">{f.title}</h3>
                   <p className="mt-1 text-sm leading-relaxed text-aura-muted">{f.desc}</p>
                 </div>
@@ -191,7 +191,7 @@ export function Home() {
                       onClick={() => setOpenFaq(open ? null : i)}
                       aria-expanded={open}
                       aria-controls={`faq-panel-${i}`}
-                      className={`group flex w-full cursor-pointer items-center justify-between gap-4 py-5 text-left text-base font-semibold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent-dark focus-visible:ring-offset-2 ${open ? "text-aura-forest" : "text-aura-text hover:text-aura-forest"}`}
+                      className={`group flex w-full cursor-pointer items-center justify-between gap-4 py-5 text-left text-base font-semibold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent-dark focus-visible:ring-offset-2 ${open ? "text-aura-forest" : "text-aura-text hover-tap:text-aura-forest"}`}
                     >
                       {faq.q}
                       <motion.span
@@ -240,10 +240,10 @@ export function Home() {
               </p>
               <Link
                 to="/legal"
-                className="group mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-aura-accent-dark underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline"
+                className="group mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-aura-accent-dark underline-offset-4 lg:hover:underline focus-visible:outline-none focus-visible:underline"
               >
                 Read the Legal &amp; Privacy page
-                <ArrowRight className={`h-4 w-4 transition-transform duration-500 ${SMOOTH} group-hover:translate-x-1.5`} aria-hidden="true" />
+                <ArrowRight className={`h-4 w-4 transition-transform duration-500 ${SMOOTH} lg:group-hover:translate-x-1.5`} aria-hidden="true" />
               </Link>
             </div>
           </aside>

@@ -544,7 +544,7 @@ export function DeviceBanner({
         <button
           type="button"
           onClick={onRefresh}
-          className="shrink-0 rounded-md p-1.5 text-aura-muted transition-colors hover:bg-black/5 hover:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+          className="shrink-0 rounded-md p-1.5 text-aura-muted transition-colors hover-tap:bg-black/5 hover-tap:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
           aria-label="Refresh audio inputs"
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />

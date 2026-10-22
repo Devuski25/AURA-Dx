@@ -288,7 +288,7 @@ export function Login() {
                       <button
                         type="button"
                         onClick={() => setShowForgotPassword(true)}
-                        className="rounded-sm text-sm font-medium text-aura-forest underline-offset-4 transition-colors duration-200 hover:text-aura-forest-light hover:underline focus-visible:outline-none focus-visible:underline"
+                        className="rounded-sm text-sm font-medium text-aura-forest underline-offset-4 transition-colors duration-200 hover-tap:text-aura-forest-light lg:hover:underline focus-visible:outline-none focus-visible:underline"
                       >
                         Forgot password?
                       </button>
@@ -307,7 +307,7 @@ export function Login() {
                 whileHover={reduced ? undefined : { y: -1 }}
                 whileTap={reduced ? undefined : { scale: 0.98 }}
                 transition={{ duration: 0.16, ease: "easeOut" }}
-                className="aura-sheen relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white shadow-aura-md transition-shadow duration-200 hover:shadow-aura-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                className="aura-sheen relative flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white shadow-aura-md transition-shadow duration-200 lg:hover:shadow-aura-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   {loading ? (

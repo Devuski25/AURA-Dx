@@ -2,6 +2,38 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   HOVER IS A MOUSE AFFORDANCE.
+
+   A phone and a tablet are touched, not hovered, and on a touch screen a
+   tap latches the `:hover` state â€” the button keeps its hover colour
+   after the finger has moved on, which reads as a button stuck half
+   pressed.
+
+   So the hover styles are split in two:
+
+     `hover-tap:`  â€” a COLOUR change: the background, text or border the
+                     control takes when the pointer is over it. On a phone
+                     and a tablet there is no hover to wait for, so the
+                     control simply carries that colour all the time. On a
+                     desktop it is a hover, exactly as before.
+
+     `lg:hover:`   â€” everything else: the shadow, the lift, the underline.
+                     Those are flourishes for a mouse. On a touch screen
+                     they latch and stay, so they only happen on the
+                     desktop breakpoint.
+
+   The `data-tap` attribute is set on <html> by `lib/touch-layout.ts` when
+   the viewport is below the desktop breakpoint, which is the same place
+   the app switches from the persistent sidebar to the drawer. */
+@custom-variant hover-tap (&:is(:hover, :where(html[data-tap] *)));
+
+/* The same idea for a colour that changes when the pointer is over the
+   PARENT â€” the chevron in a row, the tile in a card. On a touch layout
+   the parent is never "hovered", so the child carries the colour
+   outright. */
+@custom-variant group-hover-tap (&:is(:where(.group):hover *, :where(html[data-tap] .group) *));
+
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -549,7 +581,7 @@ body {
   transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
 }
-@media (hover: hover) and (pointer: fine) {
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .aura-sheen:hover::after {
     transform: translateX(130%) skewX(-8deg);
   }
@@ -713,12 +745,16 @@ body {
   animation: aura-pop-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 
-/* Lift wrapper with hover-capable guard so touch never sticks. */
+/* Lift wrapper, desktop only.
+
+   A lift is a mouse flourish. On a touch screen it latches after a tap
+   and the card stays raised, so it is switched off below the desktop
+   breakpoint along with every other `lg:hover:` in the app. */
 .hover-lift {
   transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
 }
-@media (hover: hover) and (pointer: fine) {
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-aura-card-hover);

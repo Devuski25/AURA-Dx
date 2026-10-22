@@ -177,7 +177,7 @@ export function PatientDetail() {
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-48" />
         </div>
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
           {Array.from({ length: 2 }).map((_, i) => (
             /* White panels with the same top edge as the real cards, so the
                loading state doesn't read as a different page. */
@@ -270,7 +270,7 @@ export function PatientDetail() {
               <Button
                 variant="ghost"
                 disabled={deleting}
-                className="gap-1.5 text-aura-coral-strong hover:bg-aura-coral-soft hover:text-aura-coral-strong"
+                className="gap-1.5 text-aura-coral-strong hover-tap:bg-aura-coral-soft hover-tap:text-aura-coral-strong"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -307,10 +307,24 @@ export function PatientDetail() {
 
           The age bracket went from the Gender card for the same reason: the
           Age card carries the exact age, and a band beside it is the same
-          information in a vaguer form. */}
-      <div className="grid gap-8 md:grid-cols-2">
+          information in a vaguer form.
+
+          Two cards of the same height. The Age card carries a second line
+          -- the date of birth -- and the Gender card does not, so without
+          this the shorter one hung half an inch below the other and the
+          pair read as a mistake. `h-full` lets both fill the row the
+          grid gives them, and the two values still sit on the same line
+          because both are the first thing in the card.
+
+          The gap is even too. The page separates its blocks by 24px, and
+          the gap between the two cards was 32px, so on a phone -- where
+          they stack -- the space above the Gender card was wider than
+          the space below it. The column gap stays 32px, where the two
+          cards are side by side and the width between them is what
+          separates them. */}
+      <div className="grid gap-x-8 gap-y-6 md:grid-cols-2">
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card className="aura-panel">
+          <Card className="aura-panel h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Age</CardTitle>
               <Calendar className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
@@ -322,7 +336,7 @@ export function PatientDetail() {
           </Card>
         </motion.div>
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card className="aura-panel">
+          <Card className="aura-panel h-full">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Gender</CardTitle>
               <Shield className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
@@ -421,7 +435,7 @@ export function PatientDetail() {
                 </TableHeader>
                 <TableBody>
                   {screenings.map((s) => (
-                    <TableRow key={s.id} className="transition-colors hover:bg-aura-surface-alt">
+                    <TableRow key={s.id} className="transition-colors lg:hover:bg-aura-surface-alt">
                       <TableCell>
                         {/* Which reading this is, for this patient. A patient
                             can be screened repeatedly, so "the second one" is

@@ -600,7 +600,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                   type="button"
                   onClick={() => void exportAllPDFs()}
                   disabled={exporting || filteredAndSortedScreenings.length === 0}
-                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-aura-forest px-5 text-base font-semibold text-white transition-colors hover:bg-aura-forest-light disabled:pointer-events-none disabled:opacity-50"
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-aura-forest px-5 text-base font-semibold text-white transition-colors hover-tap:bg-aura-forest-light disabled:pointer-events-none disabled:opacity-50"
                 >
                   {exporting ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -653,7 +653,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     <button
                       type="button"
                       onClick={clearSelection}
-                      className="rounded-md px-1.5 py-1 text-sm font-medium text-aura-muted transition-colors hover:text-aura-forest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+                      className="rounded-md px-1.5 py-1 text-sm font-medium text-aura-muted transition-colors hover-tap:text-aura-forest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
                     >
                       Clear
                     </button>
@@ -739,7 +739,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="touch-target h-8 w-8 shrink-0 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
+                            className="touch-target h-8 w-8 shrink-0 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover-tap:bg-aura-mint-wash hover-tap:text-aura-forest motion-safe:lg:hover:scale-[1.08]"
                             aria-label={`Actions for ${label}`}
                           >
                             <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -819,7 +819,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     <TableRow
                       key={group.key}
                       className={cn(
-                        "group align-middle overflow-hidden border-b border-aura-forest/10 transition-colors duration-150 hover:bg-aura-mint-wash/60 focus-within:bg-aura-mint-wash/60",
+                        "group align-middle overflow-hidden border-b border-aura-forest/10 transition-colors duration-150 lg:hover:bg-aura-mint-wash/60 focus-within:bg-aura-mint-wash/60",
                         idx % 2 === 1 && "bg-aura-table-stripe"
                       )}
                     >
@@ -840,7 +840,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                             parser, which breaks column alignment. */}
                         <span
                           aria-hidden="true"
-                          className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
+                          className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:lg:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                         />
                         <div className="break-words text-base font-medium">{group.name}</div>
                       </TableCell>
@@ -863,7 +863,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
+                                className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover-tap:bg-aura-mint-wash hover-tap:text-aura-forest motion-safe:lg:hover:scale-[1.08]"
                                 aria-label={`Actions for ${group.name}`}
                               >
                                 <MoreHorizontal className="h-4 w-4" aria-hidden="true" />

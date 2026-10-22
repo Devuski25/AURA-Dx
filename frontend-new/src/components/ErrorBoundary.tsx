@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white transition-colors hover:bg-aura-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
+            className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-aura-forest px-4 text-sm font-semibold text-white transition-colors hover-tap:bg-aura-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
           >
             <RotateCw className="h-4 w-4" aria-hidden="true" />
             Reload

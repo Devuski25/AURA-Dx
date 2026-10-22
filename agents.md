@@ -66,6 +66,7 @@ cd frontend-new && npm run dev
 | Patient picker header matches its rows | `python scripts/check-picker-grid.py` |
 | Selected-site card matches the dropdown | `node frontend-new/scripts/check-site-card.mjs` |
 | Route prefetching fetches the right chunk | `node frontend-new/scripts/check-route-prefetch.mjs` |
+| Every hover is split for a touch screen | `node frontend-new/scripts/check-hover-split.mjs` |
 | How long each API call takes | `python backend/test_api_timing.py` |
 | Environment gating (fail-closed) | `python backend/test_app_env.py` |
 | CORS LAN scoping | `python backend/test_cors_lan.py` |

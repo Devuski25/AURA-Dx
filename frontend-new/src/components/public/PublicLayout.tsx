@@ -44,7 +44,7 @@ function NavLinks() {
             className={`block rounded-lg px-4 py-2.5 text-sm font-semibold no-underline transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-accent focus-visible:ring-offset-2 ${
               pathname === item.path
                 ? "bg-aura-forest text-white shadow-sm shadow-aura-forest/20"
-                : "text-aura-text/70 hover:bg-aura-bg-alt hover:text-aura-text"
+                : "text-aura-text/70 hover-tap:bg-aura-bg-alt hover-tap:text-aura-text"
             }`}
           >
             {item.label}
@@ -82,7 +82,7 @@ export function PublicLayout() {
           <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }} transition={{ type: "spring", stiffness: 400, damping: 17 }}>
             <Link
               to="/login"
-                className="block shrink-0 rounded-full bg-aura-forest px-6 py-2.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover:bg-green-700 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
+                className="block shrink-0 rounded-full bg-aura-forest px-6 py-2.5 text-sm font-bold text-white no-underline shadow-lg shadow-aura-forest/25 transition-all duration-200 hover-tap:bg-green-700 lg:hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-aura-forest"
             >
               Login
             </Link>
@@ -145,10 +145,10 @@ export function PublicLayout() {
                     <li key={item.path}>
                       <Link
                         to={item.path}
-                        className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                        className="group inline-flex items-center gap-1 text-sm font-medium text-aura-footer-link no-underline transition-colors hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                       >
                         {item.label}
-                        <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover:opacity-100" aria-hidden="true" />
+                        <ArrowUpRight className="h-3 w-3 opacity-0 transition-all duration-200 group-hover-tap:opacity-100" aria-hidden="true" />
                       </Link>
                     </li>
                   ))}
@@ -191,7 +191,7 @@ export function PublicLayout() {
               aria-label={navItem.label}
               className={cn(
                 "flex min-h-[60px] flex-1 flex-col items-center justify-center gap-1 py-2 text-[0.8125rem] font-medium no-underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-aura-accent md:text-[0.9375rem]",
-                active ? "bg-aura-accent/10 text-aura-accent" : "text-aura-muted hover:text-aura-text"
+                active ? "bg-aura-accent/10 text-aura-accent" : "text-aura-muted hover-tap:text-aura-text"
               )}
             >
               <Icon className="h-6 w-6 shrink-0 md:h-5 md:w-5" aria-hidden="true" />

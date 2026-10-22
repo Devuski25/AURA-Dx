@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState, useMemo } from "react"
 import { motion, useReducedMotion } from "framer-motion"
@@ -751,7 +751,7 @@ export function ScreeningDetail() {
                 size="icon"
                 disabled={!prevSibling}
                 onClick={() => prevSibling && navigate(`/dashboard/screenings/${prevSibling.id}`)}
-                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
+                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink"
                 aria-label="Previous screening for this patient"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -766,7 +766,7 @@ export function ScreeningDetail() {
                 size="icon"
                 disabled={!nextSibling}
                 onClick={() => nextSibling && navigate(`/dashboard/screenings/${nextSibling.id}`)}
-                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
+                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink"
                 aria-label="Next screening for this patient"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -800,7 +800,7 @@ export function ScreeningDetail() {
             variant="outline"
             onClick={() => setDeleteOpen(true)}
             disabled={!screening}
-            className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2 text-destructive hover:text-destructive-strong"
+            className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2 text-destructive hover-tap:text-destructive-strong"
             aria-label="Delete this screening"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />

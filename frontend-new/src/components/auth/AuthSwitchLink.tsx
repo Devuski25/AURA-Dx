@@ -30,7 +30,7 @@ export function AuthSwitchLink({ icon: Icon, prompt, action, to }: AuthSwitchLin
       </span>
       <Link
         to={to}
-        className="rounded-sm text-sm font-semibold text-aura-forest underline-offset-4 transition-colors duration-200 hover:text-aura-forest-light hover:underline focus-visible:outline-none focus-visible:underline"
+        className="rounded-sm text-sm font-semibold text-aura-forest underline-offset-4 transition-colors duration-200 hover-tap:text-aura-forest-light lg:hover:underline focus-visible:outline-none focus-visible:underline"
       >
         {action}
       </Link>

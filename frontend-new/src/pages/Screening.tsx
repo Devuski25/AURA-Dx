@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
@@ -900,7 +900,7 @@ export function Screening() {
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand focus-visible:ring-offset-2",
                     isActive && "border-aura-pine bg-aura-pine text-white ring-4 ring-aura-pine/20",
-                    isComplete && "cursor-pointer border-aura-pine bg-aura-pine text-white hover:brightness-110 active:scale-95",
+                    isComplete && "cursor-pointer border-aura-pine bg-aura-pine text-white lg:hover:brightness-110 active:scale-95",
                     !isActive && !isComplete && "border-aura-border-soft bg-white text-aura-muted",
                   )}
                 >
@@ -1030,7 +1030,7 @@ export function Screening() {
                                           "group relative border-b border-aura-border-soft transition-colors last:border-b-0",
                                           isSelected
                                             ? "bg-green-50 ring-1 ring-inset ring-green-600"
-                                            : "bg-aura-elevated hover:bg-aura-surface-alt"
+                                            : "bg-aura-elevated hover-tap:bg-aura-surface-alt"
                                         )}
                                       >
                                         {/* No avatar. The circle of initials
@@ -1075,7 +1075,7 @@ export function Screening() {
                                         <span className="hidden justify-end sm:flex">
                                           <ChevronRight
                                             aria-hidden="true"
-                                            className="h-4 w-4 shrink-0 text-aura-muted transition-transform group-hover:translate-x-0.5"
+                                            className="h-4 w-4 shrink-0 text-aura-muted transition-transform lg:group-hover:translate-x-0.5"
                                           />
                                         </span>
                                         {/* z-10 so the menu sits above the stretched click
@@ -1086,7 +1086,7 @@ export function Screening() {
                                             <button
                                               type="button"
                                               aria-label={`Actions for ${patient.name}`}
-                                              className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-aura-muted transition-colors hover:bg-aura-surface-alt hover:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                              className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-aura-muted transition-colors hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             >
                                               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                                             </button>
@@ -1398,7 +1398,7 @@ export function Screening() {
                         {totalRecordedSec.toFixed(1)}s total
                       </span>
                     </p>
-                    <Button variant="ghost" size="sm" onClick={clearTakes} className="text-aura-muted hover:text-aura-coral-strong">
+                    <Button variant="ghost" size="sm" onClick={clearTakes} className="text-aura-muted hover-tap:text-aura-coral-strong">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Clear all
                     </Button>
@@ -1445,7 +1445,7 @@ export function Screening() {
                             variant="ghost"
                             size="icon"
                             onClick={() => removeTake(take.id)}
-                            className="touch-target h-9 w-9 shrink-0 rounded-full text-aura-muted hover:bg-aura-coral-soft hover:text-aura-coral-strong"
+                            className="touch-target h-9 w-9 shrink-0 rounded-full text-aura-muted hover-tap:bg-aura-coral-soft hover-tap:text-aura-coral-strong"
                             aria-label={`Remove take ${index + 1}`}
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />

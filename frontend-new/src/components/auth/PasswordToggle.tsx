@@ -22,7 +22,7 @@ export function PasswordToggle({ visible, onToggle }: PasswordToggleProps) {
       onClick={onToggle}
       aria-pressed={visible}
       aria-label={visible ? "Hide password" : "Show password"}
-      className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-lg text-aura-muted transition-colors duration-200 hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
+      className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-lg text-aura-muted transition-colors duration-200 hover-tap:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2"
     >
       <AnimatePresence initial={false} mode="wait">
         <motion.span

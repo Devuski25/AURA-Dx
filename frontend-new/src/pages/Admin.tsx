@@ -308,7 +308,7 @@ function UserActionsMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover:bg-aura-mint-wash hover:text-aura-forest motion-safe:hover:scale-[1.08]"
+          className="touch-target h-8 w-8 rounded-full text-aura-muted transition-[transform,background-color,color] duration-150 hover-tap:bg-aura-mint-wash hover-tap:text-aura-forest motion-safe:lg:hover:scale-[1.08]"
           aria-label={`Actions for ${user.full_name}`}
         >
           <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
@@ -805,7 +805,7 @@ export function Admin() {
         showWaveform={false}
         actions={
           pendingApprovals > 0 ? (
-            <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/15 px-4 py-1.5 text-sm font-bold tabular-nums text-white backdrop-blur-sm transition-transform duration-200 motion-safe:hover:-translate-y-px sm:self-auto">
+            <span className="inline-flex items-center gap-2 self-start rounded-full border border-white/20 bg-white/15 px-4 py-1.5 text-sm font-bold tabular-nums text-white backdrop-blur-sm transition-transform duration-200 motion-safe:lg:hover:-translate-y-px sm:self-auto">
               {/* Breathing dot, restyled for a dark background. */}
               <span className="aura-badge-breathe h-1.5 w-1.5 shrink-0 rounded-full bg-sky-300" aria-hidden="true" />
               {pendingApprovals} Pending Approval{pendingApprovals === 1 ? "" : "s"}
@@ -967,7 +967,7 @@ export function Admin() {
                   whileHover={reduceMotion ? undefined : { y: -1 }}
                   whileTap={reduceMotion ? undefined : { scale: 0.98 }}
                   transition={{ duration: 0.15, ease: EASE_OUT }}
-                  className="aura-sheen md:ml-auto inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-aura-forest px-4 font-semibold text-white shadow-aura-sm transition-shadow duration-200 hover:bg-aura-forest-light hover:shadow-aura-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                  className="aura-sheen md:ml-auto inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-aura-forest px-4 font-semibold text-white shadow-aura-sm transition-shadow duration-200 hover-tap:bg-aura-forest-light lg:hover:shadow-aura-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 >
                   <UserPlusIcon className="h-4 w-4" aria-hidden="true" />
                   Add User
@@ -1019,7 +1019,7 @@ export function Admin() {
                       data-scrolled="false"
                       className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10 bg-white backdrop-blur-md"
                     >
-                      <TableRow className="align-middle border-b-0 hover:bg-transparent">
+                      <TableRow className="align-middle border-b-0 lg:hover:bg-transparent">
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Name</TableHead>
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Email</TableHead>
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[6.5rem] text-center")}>Role</TableHead>
@@ -1038,7 +1038,7 @@ export function Admin() {
                           initial={entranceDone || reduceMotion ? false : "hidden"}
                           transition={{ layout: { duration: 0.28, ease: EASE_OUT } }}
                           className={cn(
-                            "group align-middle overflow-hidden border-b border-aura-forest/10 transition-colors duration-150 hover:bg-aura-mint-wash/60 focus-within:bg-aura-mint-wash/60",
+                            "group align-middle overflow-hidden border-b border-aura-forest/10 transition-colors duration-150 lg:hover:bg-aura-mint-wash/60 focus-within:bg-aura-mint-wash/60",
                             idx % 2 === 1 && "bg-aura-table-stripe",
                             // Faint sky tint marks rows still awaiting a decision.
                             // Hover and focus still win with the mint wash.
@@ -1055,7 +1055,7 @@ export function Admin() {
                                 which breaks column alignment. */}
                             <span
                               aria-hidden="true"
-                              className="pointer-events-none absolute inset-y-2 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
+                              className="pointer-events-none absolute inset-y-2 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:lg:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                             />
                             <div className="flex items-center gap-2.5">
                               <UserMonogram user={u} />
@@ -1267,7 +1267,7 @@ export function Admin() {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-2.5 text-aura-muted transition-colors hover-tap:text-aura-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand"
                             aria-label={showPassword ? "Hide password" : "Show password"}
                           >
                             {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}

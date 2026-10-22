@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { markTouchLayout } from './lib/touch-layout'
 
 /**
  * Dev builds only: serve `/api/*` from fixtures so the authenticated pages
@@ -29,6 +30,11 @@ async function boot(): Promise<void> {
     const { installDevApiMock } = await import('./lib/dev-mock-api')
     installDevApiMock()
   }
+
+  // Marked before the first render, so the first paint already knows
+  // whether this is a touch layout. A control that shows its hover
+  // colour on a touch screen must not flash its resting colour first.
+  markTouchLayout()
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
