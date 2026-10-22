@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { scaleIn } from "@/lib/motion"
-import { Loader2, Mic, MicOff, Trash2, CheckCircle, AlertCircle, ChevronRight, Settings, Plus, AlertTriangle, Search, MoreHorizontal, Pencil } from "lucide-react"
+import { Loader2, Mic, MicOff, Trash2, CheckCircle, AlertCircle, Settings, Plus, AlertTriangle, Search, MoreHorizontal, Pencil } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -209,14 +209,21 @@ const ageOf = (dateOfBirth: string) => {
    the card.
 
    The header row is why the two must agree on the track count. It has the
-   same number of children as the row only from `sm` up, where both are four.
+   same number of children as the row only from `sm` up, where both are three.
    On a phone the header's extra headings are hidden, so what is left is
    "Patient" and "Action" -- two children for two tracks. The row has two. When
    the header still had all six headings in a four-track grid they wrapped onto
    a second row, and "Action" broke across two lines as "Acti on" over a
-   clipped row. */
+   clipped row.
+
+   The chevron that used to sit in the third track is gone. It pointed at the
+   row, but the row is already a button -- the whole line selects the patient
+   -- so the arrow was saying something the row was already saying, in a
+   column of its own, next to the one control that actually does something
+   else. What is left in that track is the 3-dot menu, and the "Action"
+   heading sits over it. */
 const PATIENT_GRID =
-  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_auto_auto] sm:px-5"
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_auto] sm:px-5"
 
 /* How many patient rows the picker shows before it starts scrolling.
    Five is roughly a screenful on a phone with the search box and the New
@@ -934,6 +941,7 @@ export function Screening() {
                         <span className="block h-3 w-20 animate-pulse rounded bg-aura-surface-alt" />
                       </span>
                       <span className="hidden h-5 w-16 animate-pulse rounded-full bg-aura-surface-alt sm:block" />
+                      <span className="hidden h-8 w-8 animate-pulse rounded bg-aura-surface-alt sm:block" />
                     </div>
                   ))}
                 </div>
@@ -1018,7 +1026,6 @@ export function Screening() {
                                     <span>Patient</span>
                                     <span className="hidden sm:block">Details</span>
                                     <span className="text-right">Action</span>
-                                    <span className="hidden sm:block" />
                                   </div>
                                   {visiblePatients.map(patient => {
                                     const isSelected = selectedPatient?.id === patient.id
@@ -1065,18 +1072,6 @@ export function Screening() {
                                               {patient.screeningCount} screening{patient.screeningCount === 1 ? "" : "s"}
                                             </>
                                           )}
-                                        </span>
-                                        {/* The chevron is desktop only. On a
-                                            phone it duplicated the row's own
-                                            tap-to-select affordance and took
-                                            the width the name needed. The
-                                            3-dot menu is the one control on
-                                            the right at every width. */}
-                                        <span className="hidden justify-end sm:flex">
-                                          <ChevronRight
-                                            aria-hidden="true"
-                                            className="h-4 w-4 shrink-0 text-aura-muted transition-transform lg:group-hover:translate-x-0.5"
-                                          />
                                         </span>
                                         {/* z-10 so the menu sits above the stretched click
                                             target below; relative so it keeps a stacking

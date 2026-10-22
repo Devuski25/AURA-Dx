@@ -795,12 +795,15 @@ export function ScreeningDetail() {
           </Button>
           {/* Delete this screening, not the patient. Deleting the patient is
               in the list's row menu, where it is guarded by a confirmation
-              that says the whole history goes with it. */}
+              that says the whole history goes with it.
+
+              Red, and it stays red -- no hover, on any device. The colour is
+              the warning, and it is there before the pointer arrives. */}
           <Button
-            variant="outline"
+            variant="destructive-solid"
             onClick={() => setDeleteOpen(true)}
             disabled={!screening}
-            className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2 text-destructive hover-tap:text-destructive-strong"
+            className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2"
             aria-label="Delete this screening"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />

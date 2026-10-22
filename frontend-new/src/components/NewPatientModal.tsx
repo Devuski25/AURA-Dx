@@ -184,7 +184,12 @@ export function NewPatientModal({ open, onOpenChange, onPatientCreated, initialD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl text-aura-text">
+      {/* No X in the corner.
+          This form has its own Cancel button at the bottom, right beside the
+          button that saves the patient. The X was a second way to dismiss it,
+          floating away in the corner, and dismissing a half-filled patient
+          form by accident is worse than having to reach the Cancel button. */}
+      <DialogContent className="max-w-2xl text-aura-text" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle className="text-aura-text">
               {isEditing ? "Edit Patient Details" : "New Patient Screening"}

@@ -265,14 +265,15 @@ export function PatientDetail() {
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
             <DialogTrigger asChild>
-              {/* B7: destructive action gets low-emphasis styling; the confirm
-                  dialog stays the hard stop before deletion */}
-              <Button
-                variant="ghost"
-                disabled={deleting}
-                className="gap-1.5 text-aura-coral-strong hover-tap:bg-aura-coral-soft hover-tap:text-aura-coral-strong"
-              >
-                <Trash2 className="h-4 w-4" />
+              {/* The delete button is red, and it stays red.
+
+                  It used to be a ghost button that turned red on hover, so
+                  the thing you were about to press looked harmless until
+                  you got to it. Red on white, white on red, no hover: the
+                  colour is the warning, and it is there before the pointer
+                  arrives. The confirm dialog is still the hard stop. */}
+              <Button variant="destructive-solid" disabled={deleting} className="gap-1.5">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Delete
               </Button>
             </DialogTrigger>

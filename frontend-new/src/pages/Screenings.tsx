@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect, useRef } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "framer-motion"
 import { Search, Download, Eye, Loader2, SearchX, Check, MoreHorizontal, Activity, FileText, Trash2 } from "lucide-react"
@@ -58,7 +58,12 @@ interface Screening {
   id: string
   patient_id: string
   patient_name: string | null
-  date_of_birth: string
+  /** The patient's date of birth.
+   *
+   *  The API calls this `patient_dob`, not `date_of_birth`, and the
+   *  database view behind it calls it `date_of_birth` again. The response
+   *  model settles on `patient_dob`, so that is the name to use here. */
+  patient_dob: string | null
   /** The patient's sex.
    *
    * The API calls this `patient_gender`, not `gender`, and reading the
@@ -97,14 +102,25 @@ interface Screening {
  * clinician what the columns are, and they are now the strongest thing in
  * the header row.
  *
- * One class string for all four so they cannot drift apart again. */
+ * One class string for all of them so they cannot drift apart again.
+ *
+ * They are centred, and so is the data under them. A row here is a handful of
+ * short facts -- a name, an age, a count -- and when they were all hung off
+ * the left edge the row read as a ragged list of fragments rather than as a
+ * record. Centred, they line up as columns and the eye can run straight down
+ * one of them. */
 const HEAD_CELL =
-  "px-4 text-left font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink"
+  "px-4 text-center font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink"
 
+/** The patient's age in whole years.
+ *
+ *  The API sends an age BRACKET -- "36-64" -- because that is what the
+ *  filters and the picker want. A column headed "Age" that answered "36-64"
+ *  would not answer the question it asks, so this works from the date of
+ *  birth instead and gives the number the clinician would say out loud. */
 function computeAgeLabel(screening: Screening): string {
-  if (screening.age_bracket) return screening.age_bracket
-  if (!screening.date_of_birth) return "—"
-  const birthDate = new Date(screening.date_of_birth)
+  if (!screening.patient_dob) return "—"
+  const birthDate = new Date(screening.patient_dob)
   if (isNaN(birthDate.getTime())) return "—"
   const today = new Date()
   let age = today.getFullYear() - birthDate.getFullYear()
@@ -112,7 +128,16 @@ function computeAgeLabel(screening: Screening): string {
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
     age--
   }
-  return `${age}y`
+  return age < 0 ? "—" : `${age}`
+}
+
+/** The patient's gender, ready to print.
+ *
+ *  Capitalised because it sits in a row of proper nouns and a lower-case
+ *  "female" in the middle of one reads as a mistake. */
+function formatGender(gender: string | null): string {
+  if (!gender) return "—"
+  return gender.charAt(0).toUpperCase() + gender.slice(1).toLowerCase()
 }
 
 export function Screenings({ embedded = false }: { embedded?: boolean }) {
@@ -296,17 +321,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
   )
 
   const selectedCount = selectedScreenings.length
-  const allSelected =
-    selectedCount > 0 && selectedCount === visibleScreenings.length
-
-  /* Checked + some-remaining reads as indeterminate, not unchecked. */
-  const selectAllRef = useRef<HTMLInputElement>(null)
-  const someSelected = selectedCount > 0 && !allSelected
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someSelected
-    }
-  }, [someSelected])
 
   /* Selecting a row selects the patient's whole history.
 
@@ -325,19 +339,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
       return next
     })
   }, [screeningsByPatient])
-
-  const toggleSelectAll = useCallback(() => {
-    setSelectedIds(prev => {
-      const next = new Set<string>()
-      const everythingPicked =
-        visibleScreenings.length > 0 &&
-        visibleScreenings.every(s => prev.has(s.id))
-      if (!everythingPicked) {
-        for (const s of visibleScreenings) next.add(s.id)
-      }
-      return next
-    })
-  }, [visibleScreenings])
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
@@ -758,18 +759,20 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
               <Table>
                 <TableHeader className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10">
                   <TableRow>
-                    <TableHead className="w-12 px-2">
-                      <label className="inline-flex cursor-pointer items-center">
-                        <Checkbox
-                          ref={selectAllRef}
-                          className="h-[18px] w-[18px] accent-aura-forest"
-                          checked={allSelected}
-                          onChange={toggleSelectAll}
-                          disabled={filteredAndSortedScreenings.length === 0}
-                          aria-label="Select all screenings for export"
-                        />
-                      </label>
-                    </TableHead>
+                    {/* An empty cell where the checkbox column is.
+
+                        There used to be a "select all" checkbox here, with an
+                        indeterminate state for "some of them". It was
+                        pointless: Export PDF already covers every record the
+                        filters leave visible, so ticking everything and
+                        pressing Export produced exactly the same file as
+                        pressing Export with nothing ticked. Two ways of
+                        asking for one thing, and the slower one looked like
+                        the required one.
+
+                        The cell stays, empty, so the per-patient checkboxes
+                        below it keep their column. */}
+                    <TableHead className="w-12 px-2" aria-hidden="true" />
                     {/* Plain bold column labels.
 
                         These were buttons carrying a sort indicator -- a pair of
@@ -786,16 +789,28 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         no longer something the header can change.
                         aria-sort goes with the affordance: a column that
                         cannot be sorted must not announce that it can be. */}
-                    <TableHead className={HEAD_CELL}>
+                    <TableHead className={cn(HEAD_CELL, "w-48")}>
                       Patient
                     </TableHead>
+                    {/* How old the patient is.
+
+                        Only for a clinician's own list. An admin sees the
+                        clinician column instead -- who took the readings -- and
+                        the two together would make the table too wide to
+                        read on a tablet. */}
+                    {!showClinician && (
+                      <>
+                        <TableHead className={cn(HEAD_CELL, "w-24")}>Age</TableHead>
+                        <TableHead className={cn(HEAD_CELL, "w-24")}>Gender</TableHead>
+                      </>
+                    )}
                     {/* How many readings this patient has.
 
                         The row is the patient, so this is what tells a
                         clinician that there is more than one -- and the
                         patient's record is where the readings themselves
                         are. */}
-                    <TableHead className={HEAD_CELL}>
+                    <TableHead className={cn(HEAD_CELL, "w-28")}>
                       Screenings
                     </TableHead>
                     {/* Who took the readings.
@@ -805,11 +820,15 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         created, so for them this column would be their own
                         name repeated down the page. */}
                     {showClinician && (
-                      <TableHead className={HEAD_CELL}>
+                      <TableHead className={cn(HEAD_CELL, "w-40")}>
                         Clinician
                       </TableHead>
                     )}
-                    <TableHead className="w-20 text-right font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink" aria-label="Row actions" />
+                    {/* The column the 3-dot menu sits in, named so it is not
+                        a mystery. The heading is centred over the button,
+                        so the word and the thing it labels are in the same
+                        place. */}
+                    <TableHead className={cn(HEAD_CELL, "w-28")}>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -833,7 +852,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           />
                         </label>
                       </TableCell>
-                      <TableCell className="relative px-4 align-middle">
+                      <TableCell className="relative w-48 px-4 align-middle text-center">
                         {/* Monogram-style hover accent bar. It lives inside the
                             cell because a bare <span> as a direct child of
                             <tr> gets hoisted out of the table by the HTML
@@ -844,18 +863,36 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         />
                         <div className="break-words text-base font-medium">{group.name}</div>
                       </TableCell>
-                      <TableCell className="px-4 align-middle text-base tabular-nums text-aura-muted">
+                      {/* Age and gender, for a clinician's own patients.
+
+                          The widths are fixed so the two columns are the same
+                          width as each other and the same distance from the
+                          name and from the count -- the row reads as one even
+                          grid rather than as three ragged blocks. */}
+                      {!showClinician && (
+                        <>
+                          <TableCell className="w-24 px-4 align-middle text-center text-base tabular-nums text-aura-muted">
+                            {computeAgeLabel(group.latest)}
+                          </TableCell>
+                          <TableCell className="w-24 px-4 align-middle text-center">
+                            <div className="break-words text-sm text-aura-muted">
+                              {formatGender(group.gender)}
+                            </div>
+                          </TableCell>
+                        </>
+                      )}
+                      <TableCell className="w-28 px-4 align-middle text-center text-base tabular-nums text-aura-muted">
                         {group.count}
                       </TableCell>
                       {showClinician && (
-                        <TableCell className="px-4 align-middle">
+                        <TableCell className="w-40 px-4 align-middle text-center">
                           <div className="break-words text-sm text-aura-muted">
                             {group.clinician_name || "—"}
                           </div>
                         </TableCell>
                       )}
-                      <TableCell className="px-4 align-middle text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <TableCell className="w-28 px-4 align-middle text-center">
+                        <div className="flex items-center justify-center gap-1">
                           {/* View / Download collapse into one trigger so the
                               column stays narrow. */}
                           <DropdownMenu>

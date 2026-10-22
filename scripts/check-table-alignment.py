@@ -29,21 +29,50 @@ TARGETS = [
     "frontend-new/src/pages/Screenings.tsx",
 ]
 
-HEAD = re.compile(
-    r"<TableHead\b[^>]*className=(?:\"([^\"]*)\"|\{([A-Za-z_][A-Za-z0-9_]*)\})[^>]*>(.*?)</TableHead>",
+CLASSES = (
+    r"className=(?:"
+    r"\"(?P<lit>[^\"]*)\""
+    r"|\{cn\((?P<cn_const>[A-Za-z_][A-Za-z0-9_]*),\s*\"(?P<cn_lit>[^\"]*)\"\)\}"
+    r"|\{(?P<ident>[A-Za-z_][A-Za-z0-9_]*)\}"
+    r")"
+)
+# A heading that has a label inside it, and one that is a self-closing spacer.
+# They are matched separately on purpose: if they shared one pattern, the
+# spacer's "inner" would run on to the NEXT heading and swallow it, and the
+# heading that matters would never be checked.
+HEAD_PAIRED = re.compile(
+    r"<TableHead\b[^>]*" + CLASSES + r"[^>]*(?<!/)>(?P<inner>.*?)</TableHead>",
     re.S,
 )
-CELL = re.compile(r"<TableCell\b[^>]*className=\"([^\"]*)\"[^>]*>", re.S)
+HEAD_SELF = re.compile(
+    r"<TableHead\b[^>]*" + CLASSES + r"[^>]*/>",
+    re.S,
+)
+CELL = re.compile(
+    r"<TableCell\b[^>]*" + CLASSES + r"[^>]*>",
+    re.S,
+)
 PX = re.compile(r"\bpx-(\d+(?:\.\d+)?)\b")
 PL = re.compile(r"\bpl-(\d+(?:\.\d+)?)\b")
 CONST = re.compile(r"^const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\n?\s*\"([^\"]*)\"", re.M)
+JSX_COMMENT = re.compile(r"\{/\*[\s\S]*?\*/\}")
 
 
-def resolve(classes: str, named: str, consts: dict) -> str:
-    """The class string, whether it was a literal or a named constant."""
-    if classes:
-        return classes
-    return consts.get(named, "")
+def resolve(m, consts: dict) -> str:
+    """The class string of a cell.
+
+    It can be written three ways: a literal, the name of a constant, or
+    `cn(CONSTANT, "extra")` -- which is how a shared column style is
+    combined with a width. All three have to resolve to the same string,
+    or the check would quietly stop looking at the cells it was written
+    to protect.
+    """
+    if m.group("lit") is not None:
+        return m.group("lit")
+    if m.group("ident") is not None:
+        return consts.get(m.group("ident"), "")
+    base = consts.get(m.group("cn_const"), "")
+    return f"{base} {m.group('cn_lit')}".strip()
 
 
 def leading_pad(classes: str):
@@ -75,16 +104,27 @@ def main():
         text = path.read_text(encoding="utf-8")
         consts = {m.group(1): m.group(2) for m in CONST.finditer(text)}
 
+        # JSX comments are prose about the markup, not part of it. Left in,
+        # one of them gets read as a heading's label and the heading it was
+        # written for is swallowed with it.
+        text = JSX_COMMENT.sub(" ", text)
+
         heads = []
-        for m in HEAD.finditer(text):
-            classes = resolve(m.group(1) or "", m.group(2) or "", consts)
-            inner = re.sub(r"<!--.*?-->", "", m.group(3), flags=re.S)
+        for m in HEAD_PAIRED.finditer(text):
+            classes = resolve(m, consts)
+            inner = re.sub(r"<!--.*?-->", "", m.group("inner"), flags=re.S)
             if not has_text(classes, inner):
                 continue
             label = re.sub(r"<[^>]+>", "", inner).strip()
             heads.append((label, leading_pad(classes), classes))
 
-        cells = [leading_pad(m.group(1)) for m in CELL.finditer(text)]
+        # A self-closing heading is a spacer with no label of its own.
+        for m in HEAD_SELF.finditer(text):
+            classes = resolve(m, consts)
+            if has_text(classes, ""):
+                heads.append(("<spacer>", leading_pad(classes), classes))
+
+        cells = [leading_pad(resolve(m, consts)) for m in CELL.finditer(text)]
 
         print(f"  {rel}")
         print(f"    {len(heads)} heading(s) with text, {len(cells)} cell(s)")

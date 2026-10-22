@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef, type UIEvent } from "react"
-import { Loader2, Users, Mail, Edit, Trash2, ShieldAlert, Activity, Clock, Search, Check, CheckCircle, XCircle, Eye, EyeOff, UserPlus as UserPlusIcon, MoreHorizontal } from "lucide-react"
+import { Loader2, Users, Mail, Edit, Trash2, ShieldAlert, Activity, Clock, Search, Check, CheckCircle, XCircle, Eye, EyeOff, MoreHorizontal } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCachedData } from "@/hooks/useCachedData"
 import { Button } from "@/components/ui/button"
@@ -38,7 +38,6 @@ import {
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useLocation } from "react-router-dom"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { motion, AnimatePresence, useReducedMotion, animate, type TargetAndTransition, type Variants } from "framer-motion"
 import { EASE_OUT } from "@/lib/fine-motion"
@@ -410,7 +409,6 @@ export function Admin() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<any | null>(null)
-  const location = useLocation()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingUser, setDeletingUser] = useState<any | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -582,51 +580,40 @@ export function Admin() {
     }
   }, [authLoading, user, refetchUsers])
 
+  /* Save the changes to an account.
+
+     Edit only. There is no create path any more -- the Add User button is
+     gone, and with it the POST that minted an account with a password the
+     admin chose. A clinician registers themselves; an admin decides what
+     happens to the accounts that arrive. */
   const handleSubmit = async (data: UserFormData) => {
+    if (!editingUser) return
     try {
-      if (editingUser) {
-        const updateBody: { [k: string]: any } = {
-          full_name: data.full_name,
-          role: data.role,
-          phone: data.phone,
-          specialization: data.specialization,
-          license_number: data.license_number,
-        }
-        if (data.password) {
-          updateBody.password = data.password
-        }
-        const res = await apiFetch(`/api/users/${editingUser.id}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updateBody),
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.detail || "Failed to update user")
-        }
-      } else {
-        if (!data.password) {
-          toast.error("Password is required")
-          return
-        }
-        const res = await apiFetch("/api/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ ...data, status: "approved" }),
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.detail || "Failed to create user")
-        }
+      const updateBody: { [k: string]: any } = {
+        full_name: data.full_name,
+        role: data.role,
+        phone: data.phone,
+        specialization: data.specialization,
+        license_number: data.license_number,
+      }
+      if (data.password) {
+        updateBody.password = data.password
+      }
+      const res = await apiFetch(`/api/users/${editingUser.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateBody),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || "Failed to update user")
       }
       void refetchUsers()
       setDialogOpen(false)
       form.reset()
-      toast.success(editingUser ? "User updated" : "User created")
+      toast.success("User updated")
     } catch (error) {
       console.error("Error saving user:", error)
       toast.error(error instanceof Error ? error.message : "Failed to save user")
@@ -747,28 +734,12 @@ export function Admin() {
     setDialogOpen(true)
   }, [form, user?.role])
 
-  const openCreateDialog = useCallback(() => {
-    setEditingUser(null)
-    setShowPassword(false)
-    form.reset({
-      email: "",
-      password: "",
-      full_name: "",
-      role: "clinician",
-      phone: "",
-      specialization: "",
-      license_number: "",
-    })
-    setDialogOpen(true)
-  }, [form])
+  /* Nothing opens this dialog with an empty form any more.
 
-  useEffect(() => {
-    const state = location.state as { openAddUser?: boolean } | null
-    if (state?.openAddUser) {
-      openCreateDialog()
-      window.history.replaceState({}, "")
-    }
-  }, [location.state, openCreateDialog])
+     The Add User button used to, and a link on the Dashboard could open it
+     with `openAddUser` in the router state. Both are gone: a clinician
+     registers themselves, and an admin's job here is to decide what happens
+     to an account that already exists, not to invent one. */
 
   if (authLoading || (user?.role !== "admin" && user?.role !== "super_admin" && loading)) {
     return (
@@ -959,19 +930,6 @@ export function Admin() {
                     <SelectItem value="rejected">Rejected</SelectItem>
                   </SelectContent>
                 </Select>
-                {/* Pushed to the far right of the toolbar row with ml-auto;
-                    stays last in the DOM for tab order. */}
-                <motion.button
-                  type="button"
-                  onClick={openCreateDialog}
-                  whileHover={reduceMotion ? undefined : { y: -1 }}
-                  whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-                  transition={{ duration: 0.15, ease: EASE_OUT }}
-                  className="aura-sheen md:ml-auto inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-aura-forest px-4 font-semibold text-white shadow-aura-sm transition-shadow duration-200 hover-tap:bg-aura-forest-light lg:hover:shadow-aura-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <UserPlusIcon className="h-4 w-4" aria-hidden="true" />
-                  Add User
-                </motion.button>
               </div>
 
             </CardHeader>
@@ -1112,12 +1070,17 @@ export function Admin() {
                     </TableBody>
                   </Table>
                 </div>
-                {/* Edge fades sit outside the scroller so they hold still while
-                    rows move under them. The top one clears the 48px sticky
-                    header so it never washes the column labels.
-                    Use from-white (not aura-surface) so white rows fade to transparent. */}
-                <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-12 z-20 h-8 bg-gradient-to-b from-white to-transparent" />
-                <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-gradient-to-t from-white to-transparent" />
+                {/* No edge fades.
+
+                    There used to be a white gradient laid over the top and
+                    the bottom of the scroller, so the first and last rows
+                    faded out into the card. On a table of user accounts it
+                    read as a cloud sitting on the list -- the rows looked
+                    half-transparent, and the last account in the list was
+                    hard to read.
+
+                    The scroller stops at a hard edge now. Nothing floats
+                    over the rows. */}
                 </div>
               )}
 
@@ -1221,10 +1184,8 @@ export function Admin() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
-            <DialogDescription>
-              {editingUser ? "Update user information" : "Create a new user account"}
-            </DialogDescription>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>Update user information</DialogDescription>
           </DialogHeader>
           <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -1341,7 +1302,7 @@ export function Admin() {
 
               <DialogFooter>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "Saving…" : editingUser ? "Save Changes" : "Create User"}
+                  {form.formState.isSubmitting ? "Saving…" : "Save Changes"}
                 </Button>
               </DialogFooter>
             </form>
