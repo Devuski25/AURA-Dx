@@ -8,7 +8,6 @@ import { cardHover } from "@/lib/motion"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { EmptyState } from "@/components/EmptyState"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { invalidate } from "@/hooks/useCachedData"
 import { useAuth } from "@/hooks/useAuth"
@@ -24,7 +23,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table"
-import { ConfidenceChip, ScreeningStatusBadge } from "@/lib/badge-helpers"
+import { ConfidenceChip, ScreeningStatusBadge, getRespBadge } from "@/lib/badge-helpers"
+import { cn } from "@/lib/utils"
 
 interface Patient {
   id: string
@@ -155,18 +155,19 @@ export function PatientDetail() {
 
   
 
-  const getRespBadge = (result: string | null) => {
-    if (!result) return <Badge variant="secondary">N/A</Badge>
-    const variants: Record<string, "default" | "success" | "warning" | "destructive"> = {
-      Healthy: "success",
-      Pneumonia: "destructive",
-      COPD: "warning",
-    }
-    return <Badge variant={variants[result] || "default"}>{result}</Badge>
-  }
+  /* The result badge is the one from the shared helpers, not a copy.
+
+     This page had its own version, and the copy was the reason a screening
+     with no verdict showed a full "N/A" pill here and a dash everywhere
+     else -- a pill carrying a word draws the eye as though it were a
+     result. One helper, one look. */
 
   const getStatusBadge = (status: string, reviewedBy: string | null) => (
-    <ScreeningStatusBadge status={status} reviewedBy={reviewedBy} />
+    <ScreeningStatusBadge
+      status={status}
+      reviewedBy={reviewedBy}
+      className="h-7 px-3 text-sm font-semibold"
+    />
   )
 
   if (loading) {
@@ -356,7 +357,59 @@ export function PatientDetail() {
                 }
               />
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Phone: a card per screening.
+
+                  The table has four columns and at 375px that is about eighty
+                  pixels each. The date broke into one character per line, the
+                  column headings broke into two and three lines, and the
+                  status badge stood on end. Nothing about that is readable.
+
+                  A card gives each reading room for its date, its result and
+                  its status, and the action a full-width row that can be
+                  tapped with a thumb.
+
+                  Hidden from `md` up, where the table fits. Both render the
+                  same screenings, so there is one list and not two. */}
+              <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+                {screenings.map((s) => (
+                  <li key={s.id} className="rounded-xl border border-aura-forest/10 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-aura-ink">
+                          {new Date(s.created_at).toLocaleDateString()}
+                        </div>
+                        <div className="text-xs text-aura-muted">
+                          {new Date(s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </div>
+                      </div>
+                      {/* Which reading this is, for this patient. A patient
+                          can be screened repeatedly, so "the second one" is
+                          the difference between a re-test and a genuine
+                          change in the patient's condition. */}
+                      {s.patient_screening_count && s.patient_screening_count > 1 && (
+                        <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
+                          {s.screening_number} of {s.patient_screening_count}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {getRespBadge(s.respiratory_result)}
+                      <ConfidenceChip value={s.respiratory_confidence} />
+                      {getStatusBadge(s.status, s.reviewed_by_name)}
+                    </div>
+                    <Link
+                      to={`/dashboard/screenings/${s.id}`}
+                      className={cn(buttonVariants({ variant: "outline" }), "mt-3 h-11 w-full")}
+                    >
+                      View Details
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Table, from `md` up. */}
+              <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader className="aura-table-head sticky top-0 z-10 border-b border-aura-forest/10 bg-white backdrop-blur-md">
                   <TableRow>
@@ -375,7 +428,7 @@ export function PatientDetail() {
                             the difference between a re-test and a genuine
                             change in the patient's condition. */}
                         <div className="flex items-baseline gap-2">
-                          <div>{new Date(s.created_at).toLocaleDateString()}</div>
+                          <div className="whitespace-nowrap">{new Date(s.created_at).toLocaleDateString()}</div>
                           {s.patient_screening_count && s.patient_screening_count > 1 && (
                             <span className="rounded-full bg-aura-surface-alt px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-aura-muted">
                               {s.screening_number} of {s.patient_screening_count}
@@ -402,7 +455,8 @@ export function PatientDetail() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
