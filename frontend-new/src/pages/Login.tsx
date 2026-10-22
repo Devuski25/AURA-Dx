@@ -477,10 +477,12 @@ export function Login() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-destructive" />
-              Account Deactivated
+              Account Removed
             </DialogTitle>
             <DialogDescription className="pt-2">
-              This account has been deactivated and is no longer accessible. If you believe this action was taken in error, please contact our support team for further assistance.
+              This account has been removed by an administrator and can no
+              longer be used to sign in. If you believe this action was taken in
+              error, please contact our support team.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -518,7 +520,9 @@ export function Login() {
               Account Not Found
             </DialogTitle>
             <DialogDescription className="pt-2">
-              No account exists with the provided credentials. Please verify your email address or register for a new account.
+              No AURA-Dx account is linked to that sign-in. It may have been
+              removed by an administrator, or it was never registered. You can
+              create an account below.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

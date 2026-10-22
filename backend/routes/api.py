@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, BackgroundTasks
+from fastapi.security import HTTPAuthorizationCredentials
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 import asyncio
@@ -37,11 +38,19 @@ from models import (
     UserRole, UserStatus, ScreeningStatus,
     ErrorResponse, HealthResponse, SendOtp, VerifyOtp, ForgotPassword
 )
-from auth import get_current_user, get_current_user_id, require_role, invalidate_profile
+from auth import (
+    decode_token,
+    get_current_user,
+    get_current_user_id,
+    require_role,
+    invalidate_profile,
+    security,
+)
 from database import supabase, supabase_anon
 from config import settings
 from email_service import (
     send_account_status_email,
+    send_account_deleted_email,
     send_password_reset_email,
     send_verification_email,
 )
@@ -296,6 +305,103 @@ async def forgot_password(payload: ForgotPassword, request: Request):
         )
 
     return generic
+
+
+@router.post("/auth/discard-oauth-signup")
+async def discard_oauth_signup(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Delete an account that a Google sign-in created by accident.
+
+    Google is offered as a way IN, not a way to register: registration asks for
+    a clinic name, and an OAuth round trip cannot collect one. But Supabase's
+    OAuth flow, with sign-ups enabled, creates a complete auth user -- and the
+    trigger a pending profile -- for any Google address it has not seen before.
+    So a removed clinician, or anyone who simply taps the button, leaves a
+    clinic-less pending account behind that an admin then has to clean up.
+
+    The callback calls this once it has decided the identity is brand new. It
+    is scoped to the caller's own token and refuses unless every one of these
+    is true, so it can never touch a real account:
+
+      * the profile is still `pending`,
+      * it has no clinic name (registration cannot produce that),
+      * the auth user was created by Google,
+      * it was created within the last hour.
+
+    Returns {"discarded": false} rather than an error for every refusal: the
+    caller only wants to know whether it should clean up, and a failure here
+    must never block the message the person is about to read.
+    """
+    if not credentials:
+        return {"discarded": False}
+    try:
+        payload = decode_token(credentials.credentials)
+    except HTTPException:
+        return {"discarded": False}
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return {"discarded": False}
+
+    try:
+        rows = (
+            supabase.table("profiles")
+            .select("id,email,status,clinic_name")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception as exc:
+        print(f"[discard-oauth-signup] profile lookup failed: {exc!r}")
+        return {"discarded": False}
+    if not rows:
+        return {"discarded": False}
+
+    row = rows[0]
+    if row.get("status") != "pending" or row.get("clinic_name"):
+        return {"discarded": False}
+
+    try:
+        auth_user = supabase.auth.admin.get_user_by_id(user_id).user
+    except Exception as exc:
+        print(f"[discard-oauth-signup] auth lookup failed: {exc!r}")
+        return {"discarded": False}
+
+    if (auth_user.app_metadata or {}).get("provider") != "google":
+        return {"discarded": False}
+
+    created = auth_user.created_at
+    if isinstance(created, str):
+        try:
+            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except ValueError:
+            created = None
+    if created is not None and created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if not created or (datetime.now(timezone.utc) - created).total_seconds() > 3600:
+        return {"discarded": False}
+
+    try:
+        supabase.auth.admin.delete_user(user_id)
+        # Deleting the auth user cascades to the profile (ON DELETE CASCADE);
+        # the explicit delete covers the case where the row outlives it.
+        supabase.table("profiles").delete().eq("id", user_id).execute()
+        invalidate_profile(user_id)
+    except Exception as exc:
+        print(f"[discard-oauth-signup] delete failed for {user_id}: {exc!r}")
+        return {"discarded": False}
+
+    _log_audit(
+        "user_delete",
+        None,
+        None,
+        "user",
+        user_id,
+        {"deleted_user": row.get("email"), "reason": "google sign-up (not a registration route)"},
+    )
+    return {"discarded": True}
 
 
 def _scope_query(query, role: str, user_clinic_id: str, target_clinic_id=None):
@@ -834,7 +940,11 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: str, user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+async def delete_user(
+    user_id: str,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
+):
     try:
         target = supabase.table("profiles").select("*").eq("id", user_id).single().execute()
     except Exception:
@@ -855,8 +965,28 @@ async def delete_user(user_id: str, user: dict = Depends(require_role(UserRole.A
             detail="Admins can only delete clinician accounts"
         )
 
+    target_email = target.data.get("email")
+    target_name = target.data.get("full_name") or ""
+
     # patients/screenings reference profiles(clinician_id) with ON DELETE RESTRICT,
     # so delete the user's clinical rows first, otherwise the profile/auth delete fails.
+    #
+    # The recordings live on this host, not in the database, so they have to be
+    # collected before the rows that point at them disappear -- the same reason
+    # delete_patient does it. Without this, deleting an account left every take
+    # it ever recorded on the disk with nothing referencing it.
+    screenings = (
+        supabase.table("screenings")
+        .select("id,recording_paths,audio_file_path")
+        .eq("clinician_id", user_id)
+        .execute().data or []
+    )
+    audio_paths = []
+    for s in screenings:
+        audio_paths.extend(s.get("recording_paths") or [])
+        if s.get("audio_file_path"):
+            audio_paths.append(s["audio_file_path"])
+
     supabase.table("screenings").delete().eq("clinician_id", user_id).execute()
     supabase.table("patients").delete().eq("clinician_id", user_id).execute()
 
@@ -866,9 +996,34 @@ async def delete_user(user_id: str, user: dict = Depends(require_role(UserRole.A
     # the cached profile happens to expire.
     invalidate_profile(user_id)
 
-    _log_audit("user_delete", user.get("sub"), None, "user", user_id, {"deleted_user": target.data["email"]})
+    removed_files = _delete_audio_files(audio_paths)
 
-    return {"message": "User deleted"}
+    _log_audit("user_delete", user.get("sub"), None, "user", user_id, {
+        "deleted_user": target_email,
+        "screenings_removed": len(screenings),
+        "audio_files_removed": removed_files,
+    })
+
+    # Sent after the delete, never before: "your account has been removed" must
+    # not reach an inbox while the account still works. Fire and forget, so a
+    # Resend outage cannot turn a successful delete into a 500 the admin would
+    # read as "it did not work" -- the row is already gone either way. The
+    # failure is logged, and the removed account cannot sign in regardless.
+    if target_email:
+        async def _notify_removed():
+            try:
+                await asyncio.to_thread(
+                    send_account_deleted_email, target_email, target_name
+                )
+            except Exception as exc:
+                print(f"[user_delete] removal email to {target_email} failed: {exc!r}")
+
+        background_tasks.add_task(_notify_removed)
+
+    return {
+        "message": "User deleted",
+        "audio_files_removed": removed_files,
+    }
 
 
 @router.get("/patients", response_model=List[PatientResponse])

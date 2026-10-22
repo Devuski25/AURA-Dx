@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
 import { useAuth } from "@/hooks/useAuth"
 import { supabase } from "@/lib/supabase"
+import { getApiUrl } from "@/lib/api"
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+
+/**
+ * Turn the provider's error string into something a person can act on.
+ *
+ * Supabase hands back GoTrue's own wording ("User is banned", "Signups not
+ * allowed for this instance", ...). Echoing it produces a screen that names an
+ * internal state and tells the reader nothing about what to do next.
+ */
+function describeOAuthError(code: string | null, description: string | null): string {
+  const raw = `${code ?? ""} ${description ?? ""}`.toLowerCase()
+  if (raw.includes("banned") || raw.includes("disabled") || raw.includes("blocked")) {
+    return "This account has been removed and can no longer sign in. If you believe this is a mistake, email supportauradx@gmail.com."
+  }
+  if (raw.includes("signup") || raw.includes("not allowed") || raw.includes("not found")) {
+    return "No AURA-Dx account is linked to that Google account. It may have been removed by an administrator. You can register for a new account."
+  }
+  if (raw.includes("access_denied")) {
+    return "Google sign-in was cancelled."
+  }
+  return description || "Authentication failed. Please try again."
+}
 
 export function AuthCallback() {
   const navigate = useNavigate()
@@ -45,7 +67,7 @@ export function AuthCallback() {
       const errorDescription = searchParams.get("error_description")
 
       if (errorParam) {
-        setError(errorDescription || "Authentication failed")
+        setError(describeOAuthError(errorParam, errorDescription))
         setLoading(false)
         return
       }
@@ -70,6 +92,24 @@ export function AuthCallback() {
       }
     }
 
+    /* Remove the empty account a Google sign-in just created, then sign out.
+       Best effort on purpose: the person is about to be told "no account",
+       and a failed cleanup must not turn that into a different error. */
+    const discardOAuthSignup = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          await fetch(getApiUrl("/api/auth/discard-oauth-signup"), {
+            method: "POST",
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+        }
+      } catch (err) {
+        console.error("[AuthCallback] Could not discard the empty account:", err)
+      }
+      await supabase.auth.signOut()
+    }
+
     const checkProfileAndRedirect = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
 
@@ -82,11 +122,24 @@ export function AuthCallback() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("status, role, last_login_at")
+        .select("status, role, last_login_at, clinic_name")
         .eq("id", authUser.id)
         .single()
 
       if (profile) {
+        /* A Google identity that arrives pending with no clinic name is a
+           brand-new auth user, not a registration. The Register page asks for
+           a clinic name, so a pending profile without one cannot have come
+           from there -- it is either someone tapping "Continue with Google"
+           at random, or a removed account whose Google sign-in was recreated
+           by Supabase. Either way there is nothing here to approve into a
+           usable account, and leaving it in the admin queue is noise. */
+        const isGoogle = authUser.app_metadata?.provider === "google"
+        if (isGoogle && profile.status === "pending" && !profile.clinic_name) {
+          await discardOAuthSignup()
+          navigate("/login?status=unregistered", { replace: true })
+          return
+        }
         return handleProfileStatus(profile)
       }
 
@@ -101,21 +154,17 @@ export function AuthCallback() {
         return
       }
 
-      // Profile missing — create it (trigger may not fire for OAuth)
-      const { error: createError } = await supabase.from("profiles").insert({
-        id: authUser.id,
-        email: authUser.email,
-        full_name: authUser.user_metadata?.full_name || "",
-        role: "clinician",
-        status: "pending",
-      })
-      if (createError) {
-        console.error("[AuthCallback] Failed to create profile:", createError)
-        setError("An error occurred while setting up your account. Please try again or contact support.")
-        await supabase.auth.signOut()
-        return
-      }
-      await handleProfileStatus({ status: "pending" })
+      /* No profile for this identity: the account is gone (removed by an
+         administrator, or never created here).
+
+         It used to insert a fresh pending profile as a fallback for "the
+         trigger may not fire for OAuth". That fallback is why a deleted
+         account came back as an approvable stranger, and it hid real
+         deletion behind a row nobody meant to create. The trigger is in
+         place and tested, so a missing profile now means exactly one
+         thing. */
+      await supabase.auth.signOut()
+      navigate("/login?status=unregistered", { replace: true })
     }
 
     const handleProfileStatus = async (profile: { status: string; role?: string; last_login_at?: string | null }) => {

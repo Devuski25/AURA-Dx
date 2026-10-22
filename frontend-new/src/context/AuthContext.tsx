@@ -84,7 +84,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data)
       } else {
         setUser(null)
-        await supabase.auth.signOut()
+        /* The callback page is the one place that must be allowed to READ the
+           session before it is torn down.
+
+           It signs the person out itself, after working out which screen to
+           show. Signing out here first made that impossible: the page asked
+           "who just signed in?", Supabase had no session any more, and every
+           rejected or pending Google login ended on "Authentication timed
+           out" instead of the screen that explains what happened. */
+        if (!window.location.pathname.startsWith("/auth/callback")) {
+          await supabase.auth.signOut()
+        }
       }
     } catch (error) {
       console.error("Error fetching profile:", error)
