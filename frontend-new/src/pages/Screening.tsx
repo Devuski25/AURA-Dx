@@ -1419,7 +1419,13 @@ export function Screening() {
                         {totalRecordedSec.toFixed(1)}s total
                       </span>
                     </p>
-                    <Button variant="ghost" size="sm" onClick={clearTakes} className="text-aura-muted hover-tap:text-aura-coral-strong">
+                    {/* Red, solid, white label -- the same treatment as every
+                        other delete in the app. It was a grey ghost button,
+                        which read as a secondary action next to a list it is
+                        about to empty. `destructive-solid` keeps the red on a
+                        phone and a tablet too, where there is no hover to
+                        reveal it. */}
+                    <Button variant="destructive-solid" size="sm" onClick={clearTakes} className="shrink-0">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Clear all
                     </Button>
