@@ -89,9 +89,19 @@ export function InterpretationPanel({
         className
       )}
     >
-      {/* Verdict */}
+      {/* Verdict
+
+          On a phone the heading takes the whole line and the confidence pill
+          sits under it.
+
+          They used to share a line, and the heading was the one that gave
+          way: it can shrink, so it did, and a heading squeezed into 150px
+          puts one word on each line. Letting the heading claim the full
+          width and pushing the pill down means neither of them is ever
+          squeezed. From `sm` up there is room for both, and they share the
+          line as before. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 basis-full sm:basis-auto">
           <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-aura-muted">
             Screening result
           </p>
@@ -138,10 +148,20 @@ export function InterpretationPanel({
         </p>
       </div>
 
-      {/* How the verdict was reached */}
-      <dl className="mt-4 grid gap-x-6 gap-y-2 text-[13.5px] sm:grid-cols-2 sm:text-sm">
+      {/* How the verdict was reached.
+
+          The label and its value stack, on every width.
+
+          They used to sit side by side on a phone, pushed apart with
+          `justify-between`, which left the value a narrow column at the right
+          edge. "Majority of recordings normal" then had about nine words to
+          fit into it, so it came out one word per line -- a column of
+          single words with the label stranded on the left. The label above
+          the value is how the same pair reads on the screens above it, and
+          it is the only arrangement that fits. */}
+      <dl className="mt-4 grid gap-x-6 gap-y-3 text-[13.5px] sm:grid-cols-2 sm:text-sm">
         {totalCount > 0 && (
-          <div className="flex items-baseline justify-between gap-3 sm:block">
+          <div className="flex min-w-0 flex-col gap-0.5">
             <dt className="text-aura-muted">Recordings</dt>
             <dd className="font-medium text-aura-ink">
               {flaggedCount} of {totalCount} reached the disease screen
@@ -149,7 +169,7 @@ export function InterpretationPanel({
           </div>
         )}
         {decisionRule && (
-          <div className="flex items-baseline justify-between gap-3 sm:block">
+          <div className="flex min-w-0 flex-col gap-0.5">
             <dt className="text-aura-muted">Decided by</dt>
             <dd className="font-medium text-aura-ink">
               {RULE_TEXT[decisionRule] ?? decisionRule}
@@ -169,29 +189,34 @@ export function InterpretationPanel({
           {isOverride && (
             <li className="flex gap-2 rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{DISCLOSURE.override}</span>
+              <span className="min-w-0">{DISCLOSURE.override}</span>
             </li>
           )}
           {lowAgreement && (
             <li className="flex gap-2 rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{DISCLOSURE.lowAgreement}</span>
+              <span className="min-w-0">{DISCLOSURE.lowAgreement}</span>
             </li>
           )}
           {flaggedCount > 0 && status === "HEALTHY" && (
             <li className="flex gap-2 rounded-lg bg-aura-surface-alt p-3 text-xs leading-relaxed text-aura-text">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{DISCLOSURE.borderlineCount}</span>
+              <span className="min-w-0">{DISCLOSURE.borderlineCount}</span>
             </li>
           )}
         </ul>
       )}
 
       {/* Always shown. Not a disclaimer to be dismissed -- the scope of the
-          model is a fact about what the number means. */}
+          model is a fact about what the number means.
+
+          The text sits in a flex row beside an icon, so it needs `min-w-0` to
+          be allowed to shrink: a flex item keeps its widest word as its
+          minimum width otherwise, and a long word in the disclaimer would
+          push past the edge of the card instead of wrapping. */}
       <p className="mt-4 flex gap-2 border-t border-aura-border-soft pt-4 text-xs leading-relaxed text-aura-muted">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span>{DISCLOSURE.scope}</span>
+        <span className="min-w-0">{DISCLOSURE.scope}</span>
       </p>
     </section>
   )

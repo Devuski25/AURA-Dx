@@ -32,7 +32,6 @@ import { saveBlob } from "@/lib/download"
 import { useCachedData, invalidate } from "@/hooks/useCachedData"
 import { staggerContainer, staggerItem } from "@/lib/motion"
 import { cn } from "@/lib/utils"
-import { getRespBadge, ScreeningStatusBadge } from "@/lib/badge-helpers"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/EmptyState"
@@ -85,10 +84,7 @@ interface Screening {
   patient_screening_count: number | null
 }
 
-const createdDateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" })
-const dateTimeFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" })
-
-/* Column header cell, shared by all four columns.
+/* Column header cell, shared by every labelled column.
  *
  * The padding is px-4 because that is what the cells below use. The headers
  * were px-3 against the cells' px-4, so every heading sat four pixels to the
@@ -124,6 +120,15 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   /* Matches the Dashboard banner's chip so the role reads the same on both. */
   const roleLabel = (user?.role || "").replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+
+  /* Who took the readings is only worth showing to somebody who can see other
+     clinicians' patients.
+
+     A clinician sees only the patients they created, so the name would be
+     their own repeated down every row -- a column of the same word. An admin
+     sees the whole clinic, and for them it is the one thing on the row that
+     says whose patient this is. */
+  const showClinician = user?.role === "admin" || user?.role === "super_admin"
   const [search, setSearch] = useState("")
   const [classFilter, setClassFilter] = useState("all")
   const [genderFilter, setGenderFilter] = useState("all")
@@ -362,14 +367,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
     )
   }, [selectedCount, selectedScreenings, visibleScreenings, screeningsByPatient])
 
-  const getStatusBadge = (status: string, reviewedBy: string | null) => (
-    <ScreeningStatusBadge
-      status={status}
-      reviewedBy={reviewedBy}
-      className="h-7 px-3 text-sm font-semibold"
-    />
-  )
-
   const fetchPdfBlob = useCallback(async (screeningId: string): Promise<Blob | null> => {
     const response = await apiFetch(`/api/screenings/${screeningId}/pdf`)
     if (!response.ok) return null
@@ -457,11 +454,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
           <DropdownMenuLabel className="text-xs font-normal text-aura-muted">
             {label}
           </DropdownMenuLabel>
-          {group.count > 1 && (
-            <p className="px-2 pb-1 text-[11px] text-aura-muted">
-              {group.count} screenings &mdash; the record shows all of them
-            </p>
-          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => navigate(`/dashboard/patients/${group.patient_id}`)}
@@ -556,23 +548,18 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
       {!embedded && (
         <PageBanner
           eyebrow={
-            <>
-              {/* Count reads as the headline stat, so it gets tabular figures,
-                  a bolder weight and a mint accent instead of the quiet
-                  grey-on-white chip used for secondary metadata. */}
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/15 px-4 py-1.5 text-sm font-bold tabular-nums text-white backdrop-blur-sm">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-aura-accent" aria-hidden="true" />
-                {filteredAndSortedScreenings.length} screening{filteredAndSortedScreenings.length === 1 ? "" : "s"}
-                {filteredAndSortedScreenings.length !== screenings.length && (
-                  <span className="font-medium text-white/70">of {screenings.length}</span>
-                )}
+            roleLabel ? (
+              /* Only the role.
+
+                 The count that used to be here sat beside it and said
+                 "2 screenings of 4" -- and it was counting patients, not
+                 screenings, so the number was wrong as well as repeated. The
+                 count of what is on screen is in the card below, where it
+                 sits next to the list it counts. */
+              <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-sm font-bold tracking-wide text-aura-accent">
+                {roleLabel}
               </span>
-              {roleLabel && (
-                <span className="rounded-full bg-aura-accent/20 px-3 py-1 text-sm font-bold tracking-wide text-aura-accent">
-                  {roleLabel}
-                </span>
-              )}
-            </>
+            ) : null
           }
           title="Patient Records"
           subtitle={
@@ -707,8 +694,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                 selection all apply to both. */}
             <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
               {filteredAndSortedScreenings.map((group, idx) => {
-                const screening = group.latest
-                const isSelected = group.latest ? selectedIds.has(screening.id) : false
+                const isSelected = selectedIds.has(group.latest.id)
                 const label = group.name
                 return (
                   <li
@@ -734,16 +720,17 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                       </label>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <div className="text-base font-medium">{label}</div>
-                          {group.count > 1 && (
-                            <span className="rounded-full bg-aura-surface-alt px-2 py-0.5 text-[11px] font-semibold text-aura-muted">
-                              {group.count} screenings
-                            </span>
+                        <div className="break-words text-base font-medium">{label}</div>
+                        {/* How many readings this patient has, and -- for
+                            somebody who can see other clinicians' patients --
+                            who took them. */}
+                        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-sm text-aura-muted">
+                          <span className="tabular-nums">
+                            {group.count} screening{group.count === 1 ? "" : "s"}
+                          </span>
+                          {showClinician && group.clinician_name && (
+                            <span className="break-words">· {group.clinician_name}</span>
                           )}
-                        </div>
-                        <div className="text-sm text-aura-muted">
-                          {group.clinician_name}
                         </div>
                       </div>
 
@@ -760,16 +747,6 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         </DropdownMenuTrigger>
                         <ScreeningMenu group={group} label={label} />
                       </DropdownMenu>
-                    </div>
-
-                    {/* Result, status and date on one wrapping row rather than
-                        three columns. */}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {getRespBadge(screening.respiratory_result)}
-                      {getStatusBadge(screening.status, screening.reviewed_by_name)}
-                      <span className="text-sm tabular-nums text-aura-muted">
-                        {createdDateFormat.format(new Date(screening.created_at))}
-                      </span>
                     </div>
                   </li>
                 )
@@ -812,22 +789,32 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                     <TableHead className={HEAD_CELL}>
                       Patient
                     </TableHead>
+                    {/* How many readings this patient has.
+
+                        The row is the patient, so this is what tells a
+                        clinician that there is more than one -- and the
+                        patient's record is where the readings themselves
+                        are. */}
                     <TableHead className={HEAD_CELL}>
-                      Result
+                      Screenings
                     </TableHead>
-                    <TableHead className={HEAD_CELL}>
-                      Status
-                    </TableHead>
-                    <TableHead className={HEAD_CELL}>
-                      Date
-                    </TableHead>
+                    {/* Who took the readings.
+
+                        Only for somebody who can see other clinicians'
+                        patients. A clinician sees only the patients they
+                        created, so for them this column would be their own
+                        name repeated down the page. */}
+                    {showClinician && (
+                      <TableHead className={HEAD_CELL}>
+                        Clinician
+                      </TableHead>
+                    )}
                     <TableHead className="w-20 text-right font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink" aria-label="Row actions" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAndSortedScreenings.map((group, idx) => {
-                    const screening = group.latest
-                    const isSelected = selectedIds.has(screening.id)
+                    const isSelected = selectedIds.has(group.latest.id)
                     return (
                     <TableRow
                       key={group.key}
@@ -855,28 +842,18 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           aria-hidden="true"
                           className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                         />
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <div className="text-base font-medium">{group.name}</div>
-                          {/* How many readings this patient has. The row is the
-                              patient, so the count is what tells you there is
-                              more than one. */}
-                          {group.count > 1 && (
-                            <span className="shrink-0 rounded-full bg-aura-surface-alt px-2 py-0.5 text-[11px] font-semibold text-aura-muted">
-                              {group.count} screenings
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm text-aura-muted">{group.clinician_name}</div>
+                        <div className="break-words text-base font-medium">{group.name}</div>
                       </TableCell>
-                      <TableCell className="px-4 align-middle">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {getRespBadge(screening.respiratory_result)}
-                        </div>
+                      <TableCell className="px-4 align-middle text-base tabular-nums text-aura-muted">
+                        {group.count}
                       </TableCell>
-                      <TableCell className="px-4 align-middle">{getStatusBadge(screening.status, screening.reviewed_by_name)}</TableCell>
-                      <TableCell className="px-4 align-middle whitespace-nowrap text-base tabular-nums text-aura-muted">
-                        {createdDateFormat.format(new Date(screening.created_at))}
-                      </TableCell>
+                      {showClinician && (
+                        <TableCell className="px-4 align-middle">
+                          <div className="break-words text-sm text-aura-muted">
+                            {group.clinician_name || "—"}
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell className="px-4 align-middle text-right">
                         <div className="flex items-center justify-end gap-1">
                           {/* View / Download collapse into one trigger so the

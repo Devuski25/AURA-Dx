@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Link, useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, Trash2, Calendar, MapPin, Stethoscope, Shield, FileText, AlertTriangle, RefreshCw } from "lucide-react"
+import { ArrowLeft, Trash2, Calendar, Stethoscope, Shield, FileText, AlertTriangle, RefreshCw } from "lucide-react"
 import { motion } from "framer-motion"
 import { cardHover } from "@/lib/motion"
 import { Button, buttonVariants } from "@/components/ui/button"
@@ -176,8 +176,8 @@ export function PatientDetail() {
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-4 w-48" />
         </div>
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+          {Array.from({ length: 3 }).map((_, i) => (
             /* White panels with the same top edge as the real cards, so the
                loading state doesn't read as a different page. */
             <div key={i} className="aura-panel aura-panel-edge h-28 rounded-2xl bg-white">
@@ -241,19 +241,27 @@ export function PatientDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Header — one back action, app-wide pattern (B6) */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/patient-records")} className="-ml-2 mt-0.5 shrink-0 gap-1">
-            <ArrowLeft className="h-4 w-4" />
+      {/* Header — one back action, app-wide pattern (B6)
+
+          On a phone the back button is on its own line, with the name
+          below it.
+
+          They shared a row before, and a small back button next to a large
+          name is a bad pairing: the name was crowded against the button it
+          belongs with, and the name is the thing the clinician is looking
+          for. From `sm` up they sit side by side, where there is room. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard/patient-records")} className="-ml-2 shrink-0 gap-1 self-start">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{patient.full_name}</h1>
-            <p className="text-aura-muted">{patient.clinic_name} • {patient.clinician_name}</p>
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold">{patient.full_name}</h1>
+            <p className="break-words text-aura-muted">{patient.clinic_name} • {patient.clinician_name}</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
             <DialogTrigger asChild>
               {/* B7: destructive action gets low-emphasis styling; the confirm
@@ -285,16 +293,27 @@ export function PatientDetail() {
         </div>
       </div>
 
-      {/* Patient Info Cards */}
-      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+      {/* Patient Info Cards
+
+          Three cards, not four.
+
+          The fourth was "Clinic", and it repeated the line under the name
+          above it -- the clinic and the clinician are both written there.
+          A card that says the same thing twice is a card that takes up space
+          to say it again.
+
+          The age bracket went from the Gender card for the same reason: the
+          Age card carries the exact age, and a band beside it is the same
+          information in a vaguer form. */}
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
         <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
           <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Age</CardTitle>
-              <Calendar className="h-4 w-4 text-aura-muted" />
+              <Calendar className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{age} years old</div>
+              <div className="break-words text-2xl font-bold">{age} years old</div>
               <p className="text-xs text-aura-muted">DOB: {new Date(patient.date_of_birth).toLocaleDateString()}</p>
             </CardContent>
           </Card>
@@ -303,11 +322,10 @@ export function PatientDetail() {
           <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Gender</CardTitle>
-              <Shield className="h-4 w-4 text-aura-muted" />
+              <Shield className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold capitalize">{patient.gender}</div>
-              <p className="text-xs text-aura-muted">Age bracket: {patient.age_bracket}</p>
+              <div className="break-words text-2xl font-bold capitalize">{patient.gender}</div>
             </CardContent>
           </Card>
         </motion.div>
@@ -315,29 +333,17 @@ export function PatientDetail() {
           <Card className="aura-panel">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Smoking History</CardTitle>
-              <Stethoscope className="h-4 w-4 text-aura-muted" />
+              <Stethoscope className="h-4 w-4 shrink-0 text-aura-muted" aria-hidden="true" />
             </CardHeader>
             <CardContent>
               {patient.smoking_history ? (
                 <>
-                  <div className="text-2xl font-bold text-aura-warning">Yes</div>
+                  <div className="break-words text-2xl font-bold text-aura-warning">Yes</div>
                   <p className="text-xs text-aura-muted">{patient.pack_years ?? "—"} pack-years</p>
                 </>
               ) : (
-                <div className="text-2xl font-bold text-aura-accent-dark">No</div>
+                <div className="break-words text-2xl font-bold text-aura-accent-dark">No</div>
               )}
-            </CardContent>
-          </Card>
-        </motion.div>
-        <motion.div whileHover={cardHover.whileHover} whileTap={cardHover.whileTap}>
-          <Card className="aura-panel">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Clinic</CardTitle>
-              <MapPin className="h-4 w-4 text-aura-muted" />
-            </CardHeader>
-            <CardContent>
-              <div className="font-medium">{patient.clinic_name}</div>
-              <p className="text-xs text-aura-muted">Clinician: {patient.clinician_name}</p>
             </CardContent>
           </Card>
         </motion.div>

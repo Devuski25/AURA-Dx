@@ -287,9 +287,18 @@ function ResultBanner({ screening }: { screening: ScreeningDetail }) {
         )}
         {cfg.icon}
       </div>
-      <div>
+      {/* The text sits beside the icon in a flex row, so it needs `min-w-0` to
+          be allowed to shrink. A flex item holds its widest word as its
+          minimum width otherwise, so without this the banner's own words
+          pushed the layout wider than the screen instead of wrapping, and
+          the tail of the line was cut off.
+
+          The letter spacing eases on a phone for the same reason: the detail
+          line is small mono type, and 0.14em of tracking on top of that is
+          about a fifth of the line's width gone. */}
+      <div className="min-w-0 flex-1">
         <p className={cn("aura-pop-in font-display text-lg font-bold leading-tight tracking-wide text-balance sm:text-xl", cfg.title)}>{cfg.label}</p>
-        <p className={cn("mt-1 font-mono text-[11px] uppercase leading-relaxed tracking-[0.14em] sm:text-[13px]", cfg.sub)}>{cfg.detail}</p>
+        <p className={cn("mt-1 font-mono text-[11px] uppercase leading-relaxed tracking-[0.06em] sm:text-[13px] sm:tracking-[0.14em]", cfg.sub)}>{cfg.detail}</p>
       </div>
     </motion.div>
   )
@@ -654,6 +663,34 @@ export function ScreeningDetail() {
 
   return (
     <div className="mx-auto w-full max-w-4xl pb-[calc(3rem+env(safe-area-inset-bottom))]">
+      {/* Back to where this screening came from.
+
+          A result is opened from a patient's record, which is itself opened
+          from the records list. There was no way back from here except the
+          browser's back button, which on a phone means going round the app
+          rather than back up it.
+
+          The patient's record is the parent, so that is where it goes. A
+          screening with no patient attached has no record to go back to, so
+          it goes to the list. */}
+      <div className="mb-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() =>
+            navigate(
+              screening.patient_id
+                ? `/dashboard/patients/${screening.patient_id}`
+                : "/dashboard/patient-records"
+            )
+          }
+          className="-ml-2 gap-1"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Back
+        </Button>
+      </div>
+
       {/* Prompt status banner above the title */}
       <ResultBanner screening={screening} />
 
@@ -669,7 +706,20 @@ export function ScreeningDetail() {
             {screening.clinic_name}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end print:hidden">
+        {/* The actions stay on one line on a phone.
+
+            There are three of them -- review, download, delete -- plus the
+            stepper, and they used to wrap onto three rows, which pushed the
+            result itself down the page.
+
+            On a phone the three are icon-only and 44px square, which is what
+            makes them fit: 44 x 3 plus the stepper is about 300px, and a
+            375px screen has 343px once the page padding is taken off. From
+            `sm` up the labels come back, because there is room for them.
+
+            The icon buttons keep their accessible names, so a screen reader
+            still says what each one does. */}
+        <div className="flex flex-nowrap items-center gap-2 sm:flex-wrap lg:justify-end print:hidden">
           {/* Step through this patient's other screenings.
 
               A patient can be screened as many times as clinically needed, so
@@ -678,15 +728,18 @@ export function ScreeningDetail() {
 
               They only appear when there is somewhere to go, and the label
               says which reading this is, so a clinician opening the second
-              screening knows it is the second. */}
+              screening knows it is the second.
+
+              The arrows are 44px on a phone so they can be tapped, and 32px
+              from `sm` up where a mouse is the pointer. */}
           {(prevSibling || nextSibling) && (
-            <div className="flex items-center gap-1 rounded-lg border border-aura-border-soft bg-white px-1.5 py-1">
+            <div className="flex shrink-0 items-center gap-1 rounded-lg border border-aura-border-soft bg-white px-1.5 py-1">
               <Button
                 variant="ghost"
                 size="icon"
                 disabled={!prevSibling}
                 onClick={() => prevSibling && navigate(`/dashboard/screenings/${prevSibling.id}`)}
-                className="h-8 w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
+                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
                 aria-label="Previous screening for this patient"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -701,7 +754,7 @@ export function ScreeningDetail() {
                 size="icon"
                 disabled={!nextSibling}
                 onClick={() => nextSibling && navigate(`/dashboard/screenings/${nextSibling.id}`)}
-                className="h-8 w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
+                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover:bg-aura-surface-alt hover:text-aura-ink"
                 aria-label="Next screening for this patient"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -709,14 +762,24 @@ export function ScreeningDetail() {
             </div>
           )}
           {screening.status === "pending_review" && (
-            <Button onClick={() => setReviewDialogOpen(true)} className="gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Review Screening
+            <Button
+              onClick={() => setReviewDialogOpen(true)}
+              className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2"
+              aria-label="Review Screening"
+            >
+              <CheckCircle className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Review Screening</span>
             </Button>
           )}
-          <Button variant="outline" onClick={downloadPDF} disabled={!screening} className="gap-2">
-            <Download className="h-4 w-4" />
-            Download PDF
+          <Button
+            variant="outline"
+            onClick={downloadPDF}
+            disabled={!screening}
+            className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2"
+            aria-label="Download PDF"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Download PDF</span>
           </Button>
           {/* Delete this screening, not the patient. Deleting the patient is
               in the list's row menu, where it is guarded by a confirmation
@@ -725,11 +788,11 @@ export function ScreeningDetail() {
             variant="outline"
             onClick={() => setDeleteOpen(true)}
             disabled={!screening}
-            className="gap-2 text-destructive hover:text-destructive-strong"
+            className="max-sm:h-11 max-sm:w-11 max-sm:px-0 shrink-0 gap-2 text-destructive hover:text-destructive-strong"
             aria-label="Delete this screening"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete
+            <span className="hidden sm:inline">Delete</span>
           </Button>
           {/* Print removed at the owner's request. The PDF download covers the
               same need and produces a consistent clinical document; a print

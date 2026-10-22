@@ -1676,14 +1676,22 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
 async def metrics_summary(user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     clinic_id = user.get("clinic_id")
     try:
-        query = supabase.table("audit_logs").select("action", count="exact").eq("action", "screening_create")
+        # The screenings that are on record, not the ones that were ever made.
+        #
+        # This counted the audit log, and every screening leaves a
+        # `screening_create` entry there that is never removed -- so the
+        # number was every screening the clinic had ever created, including
+        # the ones that had been deleted. A clinic with four screenings on
+        # record showed "29", and the number climbed for as long as the
+        # system was used.
+        #
+        # The card is labelled "Total Screenings" and sits next to "Registered
+        # Users", so it has to mean the same thing as the list it counts: what
+        # is there now.
+        query = supabase.table("screenings").select("id", count="exact")
         if user.get("role") != "super_admin" and clinic_id:
             query = query.eq("clinic_id", clinic_id)
         res = query.execute()
-        # The count, not the rows. This used to fetch every audit row with
-        # this action and count them in Python, which meant the dashboard got
-        # slower for every screening that was ever made -- and the dashboard
-        # is the first thing anyone opens.
         total = res.count if res.count is not None else len(res.data or [])
     except Exception:
         total = 0
