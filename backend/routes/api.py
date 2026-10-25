@@ -69,15 +69,43 @@ MAX_RECORDINGS = 5
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # One recording, capped. The inference service enforces the same limit; this is
-# the one the uploading client is told about, and reading with this ceiling
-# keeps oversized bodies on the spooled temp file instead of in RAM.
+# the one the uploading client is told about. The chunked copy below stops at
+# this ceiling, so an oversized body stays on the spooled temp file.
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
-def _write_bytes(path: str, contents: bytes) -> None:
-    """Write an upload to disk (called in a worker thread)."""
-    with open(path, "wb") as f:
-        f.write(contents)
+# One megabyte at a time. Starlette has already spooled the request body to a
+# temp file, so the copy never needs the whole recording in RAM -- which is the
+# difference between twenty clinicians uploading at once costing twenty
+# megabytes and costing two hundred.
+UPLOAD_CHUNK_BYTES = 1024 * 1024
+
+
+def _save_upload(src, path: str, limit: int) -> int:
+    """Copy a spooled upload to its final path and return the byte count.
+
+    Called in a worker thread, so the disk write cannot block the event loop.
+    A file over `limit` is removed rather than left half-written, and the
+    caller turns the ValueError into the 400 the client already understands.
+    """
+    total = 0
+    try:
+        with open(path, "wb") as out:
+            while True:
+                chunk = src.read(UPLOAD_CHUNK_BYTES)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limit:
+                    raise ValueError("upload exceeds the per-file limit")
+                out.write(chunk)
+    except Exception:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
+    return total
 
 
 # ─── Auth-specific rate limiting (per key) ─────────────────────────────────
@@ -640,24 +668,23 @@ async def upload_audio(
                 detail=f"Recording {idx + 1} ({audio.filename}) has an unsupported format. Use wav, mp3, flac, ogg, m4a"
             )
 
-        # Read at most one byte over the limit. `read()` with no size would
-        # buffer whatever the client sent -- a 200MB "wav" becomes 200MB of
-        # RAM before the size check can say no. Five of those in flight at
-        # once is how an 8GB machine runs out.
-        contents = await audio.read(MAX_UPLOAD_BYTES + 1)
-        if len(contents) > MAX_UPLOAD_BYTES:
+        file_ext = os.path.splitext(audio.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+
+        # Copy the spooled file in chunks. The size check happens as the bytes
+        # move, so an oversized recording never becomes a 10MB object in RAM
+        # and never reaches its final path.
+        try:
+            size = await asyncio.to_thread(
+                _save_upload, audio.file, file_path, MAX_UPLOAD_BYTES
+            )
+        except ValueError:
             raise HTTPException(
                 status_code=400,
                 detail=f"Recording {idx + 1} is too large. Maximum 10MB per file."
             )
-
-        file_ext = os.path.splitext(audio.filename)[1]
-        unique_filename = f"{uuid.uuid4()}{file_ext}"
-        file_path = os.path.join(UPLOAD_DIR, unique_filename)
-        # Disk write in a worker thread: ten megabytes is tens of milliseconds
-        # the event loop would otherwise spend not answering anybody.
-        await asyncio.to_thread(_write_bytes, file_path, contents)
-        saved.append({"file_path": file_path, "filename": unique_filename, "size": len(contents)})
+        saved.append({"file_path": file_path, "filename": unique_filename, "size": size})
 
     return {
         "file_paths": [s["file_path"] for s in saved],
@@ -727,20 +754,35 @@ def _query_user_profiles(role: str, clinic_id, limit: int, offset: int) -> list:
     Separate from the route so it can run in a worker thread: the Supabase
     client is synchronous and a query costs a real database round trip.
     """
-    if role != "super_admin":
-        resolved = _resolve_clinic_id(clinic_id)
-        # No clinic row exists at all. Filtering on a value that cannot exist
-        # would return an empty list, which reads as "no users" rather than
-        # "misconfigured", so fall back to showing everything.
-        query = (
-            supabase.table("profiles").select("*").eq("clinic_id", resolved)
-            if resolved
-            else supabase.table("profiles").select("*")
-        )
-    else:
-        query = supabase.table("profiles").select("*")
-    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
-    return query.execute().data or []
+
+    def read() -> list:
+        if role != "super_admin":
+            resolved = _resolve_clinic_id(clinic_id)
+            # No clinic row exists at all. Filtering on a value that cannot
+            # exist would return an empty list, which reads as "no users"
+            # rather than "misconfigured", so fall back to showing everything.
+            query = (
+                supabase.table("profiles").select("*").eq("clinic_id", resolved)
+                if resolved
+                else supabase.table("profiles").select("*")
+            )
+        else:
+            query = supabase.table("profiles").select("*")
+        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+        return query.execute().data or []
+
+    # The hosted Supabase pooler occasionally closes a shared HTTP/2 stream
+    # when a burst of reads arrives at once. That surfaced as two 500s out of
+    # five /api/users calls in the 20-user probe -- and a users page that
+    # loses its list because a connection was recycled is not a clinic
+    # problem. The read is idempotent, so one short retry fixes it without
+    # changing what is returned. This runs in a worker thread, so the sleep
+    # does not touch the event loop.
+    try:
+        return read()
+    except Exception:
+        time.sleep(0.05)
+        return read()
 
 
 @router.get("/users", response_model=List[UserResponse])

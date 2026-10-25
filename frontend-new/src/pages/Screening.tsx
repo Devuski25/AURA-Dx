@@ -299,6 +299,10 @@ export function Screening() {
       return
     }
     const id = window.setInterval(() => {
+      /* A backgrounded phone throttles this to a crawl anyway; the next tick
+         after returning recomputes from the start time, so skipping the
+         update while hidden loses nothing and stops waking the page. */
+      if (document.visibilityState === "hidden") return
       setElapsedSec((Date.now() - recordingStartTimeRef.current) / 1000)
     }, 200)
     return () => window.clearInterval(id)
@@ -325,6 +329,9 @@ export function Screening() {
     if (!submitting || phase !== "analysing") return
     const startedAt = Date.now()
     const id = window.setInterval(() => {
+      /* Same reason as the recording clock: elapsed is derived from
+         `startedAt`, so a hidden tick would only re-render. */
+      if (document.visibilityState === "hidden") return
       const secs = (Date.now() - startedAt) / 1000
       setElapsed(secs)
       const creep = PHASE_START_PCT.analysing +
@@ -931,7 +938,7 @@ export function Screening() {
                   onClick={() => isComplete && setStep(s as typeof step)}
                   aria-label={isComplete ? `Go back to step ${i + 1}: ${s}` : `Step ${i + 1}: ${s}`}
                   className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand focus-visible:ring-offset-2",
+                    "touch-target flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-brand focus-visible:ring-offset-2",
                     isActive && "border-aura-pine bg-aura-pine text-white ring-4 ring-aura-pine/20",
                     isComplete && "cursor-pointer border-aura-pine bg-aura-pine text-white lg:hover:brightness-110 active:scale-95",
                     !isActive && !isComplete && "border-aura-border-soft bg-white text-aura-muted",
@@ -989,7 +996,7 @@ export function Screening() {
                           placeholder="Search patients by name…"
                           aria-label="Search patients by name"
                           autoComplete="off"
-                          className="h-9 rounded-lg border-aura-border pl-9 text-sm"
+                          className="h-12 rounded-lg border-aura-border pl-9 text-sm lg:h-9"
                         />
                       </div>
                     )}
@@ -1107,7 +1114,7 @@ export function Screening() {
                                             <button
                                               type="button"
                                               aria-label={`Actions for ${patient.name}`}
-                                              className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-aura-muted transition-colors hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                              className="touch-target relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-aura-muted transition-colors hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             >
                                               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                                             </button>
@@ -1304,7 +1311,7 @@ export function Screening() {
                         id="aura-site"
                         value={selectedSite}
                         onChange={(e) => setSelectedSite(e.target.value)}
-                        className="mt-1.5 h-11 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+                        className="mt-1.5 h-12 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest lg:h-11"
                       >
                         {AUSCULTATION_SITES.map((s) => (
                           <option key={s.code} value={s.code}>
@@ -1325,7 +1332,7 @@ export function Screening() {
                           than buried in the collapsed protocol card. */}
                       <p
                         id="aura-take-site-history"
-                        className="mt-1.5 flex h-11 items-center rounded-lg border border-aura-border-soft bg-aura-surface-alt px-2.5 text-sm text-aura-muted"
+                        className="mt-1.5 flex h-12 items-center rounded-lg border border-aura-border-soft bg-aura-surface-alt px-2.5 text-sm text-aura-muted lg:h-11"
                       >
                         {takes.length === 0
                           ? "First take"
@@ -1467,7 +1474,7 @@ export function Screening() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <audio controls src={take.url} className="h-9 min-w-0 flex-1" aria-label={`Take ${index + 1} playback`} />
+                          <audio controls src={take.url} className="h-12 min-w-0 flex-1 lg:h-9" aria-label={`Take ${index + 1} playback`} />
                           <Button
                             variant="ghost"
                             size="icon"

@@ -544,7 +544,7 @@ export function DeviceBanner({
         <button
           type="button"
           onClick={onRefresh}
-          className="shrink-0 rounded-md p-1.5 text-aura-muted transition-colors hover-tap:bg-black/5 hover-tap:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+          className="touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-aura-muted transition-colors hover-tap:bg-black/5 hover-tap:text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
           aria-label="Refresh audio inputs"
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -563,7 +563,7 @@ export function DeviceBanner({
             id="aura-input-device"
             value={selectedId}
             onChange={(e) => onSelect(e.target.value)}
-            className="mt-1.5 h-11 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
+            className="mt-1.5 h-12 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest lg:h-11"
           >
             <option value="">Choose…</option>
             {devices.map((d) => (

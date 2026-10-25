@@ -71,7 +71,7 @@ for f in sorted(SRC.rglob("*.tsx")):
             add(f, i, "grid", f"grid-cols-{cols} with no responsive override")
 
 # ---------------------------------------------------------------------------
-# 3. Icon-only buttons below the 44px tap target floor
+# 3. Icon-only buttons below the 48px tap target floor
 # ---------------------------------------------------------------------------
 SMALL_TAP = re.compile(r"(?<![-\w])h-(\d+)(?:\.5)?(?=[\"\s]|$)")
 
@@ -80,12 +80,12 @@ for f in sorted(SRC.rglob("*.tsx")):
     for m in re.finditer(r"<Button\b[^>]*size=\"icon\"[^>]*>", text, re.S):
         tag = m.group(0)
         line = text[: m.start()].count("\n") + 1
-        # touch-target or an explicit >=44px height means someone handled it.
-        if "touch-target" in tag or "h-11" in tag or "h-12" in tag:
+        # touch-target or an explicit >=48px height means someone handled it.
+        if "touch-target" in tag or "h-12" in tag:
             continue
         hm = SMALL_TAP.search(tag)
-        if hm and float(hm.group(1)) < 11:
-            add(f, line, "tap-target", f"icon button at h-{hm.group(1)} (<44px) with no touch-target")
+        if hm and float(hm.group(1)) < 12:
+            add(f, line, "tap-target", f"icon button at h-{hm.group(1)} (<48px) with no touch-target")
 
 # ---------------------------------------------------------------------------
 # 4. Raw <table> without an overflow wrapper

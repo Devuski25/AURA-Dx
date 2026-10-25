@@ -91,7 +91,7 @@ All defined in `frontend-new/src/index.css` under `@theme {}`:
 - Focus-visible rings on all interactive elements
 - Color contrast WCAG AA (4.5:1 text, 3:1 large text)
 - `prefers-reduced-motion` respected
-- All icon-only buttons ≥44×44px hit area + `aria-label`
+- All icon-only buttons ≥48×48px hit area on touch + `aria-label`
 - Dialogs use `w-[95vw] max-w-lg` + `max-h-[90vh] overflow-y-auto`
 - Tables wrap in `overflow-x-auto`
 - `cursor-pointer` on clickable elements
@@ -99,4 +99,4 @@ All defined in `frontend-new/src/index.css` under `@theme {}`:
 ## Mobile Baseline
 
 - Zero horizontal scroll at 375px; keep `overflow-x: clip` on `html, body`
-- Tap targets ≥44×44px on touch devices
+- Tap targets ≥48×48px on touch devices

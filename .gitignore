@@ -75,6 +75,7 @@ frontend-new/dist/
 
 # Vite
 *.tsbuildinfo
+.vite/
 
 # Misc
 *.pyc

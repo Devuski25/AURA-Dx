@@ -256,7 +256,7 @@ export function Sidebar({
             whileTap={{ scale: 0.88 }}
             transition={{ type: "spring", stiffness: 500, damping: 20 }}
             className={cn(
-              "rounded-md p-2 text-white transition-colors hover-tap:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+              "rounded-md p-3 text-white transition-colors hover-tap:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
               !isMobile && "hidden"
             )}
             onClick={onClose}
@@ -321,7 +321,7 @@ export function Sidebar({
                    `aria-label` still gives assistive tech the accessible name. */
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "group relative z-10 flex min-h-[44px] items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                  "group relative z-10 flex min-h-[48px] items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60",
                   showLabels ? "justify-start" : "justify-center",
                   isActive
                     ? "text-[#14382a]"
@@ -468,7 +468,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover-tap:bg-white/15 hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 shrink-0"
+                    className="touch-target flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white/80 transition-colors hover-tap:bg-white/15 hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>
@@ -499,7 +499,7 @@ export function Sidebar({
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     onClick={onSignOut}
                     aria-label="Sign out"
-                    className="rounded-lg p-2 text-white/80 transition-colors hover-tap:bg-white/15 hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    className="touch-target flex h-11 w-11 items-center justify-center rounded-lg text-white/80 transition-colors hover-tap:bg-white/15 hover-tap:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
                   >
                     <LogOut className="h-4 w-4" aria-hidden="true" />
                   </motion.button>

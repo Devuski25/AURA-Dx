@@ -63,10 +63,10 @@ export function useAdaptivePoll(
     async function tick() {
       if (cancelled) return
 
-      if (document.visibilityState === "hidden") {
-        // Re-check on the visibilitychange listener instead of burning a
-        // request against a browser that may throttle it anyway.
-        schedule(baseMs)
+      if (document.hidden) {
+        /* Do not schedule anything: the listener below starts the next check
+           when the tab is visible again. A timer that wakes only to return is
+           still a wake-up on a phone that is trying to sleep. */
         return
       }
 
@@ -82,6 +82,8 @@ export function useAdaptivePoll(
       // inference service is unreachable -- and backing off is right for it
       // too, since retrying hard will not restart a crashed process.
       consecutiveFailures = availability === "online" ? 0 : consecutiveFailures + 1
+      /* The tab may have gone away while the request was in flight. */
+      if (document.hidden) return
       schedule(pollDelayMs(consecutiveFailures, baseMs, maxMs))
     }
 

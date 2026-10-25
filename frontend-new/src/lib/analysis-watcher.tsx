@@ -137,7 +137,7 @@ export function AnalysisWatcherProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false
 
-    const check = async () => {
+    const runCheck = async () => {
       for (const p of pending) {
         if (cancelled) return
         if (notified.current.has(p.id)) continue
@@ -194,13 +194,36 @@ export function AnalysisWatcherProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    let running = false
+
+    /* A hidden tab does not poll, and a slow request does not overlap the next
+       tick. Phones suspend background tabs anyway, but not predictably -- some
+       keep a throttled interval alive and spend the clinician's battery on
+       answers nobody is looking at. Coming back fires visibilitychange, which
+       checks at once rather than waiting out the interval. */
+    const check = async () => {
+      if (running || document.visibilityState === "hidden") return
+      running = true
+      try {
+        await runCheck()
+      } finally {
+        running = false
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void check()
+    }
+
     const id = window.setInterval(() => void check(), POLL_MS)
+    document.addEventListener("visibilitychange", onVisibilityChange)
     // Check once straight away, so a result that landed between polls is not
     // made to wait out the remainder of the interval.
     void check()
     return () => {
       cancelled = true
       window.clearInterval(id)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [pending, navigate])
 

@@ -552,8 +552,32 @@ export function ScreeningDetail() {
      status is no longer 'analysing'. */
   useEffect(() => {
     if (screening?.status !== "analysing") return
-    const timer = window.setInterval(() => void fetchScreening(), 2500)
-    return () => window.clearInterval(timer)
+
+    let inFlight = false
+
+    /* Skip while hidden, and never stack a second read on top of a slow one.
+       Returning to the tab checks immediately, so a result that landed while
+       the phone was in a pocket is on screen without waiting out the tick. */
+    const tick = async () => {
+      if (inFlight || document.visibilityState === "hidden") return
+      inFlight = true
+      try {
+        await fetchScreening()
+      } finally {
+        inFlight = false
+      }
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void tick()
+    }
+
+    const timer = window.setInterval(() => void tick(), 2500)
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screening?.status, id, accessToken])
 
@@ -751,7 +775,7 @@ export function ScreeningDetail() {
                 size="icon"
                 disabled={!prevSibling}
                 onClick={() => prevSibling && navigate(`/dashboard/screenings/${prevSibling.id}`)}
-                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink"
+                className="touch-target sm:h-8 sm:w-8 rounded-md text-aura-muted hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink"
                 aria-label="Previous screening for this patient"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -766,7 +790,7 @@ export function ScreeningDetail() {
                 size="icon"
                 disabled={!nextSibling}
                 onClick={() => nextSibling && navigate(`/dashboard/screenings/${nextSibling.id}`)}
-                className="sm:h-8 sm:w-8 rounded-md text-aura-muted hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink"
+                className="touch-target sm:h-8 sm:w-8 rounded-md text-aura-muted hover-tap:bg-aura-surface-alt hover-tap:text-aura-ink"
                 aria-label="Next screening for this patient"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />

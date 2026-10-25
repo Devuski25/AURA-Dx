@@ -67,10 +67,15 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 lg:hover:underline",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-11 w-11",
+        /* A phone and a tablet get 48px of button to hit; the desktop keeps
+           the compact heights it was designed around. `lg` is the same
+           1024px line the sidebar uses, so this is the touch layout, not a
+           guess about the pointer. A caller that needs a smaller control
+           still wins: its `h-*` class is merged after these. */
+        default: "h-12 px-4 py-2 lg:h-10",
+        sm: "h-12 rounded-md px-3 lg:h-9",
+        lg: "h-12 rounded-md px-8 lg:h-11",
+        icon: "h-12 w-12 lg:h-11 lg:w-11",
       },
     },
     defaultVariants: {

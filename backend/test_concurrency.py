@@ -68,15 +68,26 @@ def make_account():
         return uid, json.loads(resp.read())["access_token"]
 
 
+def _cleanup_once(fn) -> bool:
+    """Run a cleanup step, retrying a transient Supabase disconnect once.
+
+    A probe that leaves an account behind because a pooled connection was
+    recycled turns the next run's user counts into a false alarm.
+    """
+    for attempt in range(2):
+        try:
+            fn()
+            return True
+        except Exception:
+            if attempt:
+                return False
+            time.sleep(0.1)
+    return False
+
+
 def cleanup(uid):
-    try:
-        supabase.table("profiles").delete().eq("id", uid).execute()
-    except Exception:
-        pass
-    try:
-        supabase.auth.admin.delete_user(uid)
-    except Exception:
-        pass
+    _cleanup_once(lambda: supabase.table("profiles").delete().eq("id", uid).execute())
+    _cleanup_once(lambda: supabase.auth.admin.delete_user(uid))
 
 
 def timed(path, token, timeout=120):

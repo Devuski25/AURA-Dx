@@ -330,8 +330,14 @@
   animation: aura-detect-burst 0.7s ease-out forwards;
 }
 
-/* Expand hit area of compact icon buttons to the 44px touch guideline
-   without changing their visual size. Pair with relative positioning. */
+/* Expand the hit area of compact controls to at least 48x48px without
+   changing their painted size. Pair with relative positioning.
+
+   The old rule added 6px on every side, which reached 48px only for a
+   36px control: a 32px row menu stayed 44px, and a 26px refresh button
+   stayed 38px -- both under the ergonomic floor a phone and a tablet need.
+   Centring a 48px minimum over the control keeps small icons looking small
+   while every one of them is a full finger wide. */
 .touch-target {
   position: relative;
 }
@@ -339,7 +345,11 @@
 .touch-target::after {
   content: "";
   position: absolute;
-  inset: -6px;
+  left: 50%;
+  top: 50%;
+  width: max(100% + 12px, 48px);
+  height: max(100% + 12px, 48px);
+  transform: translate(-50%, -50%);
   border-radius: inherit;
 }
 
@@ -374,7 +384,7 @@ body {
    Three targets, treated as genuinely different devices rather than one
    layout that stretches.
 
-   PHONE   <= 639px   single column, 44px minimum tap targets, chrome padded
+   PHONE   <= 639px   single column, 48px minimum tap targets, chrome padded
                      clear of the notch and the gesture bar
    TABLET  640-1023px two columns, sidebar still a drawer
    DESKTOP >= 1024px  sidebar, three columns

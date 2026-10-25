@@ -81,6 +81,7 @@ cd frontend-new && npm run dev
 | No endpoint returns a 500 | `python backend/test_endpoint_sweep.py` |
 | The API stays responsive during an analysis | `python backend/test_analysis_responsiveness.py` |
 | 10-20 concurrent users get no 429s and no blocked loop (`--inference` also proves the cascade gives identical verdicts under load) | `python backend/test_concurrency.py` |
+| Upload caps, no partial file on refusal, and the 64MB guard | `python backend/test_upload_limits.py` |
 | Remove the recordings no screening refers to | `python backend/cleanup_audio.py` |
 | Live stack status | `.\deploy\mini-pc\start-aura-services.ps1 status` |
 | Real preprocessing (needs working librosa) | `python packages/inference/test_preprocessing.py` |
@@ -166,7 +167,7 @@ cosmetic -- `api.aura-dx.xyz` does not resolve.
 `scripts/audit-routes.py` fails on a hyphenated canonical, and
 `frontend-new/.env.example` pins the API host. Neither catches a stray
 `aura-dx.xyz` inside prose, so check by eye when writing config.
-- **A11y**: all icon-only buttons ≥44×44px hit area + `aria-label`; dialogs use `w-[95vw] max-w-lg` + `max-h-[90vh] overflow-y-auto`; tables wrap in `overflow-x-auto`
+- **A11y**: all icon-only buttons ≥48×48px hit area on touch + `aria-label`; dialogs use `w-[95vw] max-w-lg` + `max-h-[90vh] overflow-y-auto`; tables wrap in `overflow-x-auto`
 - **Layout**: left-side sidebar — `lg:` desktop toggle (collapsed ↔ expanded, persisted `aura-dx:sidebar-collapsed`) + left slide-over drawer `<lg` (Escape / backdrop / nav click closes; `inert`+`aria-hidden` while closed)
 - **Mobile-first**: zero horizontal scroll on 375px; keep `overflow-x: clip` on `html, body`
 
@@ -190,7 +191,7 @@ Rules that are not optional:
   min-w wider than 340px is only correct when an overflow ancestor exists.
 - **Multi-column grids need a responsive escape.** `grid-cols-2` with no
   `sm:`/`md:`/`lg:` override is a bug, not a style choice.
-- **Icon-only buttons >=44x44px.** Add `touch-target` or an explicit `h-11`+.
+- **Touch targets are >=48x48px.** Add `touch-target` (keeps a 44px visual but widens the hit area) or an explicit `h-12`+.
 - **Full-bleed mobile chrome reads `env(safe-area-inset-*)`** - exposed as
   `--aura-safe-top|right|bottom|left` on `html, body`. Without it, content hides
   under a notch or a gesture bar.
