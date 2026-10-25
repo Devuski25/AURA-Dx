@@ -1311,7 +1311,7 @@ export function Screening() {
                         id="aura-site"
                         value={selectedSite}
                         onChange={(e) => setSelectedSite(e.target.value)}
-                        className="mt-1.5 h-12 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest lg:h-11"
+                        className="mt-1.5 h-12 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
                       >
                         {AUSCULTATION_SITES.map((s) => (
                           <option key={s.code} value={s.code}>
@@ -1332,7 +1332,7 @@ export function Screening() {
                           than buried in the collapsed protocol card. */}
                       <p
                         id="aura-take-site-history"
-                        className="mt-1.5 flex h-12 items-center rounded-lg border border-aura-border-soft bg-aura-surface-alt px-2.5 text-sm text-aura-muted lg:h-11"
+                        className="mt-1.5 flex h-12 items-center rounded-lg border border-aura-border-soft bg-aura-surface-alt px-2.5 text-sm text-aura-muted"
                       >
                         {takes.length === 0
                           ? "First take"
@@ -1355,7 +1355,7 @@ export function Screening() {
                   onClick={startRecording}
                   size="lg"
                   disabled={atMaxTakes || !audioInput.ready}
-                  className="w-full gap-3"
+                  className="min-h-12 w-full gap-3"
                 >
                   <Mic className="h-5 w-5" />
                   {takes.length === 0 ? "Start First Recording" : "Record Another Take"}
@@ -1408,7 +1408,7 @@ export function Screening() {
                     onClick={stopRecording}
                     size="lg"
                     variant="destructive"
-                    className="w-full gap-3"
+                    className="min-h-12 w-full gap-3"
                   >
                     <MicOff className="h-5 w-5" />
                     Stop Recording
@@ -1432,7 +1432,7 @@ export function Screening() {
                         about to empty. `destructive-solid` keeps the red on a
                         phone and a tablet too, where there is no hover to
                         reveal it. */}
-                    <Button variant="destructive-solid" size="sm" onClick={clearTakes} className="shrink-0">
+                    <Button variant="destructive-solid" size="sm" onClick={clearTakes} className="min-h-12 shrink-0">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Clear all
                     </Button>
@@ -1498,7 +1498,7 @@ export function Screening() {
                 onClick={submitForAnalysis}
                 disabled={submitting || !hasEnoughTakes}
                 size="lg"
-                className="w-full gap-2"
+                className="min-h-12 w-full gap-2"
               >
                 {submitting ? (
                   <>

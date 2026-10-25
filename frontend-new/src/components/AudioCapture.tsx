@@ -563,7 +563,7 @@ export function DeviceBanner({
             id="aura-input-device"
             value={selectedId}
             onChange={(e) => onSelect(e.target.value)}
-            className="mt-1.5 h-12 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest lg:h-11"
+            className="mt-1.5 h-12 w-full rounded-lg border border-aura-border bg-white px-2.5 text-sm text-aura-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aura-forest"
           >
             <option value="">Choose…</option>
             {devices.map((d) => (
