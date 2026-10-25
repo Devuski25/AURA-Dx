@@ -59,8 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pendingLoginUserIdRef = useRef<string | null>(null)
   /* Whose data the page cache is currently holding. */
   const lastProfileIdRef = useRef<string | null>(null)
+  /* Which profile fetch is allowed to publish its result.
+   *
+   * Two flows can be in flight at once -- the initial getSession() and an auth
+   * state event, or a sign-out arriving while a fetch is still on the wire.
+   * Without this, the slower one wins: a fetch that started before a sign-out
+   * would land afterwards and put the user back, rendering a protected page
+   * for a session that no longer exists. Every fetch takes the next number and
+   * only publishes if it is still the newest. */
+  const profileGenerationRef = useRef(0)
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, prefetched?: Profile) => {
+    const generation = ++profileGenerationRef.current
     /* A different account is signing in on this tab.
      *
      * The data cache is module-level, so it survives a sign-out. Left alone,
@@ -73,12 +83,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastProfileIdRef.current = userId
     }
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-      if (error) throw error
+      let data: Profile | null = prefetched ?? null
+      if (!data) {
+        const res = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single()
+        if (res.error) throw res.error
+        data = res.data as Profile
+      }
+
+      /* Somebody signed out, or a newer fetch started, while this one was in
+         flight. Its answer is about a session that is no longer current. */
+      if (generation !== profileGenerationRef.current) return
 
       if (data.status === "approved") {
         setUser(data)
@@ -97,10 +115,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (error) {
-      console.error("Error fetching profile:", error)
-      setUser(null)
+      if (generation === profileGenerationRef.current) {
+        console.error("Error fetching profile:", error)
+        setUser(null)
+      }
     } finally {
-      setLoading(false)
+      if (generation === profileGenerationRef.current) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -114,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        tells the clinician that signing in again is the whole fix.
        Tearing the session down here routes them to Login with a reason. */
     const onSessionExpired = async () => {
+      profileGenerationRef.current++
       setUser(null)
       setAccessToken(null)
       setLoading(false)
@@ -149,6 +172,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchProfile(session.user.id)
         }
       } else {
+        /* No session: anything still in flight belongs to the session that
+           just ended, so its result must not be published. */
+        profileGenerationRef.current++
         setUser(null)
         setAccessToken(null)
         setLoading(false)
@@ -167,22 +193,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     skipAuthEventRef.current = true
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       skipAuthEventRef.current = false
       return { error: new Error(error.message) }
     }
 
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    /* signInWithPassword already hands back the user.
+     *
+     * This used to be followed by a getUser() round trip and then, once the
+     * status was known good, a SECOND full profile query inside fetchProfile --
+     * three calls before the dashboard could paint, two of them asking
+     * questions the first answer already contained. One query is enough, and
+     * the row it returns is handed straight to fetchProfile. */
+    const authUser = signInData.user
     if (authUser) {
-      let profile: { status: string; last_login_at: string | null; role: string } | null = null
+      let profile: Profile | null = null
       try {
         const { data } = await supabase
           .from("profiles")
-          .select("status, last_login_at, role")
+          .select("*")
           .eq("id", authUser.id)
           .single()
-        profile = data
+        profile = (data as Profile | null) ?? null
       } catch (e) {
         console.error("Error fetching profile status:", e)
       }
@@ -200,9 +233,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           skipAuthEventRef.current = false
           return { error: null, accountStatus: "approved" as const }
         }
-      }
 
-      await fetchProfile(authUser.id)
+        await fetchProfile(authUser.id, profile)
+      } else {
+        /* The profile row was unreadable, so ask again through the normal
+           path rather than deciding the account does not exist. */
+        await fetchProfile(authUser.id)
+      }
     }
 
     skipAuthEventRef.current = false
@@ -271,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    profileGenerationRef.current++
     await supabase.auth.signOut()
     setUser(null)
     /* Drop the cache with the session, so the next sign-in on this tab

@@ -83,6 +83,12 @@ export function useCachedData<T>(
     let cancelled = false
 
     const revalidate = () => {
+      /* A tab nobody is looking at has no reason to poll. The clinic runs on
+       * shared machines and people leave screens open; without this, every
+       * background tab keeps asking for the users list every ten seconds, and
+       * twenty of them are indistinguishable from a burst. Coming back to the
+       * tab fires `focus`, which revalidates immediately. */
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return
       const current = peekCache<T>(key)
       if (current && !isStale(current, ttlMs)) return
       fetchWithCache(key, () => fetcherRef.current())

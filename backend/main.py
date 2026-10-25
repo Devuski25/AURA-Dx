@@ -67,16 +67,40 @@ app = FastAPI(
 #    No 'Access-Control-Allow-Origin' header is present"
 
 # --- Simple in-memory rate limiter ---
+#
+# The bucket is per client IP, and a whole clinic usually shares one public IP.
+# At the original 60 requests a minute that was a ceiling on the CLINIC, not on
+# a user: one page load is several calls, the users list polls every 10s and the
+# records list every 15s, so ten people working normally would trip it and start
+# collecting 429s. The limit is a denial-of-service backstop, not a per-user
+# quota, so it sits well above what a room full of clinicians can generate.
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 RATE_LIMIT_WINDOW = 60  # seconds
-RATE_LIMIT_MAX = 60     # requests per window
+RATE_LIMIT_MAX = 600    # requests per window, per IP
 _RATE_LIMIT_CLEANUP_INTERVAL = 300  # clean stale IPs every 5 min
 _last_cleanup: float = 0
+
+# A screening upload is at most five 10MB recordings plus multipart framing.
+# Anything past this is refused from its Content-Length header, before the body
+# is read, so an oversized request costs a header read rather than 60MB of RAM.
+MAX_REQUEST_BYTES = 64 * 1024 * 1024
 
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     global _last_cleanup
+    # CORS preflights are answered by the outer middleware and never reach
+    # here; skip them anyway so the intent is local to this function.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_REQUEST_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Request too large. Upload at most 5 recordings of 10MB each."},
+        )
+
     # Behind the Cloudflare Tunnel every request's client host is 127.0.0.1,
     # which would funnel ALL users into one shared rate-limit bucket.
     # Use the X-Forwarded-For header (set by cloudflared) when present.
@@ -94,7 +118,11 @@ async def rate_limit_middleware(request: Request, call_next):
 
     _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if t > now - RATE_LIMIT_WINDOW]
     if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_MAX:
-        return JSONResponse(status_code=429, content={"detail": "Too many requests. Try again later."})
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Too many requests. Try again later."},
+            headers={"Retry-After": str(RATE_LIMIT_WINDOW)},
+        )
     _rate_limit_store[client_ip].append(now)
     return await call_next(request)
 

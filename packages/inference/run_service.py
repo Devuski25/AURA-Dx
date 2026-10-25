@@ -45,6 +45,7 @@ def main() -> None:
     parser.add_argument("app", help="the ASGI application, as module:attr")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--limit-concurrency", type=int, default=None)
     parser.add_argument("--log-level", default="info")
     args = parser.parse_args()
 
@@ -61,6 +62,7 @@ def main() -> None:
         host=args.host,
         port=args.port,
         log_level=args.log_level,
+        limit_concurrency=args.limit_concurrency,
         # The same defaults uvicorn's own command line uses, so the logs
         # read the way they always have.
         access_log=True,

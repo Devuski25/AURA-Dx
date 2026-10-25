@@ -202,6 +202,23 @@ DISAGREEMENT_STD_LIMIT = 0.20
 MAX_RECORDINGS = 5
 MIN_RECORDINGS = 3
 
+# One recording. The backend caps uploads at the same size; this is the second
+# line of defence, and it is what keeps a hand-rolled request from turning into
+# half a gigabyte of resident memory per connection.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+# How many screenings may be scored AT ONCE on this machine.
+#
+# The box is a 2-core Mini PC shared with the backend and the database tunnel.
+# Letting every arriving request start its own librosa decode and Keras batch
+# does not make them finish sooner: the threads fight over two cores, the GIL
+# serialises the Python work anyway, and each queued thread keeps its decoded
+# audio and tensors resident while it waits. A small fixed number of slots keeps
+# memory bounded and throughput predictable; the rest wait their turn, holding
+# only their spooled upload.
+SCORE_CONCURRENCY = max(1, min(2, (os.cpu_count() or 2) // 2))
+_score_slots = asyncio.Semaphore(SCORE_CONCURRENCY)
+
 MODEL_VERSION = "2.5.0-multi"
 
 # Populated at startup
@@ -232,6 +249,18 @@ def load_models():
 
     logger.info("Loading Stage 2 (2.5 EfficientNetB0) from %s", STAGE2_KERAS)
     import tensorflow as tf  # imported late: heavy, and only needed at startup
+
+    # Two cores, not thirty-two. TensorFlow's default is to size its thread
+    # pools from the host's logical CPUs and then oversubscribe them for every
+    # predict; on this box that means more context switches than arithmetic.
+    # Pinning the pools keeps a forward pass predictable and leaves a core for
+    # the event loop and the other services. These must be set before the first
+    # op runs, which is exactly here: the model has not been loaded yet.
+    try:
+        tf.config.threading.set_intra_op_parallelism_threads(max(1, min(2, os.cpu_count() or 1)))
+        tf.config.threading.set_inter_op_parallelism_threads(1)
+    except Exception as exc:  # pragma: no cover - depends on the TF build
+        logger.warning("Could not pin TensorFlow thread pools: %s", exc)
 
     _stage2_model = tf.keras.models.load_model(str(STAGE2_KERAS))
 
@@ -629,20 +658,25 @@ def score_batch(payloads: List[bytes]) -> List[dict]:
             pending.append((index, audio, p_healthy))
 
     if pending:
-        windows_per_clip: List[List[np.ndarray]] = []
+        windows_per_clip: List[int] = []
         all_tensors: List[np.ndarray] = []
         for _index, audio, _p_healthy in pending:
             tensors = [build_stage2_tensor(w) for w in stage2_windows(audio)]
-            windows_per_clip.append(tensors)
+            windows_per_clip.append(len(tensors))
             all_tensors.extend(tensors)
 
         batch = np.concatenate(all_tensors, axis=0)
+        # The per-window tensors are now folded into `batch` (a copy). Dropping
+        # the list before the forward pass halves the peak: the model needs its
+        # own working memory, and on this box that matters more than the copy.
+        del all_tensors
+
         with _stage2_lock:
             outputs = np.asarray(_stage2_model.predict(batch, verbose=0)).ravel()
+        del batch
 
         offset = 0
-        for (index, audio, p_healthy), tensors in zip(pending, windows_per_clip):
-            count = len(tensors)
+        for (index, audio, p_healthy), count in zip(pending, windows_per_clip):
             p_pneumonia = float(np.max(outputs[offset:offset + count]))
             offset += count
             results[index] = _pathological_result(index, audio, p_healthy, p_pneumonia)
@@ -946,6 +980,17 @@ class InferenceResponse(BaseModel):
     clinical_note: str
 
 
+async def _read_capped(upload: UploadFile, index: int) -> bytes:
+    """Read one upload, refusing anything over the per-recording ceiling."""
+    payload = await upload.read(MAX_UPLOAD_BYTES + 1)
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Recording {index + 1} is too large. Maximum 10MB per file.",
+        )
+    return payload
+
+
 @app.post("/api/inference", response_model=InferenceResponse)
 async def inference(audios: List[UploadFile] = File(...), _=Depends(_verify_api_key)):
     """Score a batch of 3-5 auscultation recordings and return one fused verdict."""
@@ -964,29 +1009,38 @@ async def inference(audios: List[UploadFile] = File(...), _=Depends(_verify_api_
                 detail=f"Recording {index + 1} ({upload.filename}) is not a .wav file",
             )
 
-    # Reading the uploads is I/O and is quick, so it stays on the event
-    # loop. The scoring is CPU-bound and takes as long as the batch takes,
-    # so it goes to a worker thread: while the last screening is being
-    # scored, this service can still answer a health check or accept the
-    # next upload. It used to run here on the loop itself, which meant a
-    # screening in progress made /health time out -- and the backend polls
-    # /health, so a slow screening could make the whole stack look down.
-    payloads = [await upload.read() for upload in audios]
-
-    try:
-        clip_results = await asyncio.to_thread(score_batch, payloads)
-    except RecordingError as exc:
-        if exc.bad_request:
+    # The slot is taken BEFORE the uploads are read, and released after the
+    # scores are back.
+    #
+    # The scoring itself is CPU-bound and goes to a worker thread, so the event
+    # loop can still answer health checks and accept the next screening. But
+    # "not blocking the loop" is not the same as "safe under load": twenty
+    # arrivals would start twenty decodes against two cores. The slot bounds
+    # both the CPU contention and the memory, because a request that is still
+    # waiting has not read its audio yet -- Starlette keeps it on a spooled
+    # temp file, not in RAM.
+    async with _score_slots:
+        payloads = [
+            await _read_capped(upload, index) for index, upload in enumerate(audios)
+        ]
+        try:
+            clip_results = await asyncio.to_thread(score_batch, payloads)
+        except RecordingError as exc:
+            if exc.bad_request:
+                raise HTTPException(
+                    status_code=400, detail=f"Recording {exc.index + 1}: {exc.message}"
+                )
+            logger.exception("Inference failed on recording %s", exc.index + 1)
             raise HTTPException(
-                status_code=400, detail=f"Recording {exc.index + 1}: {exc.message}"
+                status_code=500, detail=f"Recording {exc.index + 1}: {exc.message}"
             )
-        logger.exception("Inference failed on recording %s", exc.index + 1)
-        raise HTTPException(
-            status_code=500, detail=f"Recording {exc.index + 1}: {exc.message}"
-        )
-    except Exception as exc:
-        logger.exception("Inference failed")
-        raise HTTPException(status_code=500, detail=str(exc))
+        except Exception as exc:
+            logger.exception("Inference failed")
+            raise HTTPException(status_code=500, detail=str(exc))
+        finally:
+            # Raw audio is dead once the scores exist; release it before the
+            # response is built rather than leaving it to the next collection.
+            payloads.clear()
 
     fused = fuse_clips(clip_results)
     logger.info(

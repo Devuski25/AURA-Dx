@@ -65,7 +65,12 @@ $Services = @(
         # after a request, leaving the port open and the service answering
         # nothing. The app string is still on the command line, so the
         # orphan matcher below still finds it.
-        Args = @("-u", "run_service.py", "inference_service:app", "--host", "0.0.0.0", "--port", "8000")
+        Args = @("-u", "run_service.py", "inference_service:app", "--host", "0.0.0.0", "--port", "8000",
+                 # Backstop only. The service itself admits a fixed number of
+                 # screenings at a time (SCORE_CONCURRENCY); this stops a
+                 # runaway client from opening hundreds of connections and
+                 # holding hundreds of spooled uploads on disk.
+                 "--limit-concurrency", "64")
         Port = 8000
         # Matched by name when hunting orphans. It used to be read positionally
         # as Args[2], which silently became "uvicorn" the moment an argument
@@ -82,7 +87,18 @@ $Services = @(
         Name = "backend"
         Dir  = Join-Path $Root "backend"
         Py   = Join-Path $Root "backend\venv\Scripts\python.exe"
-        Args = @("-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001")
+        # ONE worker on purpose. The process keeps state that must be
+        # consistent across requests -- the profile cache, the heartbeat to
+        # service_status, the rate-limit buckets -- and a second worker would
+        # mean two of each, with an invalidation in one invisible to the other.
+        # Concurrency comes from FastAPI's worker threads instead: blocking
+        # handlers (every Supabase call) run there, while the event loop stays
+        # free for health checks, status polls and uploads. See routes/api.py.
+        Args = @("-u", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001",
+                 # A memory backstop, not a quota. This many requests in flight
+                 # at once already means something is wrong; refusing them is
+                 # better than letting each one allocate.
+                 "--limit-concurrency", "200")
         Port = 8001
         Module = "main:app"
         # The backend opens its port well after its own imports finish: the

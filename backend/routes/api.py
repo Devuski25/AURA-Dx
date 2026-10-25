@@ -68,6 +68,17 @@ UPLOAD_DIR = "uploads_audio"
 MAX_RECORDINGS = 5
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# One recording, capped. The inference service enforces the same limit; this is
+# the one the uploading client is told about, and reading with this ceiling
+# keeps oversized bodies on the spooled temp file instead of in RAM.
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+def _write_bytes(path: str, contents: bytes) -> None:
+    """Write an upload to disk (called in a worker thread)."""
+    with open(path, "wb") as f:
+        f.write(contents)
+
 
 # ─── Auth-specific rate limiting (per key) ─────────────────────────────────
 _auth_rate_store: dict[str, list[float]] = {}
@@ -106,7 +117,7 @@ def _parse_ts(value) -> datetime:
 
 
 @router.post("/auth/send-otp")
-async def send_otp(payload: SendOtp, request: Request):
+def send_otp(payload: SendOtp, request: Request):
     email = payload.email.lower().strip()
 
     # Rate limit: max 5 sends per email per 10 minutes
@@ -160,7 +171,7 @@ async def send_otp(payload: SendOtp, request: Request):
 
 
 @router.post("/auth/verify-otp")
-async def verify_otp(payload: VerifyOtp, request: Request):
+def verify_otp(payload: VerifyOtp, request: Request):
     email = payload.email.lower().strip()
 
     # Rate limit: max 10 verify attempts per email per minute
@@ -216,6 +227,18 @@ def _public_base_url(request: Request) -> str:
     return "https://auradx.xyz"
 
 
+def _lookup_profile_by_email(email: str) -> list:
+    """One profile by address, for the reset flow. Worker-thread only."""
+    return (
+        supabase.table("profiles")
+        .select("email, full_name, status")
+        .eq("email", email)
+        .limit(1)
+        .execute()
+        .data
+    )
+
+
 @router.post("/auth/forgot-password")
 async def forgot_password(payload: ForgotPassword, request: Request):
     """Email a password reset link.
@@ -250,14 +273,7 @@ async def forgot_password(payload: ForgotPassword, request: Request):
     }
 
     try:
-        found = (
-            supabase.table("profiles")
-            .select("email, full_name, status")
-            .eq("email", email)
-            .limit(1)
-            .execute()
-            .data
-        )
+        found = await asyncio.to_thread(_lookup_profile_by_email, email)
     except Exception as exc:
         print(f"[forgot-password] profile lookup failed: {exc!r}")
         return generic
@@ -273,11 +289,15 @@ async def forgot_password(payload: ForgotPassword, request: Request):
 
     base = _public_base_url(request)
     try:
-        link = supabase.auth.admin.generate_link({
-            "type": "recovery",
-            "email": email,
-            "options": {"redirect_to": f"{base}/reset-password"},
-        })
+        # generate_link is a network call to the auth service; off the loop so
+        # a reset request never delays somebody else's page.
+        link = await asyncio.to_thread(
+            lambda: supabase.auth.admin.generate_link({
+                "type": "recovery",
+                "email": email,
+                "options": {"redirect_to": f"{base}/reset-password"},
+            })
+        )
         token_hash = link.properties.hashed_token
     except Exception as exc:
         print(f"[forgot-password] generate_link failed: {exc!r}")
@@ -308,7 +328,7 @@ async def forgot_password(payload: ForgotPassword, request: Request):
 
 
 @router.post("/auth/discard-oauth-signup")
-async def discard_oauth_signup(
+def discard_oauth_signup(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Delete an account that a Google sign-in created by accident.
@@ -565,7 +585,7 @@ async def health_check():
         "inference": "unknown",
         "auth": "unknown"
     }
-    async def check_db() -> str:
+    def check_db() -> str:
         try:
             supabase.table("profiles").select("id").limit(1).execute()
             return "healthy"
@@ -579,7 +599,9 @@ async def health_check():
         except Exception:
             return "unhealthy"
 
-    db_ok, inference_ok = await asyncio.gather(check_db(), check_inference())
+    db_ok, inference_ok = await asyncio.gather(
+        asyncio.to_thread(check_db), check_inference()
+    )
     services["database"] = db_ok
     services["inference"] = inference_ok
 
@@ -618,8 +640,12 @@ async def upload_audio(
                 detail=f"Recording {idx + 1} ({audio.filename}) has an unsupported format. Use wav, mp3, flac, ogg, m4a"
             )
 
-        contents = await audio.read()
-        if len(contents) > 10 * 1024 * 1024:
+        # Read at most one byte over the limit. `read()` with no size would
+        # buffer whatever the client sent -- a 200MB "wav" becomes 200MB of
+        # RAM before the size check can say no. Five of those in flight at
+        # once is how an 8GB machine runs out.
+        contents = await audio.read(MAX_UPLOAD_BYTES + 1)
+        if len(contents) > MAX_UPLOAD_BYTES:
             raise HTTPException(
                 status_code=400,
                 detail=f"Recording {idx + 1} is too large. Maximum 10MB per file."
@@ -628,8 +654,9 @@ async def upload_audio(
         file_ext = os.path.splitext(audio.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_ext}"
         file_path = os.path.join(UPLOAD_DIR, unique_filename)
-        with open(file_path, "wb") as f:
-            f.write(contents)
+        # Disk write in a worker thread: ten megabytes is tens of milliseconds
+        # the event loop would otherwise spend not answering anybody.
+        await asyncio.to_thread(_write_bytes, file_path, contents)
         saved.append({"file_path": file_path, "filename": unique_filename, "size": len(contents)})
 
     return {
@@ -694,6 +721,28 @@ async def _confirmed_emails() -> set:
     return emails
 
 
+def _query_user_profiles(role: str, clinic_id, limit: int, offset: int) -> list:
+    """One page of profiles, scoped the way the users list has always scoped it.
+
+    Separate from the route so it can run in a worker thread: the Supabase
+    client is synchronous and a query costs a real database round trip.
+    """
+    if role != "super_admin":
+        resolved = _resolve_clinic_id(clinic_id)
+        # No clinic row exists at all. Filtering on a value that cannot exist
+        # would return an empty list, which reads as "no users" rather than
+        # "misconfigured", so fall back to showing everything.
+        query = (
+            supabase.table("profiles").select("*").eq("clinic_id", resolved)
+            if resolved
+            else supabase.table("profiles").select("*")
+        )
+    else:
+        query = supabase.table("profiles").select("*")
+    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+    return query.execute().data or []
+
+
 @router.get("/users", response_model=List[UserResponse])
 async def list_users(
     user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
@@ -712,22 +761,15 @@ async def list_users(
     # `_resolve_clinic_id` falls back to the single configured clinic, which is
     # the whole premise of the single-clinic model. So an admin whose own
     # clinic_id was never populated still resolves to the right clinic.
-    if user.get("role") != "super_admin":
-        resolved = _resolve_clinic_id(clinic_id)
-        # No clinic row exists at all. Filtering on a value that cannot exist
-        # would return an empty list, which reads as "no users" rather than
-        # "misconfigured", so fall back to showing everything.
-        query = (
-            supabase.table("profiles").select("*").eq("clinic_id", resolved)
-            if resolved
-            else supabase.table("profiles").select("*")
-        )
-    else:
-        query = supabase.table("profiles").select("*")
-    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
     try:
-        profiles_res = query.execute()
-        profiles = profiles_res.data or []
+        # In a worker thread. The Supabase client is synchronous, so running
+        # this query here blocked the whole event loop for the length of a
+        # database round trip -- about 130ms from the Mini PC. The users page
+        # polls every 10s per open admin tab; a few of those overlapping was
+        # enough to stall health checks and every other page behind them.
+        profiles = await asyncio.to_thread(
+            _query_user_profiles, user.get("role"), clinic_id, limit, offset
+        )
     except Exception as e:
         # Unhandled DB/Supabase errors escape as a bare 500 and lose the CORS
         # headers, which the browser reports only as a preflight CORS failure.
@@ -763,7 +805,7 @@ async def list_users(
 
 
 @router.post("/users", response_model=UserResponse, status_code=201)
-async def create_user(user_data: UserCreate, user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def create_user(user_data: UserCreate, user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     try:
         # Security: only super_admin can create admin or super_admin accounts
         if user_data.role in (UserRole.ADMIN, UserRole.SUPER_ADMIN) and user.get("role") != "super_admin":
@@ -827,7 +869,7 @@ async def create_user(user_data: UserCreate, user: dict = Depends(require_role(U
 
 
 @router.patch("/users/{user_id}", response_model=UserResponse)
-async def update_user(
+def update_user(
     user_id: str,
     update: UserUpdate,
     background_tasks: BackgroundTasks,
@@ -920,11 +962,13 @@ async def update_user(
         target_email = target.data.get("email")
         target_name = target.data.get("full_name") or ""
         if target_email:
-            async def _notify():
+            # A plain sync task. FastAPI runs sync background tasks in its
+            # threadpool, which is exactly where the blocking SMTP send
+            # belongs: on the event loop it stopped every other request for
+            # the two or three seconds Resend takes.
+            def _notify():
                 try:
-                    await asyncio.to_thread(
-                        send_account_status_email, target_email, target_name, new_status
-                    )
+                    send_account_status_email(target_email, target_name, new_status)
                 except Exception as exc:
                     # Swallowed deliberately, logged loudly. The approval stands.
                     print(
@@ -940,7 +984,7 @@ async def update_user(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(
+def delete_user(
     user_id: str,
     background_tasks: BackgroundTasks,
     user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN)),
@@ -1010,11 +1054,9 @@ async def delete_user(
     # read as "it did not work" -- the row is already gone either way. The
     # failure is logged, and the removed account cannot sign in regardless.
     if target_email:
-        async def _notify_removed():
+        def _notify_removed():
             try:
-                await asyncio.to_thread(
-                    send_account_deleted_email, target_email, target_name
-                )
+                send_account_deleted_email(target_email, target_name)
             except Exception as exc:
                 print(f"[user_delete] removal email to {target_email} failed: {exc!r}")
 
@@ -1104,7 +1146,7 @@ def _fetch_patients_from_tables(search, clinic_id, role, user_id, user_clinic_id
 
 
 @router.post("/patients", response_model=PatientResponse, status_code=201)
-async def create_patient(patient: PatientCreate, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def create_patient(patient: PatientCreate, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     role = user.get("role")
     # Clinicians act on their own behalf; admins/super-admins create on behalf of a
     # clinician when one is supplied in the body, otherwise fall back to themselves.
@@ -1134,7 +1176,7 @@ async def create_patient(patient: PatientCreate, user: dict = Depends(require_ro
 
 
 @router.get("/patients/{patient_id}", response_model=PatientResponse)
-async def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
+def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
     target = _row_by_id("patients", patient_id)
     if not target:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -1158,7 +1200,7 @@ async def get_patient(patient_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.patch("/patients/{patient_id}", response_model=PatientResponse)
-async def update_patient(patient_id: str, update: PatientUpdate, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def update_patient(patient_id: str, update: PatientUpdate, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     role = user.get("role")
     user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
@@ -1223,7 +1265,7 @@ def _delete_audio_files(paths) -> int:
 
 
 @router.delete("/patients/{patient_id}")
-async def delete_patient(patient_id: str, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def delete_patient(patient_id: str, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     clinic_id = user.get("clinic_id")
     target = _row_by_id("patients", patient_id)
     if not target:
@@ -1261,7 +1303,7 @@ async def delete_patient(patient_id: str, user: dict = Depends(require_role(User
 
 
 @router.delete("/screenings/{screening_id}")
-async def delete_screening(screening_id: str, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def delete_screening(screening_id: str, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     """Delete one screening, leaving the patient and their other screenings.
 
     A patient can be screened as many times as clinically needed, and
@@ -1309,6 +1351,44 @@ async def delete_screening(screening_id: str, user: dict = Depends(require_role(
     }
 
 
+def _cached_inference_version() -> str:
+    """The inference version last reported, for the 'analysing' row's NOT NULL."""
+    try:
+        cached = (
+            supabase.table("service_status")
+            .select("inference_version")
+            .eq("id", True)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if cached and cached[0] and cached[0].get("inference_version"):
+            return cached[0]["inference_version"]
+    except Exception:
+        pass
+    return "pending"
+
+
+def _insert_analysing_screening(row: dict):
+    """Insert the row with status='analysing'.
+
+    Returns None when the database refuses that status, which is what happens
+    before 20261021120000_add_analysing_status.sql has been applied. The insert
+    is refused atomically, so nothing is left behind, and the caller falls back
+    to analysing before the insert.
+
+    Any other error is raised: it used to be swallowed into the same fallback,
+    so a broken database looked like a missing migration and every screening
+    quietly took the slow path.
+    """
+    try:
+        return supabase.table("screenings").insert(row).execute().data[0]
+    except Exception as exc:
+        if "23514" not in str(exc):
+            raise
+        return None
+
+
 @router.post("/screenings", response_model=ScreeningResponse)
 async def create_screening(
     screening: ScreeningCreate,
@@ -1320,7 +1400,7 @@ async def create_screening(
     if not clinic_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No clinic is configured; cannot create screening")
 
-    patient = _row_by_id("patients", screening.patient_id)
+    patient = await asyncio.to_thread(_row_by_id, "patients", screening.patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
@@ -1354,16 +1434,7 @@ async def create_screening(
         # version of postgrest-py -- the AttributeError it raised was caught by
         # the except below, so the cached version was never actually read and
         # every screening was written as "pending".
-        cached = (
-            supabase.table("service_status")
-            .select("inference_version")
-            .eq("id", True)
-            .limit(1)
-            .execute()
-            .data
-        )
-        if cached and cached[0] and cached[0].get("inference_version"):
-            model_version = cached[0]["inference_version"]
+        model_version = await asyncio.to_thread(_cached_inference_version)
     except Exception:
         pass
 
@@ -1387,21 +1458,13 @@ async def create_screening(
 
     created = None
     try:
-        res = supabase.table("screenings").insert(row).execute()
-        created = res.data[0]
+        # In a worker thread: the insert is a database round trip, and a burst
+        # of submissions must not stall the loop that is serving everyone
+        # else's status poll.
+        created = await asyncio.to_thread(_insert_analysing_screening, row)
     except Exception as exc:
-        # The 'analysing' status is not allowed by the column's CHECK
-        # constraint until 20261021120000_add_analysing_status.sql has been
-        # applied. The insert is refused atomically, so nothing is left behind.
-        #
-        # Rather than making the deployment order a hazard, fall back to
-        # analysing BEFORE the insert. That is the old behaviour: correct, and
-        # still blocking, but nothing breaks in the window between the backend
-        # going out and the migration being run. The new behaviour switches
-        # itself on the moment the migration lands, with no further deploy.
-        if "23514" not in str(exc):
-            raise
-        created = None
+        print(f"[create_screening] insert failed: {exc!r}")
+        raise HTTPException(status_code=500, detail="Could not create the screening")
 
     if created is None:
         return await _create_screening_blocking(row, screening, patient, clinician_id, clinic_id)
@@ -1418,11 +1481,13 @@ async def create_screening(
         screening.audio_duration_sec,
     )
 
-    _log_audit("screening_create", clinician_id, clinic_id, "screening", screening_id, {
-        "patient_id": screening.patient_id,
-        "recordings": len(screening.audio_file_paths),
-        "status": "analysing",
-    })
+    await asyncio.to_thread(
+        _log_audit, "screening_create", clinician_id, clinic_id, "screening", screening_id, {
+            "patient_id": screening.patient_id,
+            "recordings": len(screening.audio_file_paths),
+            "status": "analysing",
+        },
+    )
 
     return ScreeningResponse(**created, patient_name=patient.get("full_name"), clinic_name=None, clinician_name=None, reviewed_by_name=None)
 
@@ -1469,10 +1534,13 @@ async def _create_screening_blocking(row: dict, screening: ScreeningCreate, pati
         "status": "completed",
     }
 
-    res = supabase.table("screenings").insert(data).execute()
+    res = await asyncio.to_thread(
+        lambda: supabase.table("screenings").insert(data).execute()
+    )
     created = res.data[0]
 
-    _log_audit("screening_create", clinician_id, clinic_id, "screening", created["id"], {
+    await asyncio.to_thread(_log_audit, "screening_create", clinician_id, clinic_id,
+                            "screening", created["id"], {
         "patient_id": screening.patient_id,
         "recordings": len(screening.audio_file_paths),
         "respiratory_result": data["respiratory_result"],
@@ -1490,16 +1558,16 @@ async def _analyse_screening(screening_id: str, audio_file_paths: List[str], aud
     ever, which reads to a clinician as "still working" when it is actually
     broken. Every failure is therefore caught and written to the row as the
     'error' status, with the reason kept in the audit log.
+
+    The inference is awaited (an HTTP call, so the loop is free while it runs),
+    but every database write goes to a worker thread. Choosing which is which
+    is the whole point: this service is one event loop, and a synchronous write
+    here stalls the status polls of every other clinician on the page.
     """
     try:
         inference_res = await run_inference(audio_file_paths, audio_duration_sec)
     except Exception as exc:
-        _log_audit("screening_error", None, None, "screening", screening_id, {
-            "error": str(exc)[:500],
-        })
-        supabase.table("screenings").update({
-            "status": "error",
-        }).eq("id", screening_id).execute()
+        await asyncio.to_thread(_mark_screening_error, screening_id, str(exc))
         return
 
     try:
@@ -1540,17 +1608,28 @@ async def _analyse_screening(screening_id: str, audio_file_paths: List[str], aud
             "model_version": inference_res.get("model_version") or "unknown",
             "status": "completed",
         }
-        supabase.table("screenings").update(update).eq("id", screening_id).execute()
-
-        _log_audit("screening_analyse", None, None, "screening", screening_id, {
-            "respiratory_result": update["respiratory_result"],
-            "override_applied": fusion.get("override_applied"),
-        })
+        await asyncio.to_thread(
+            _save_screening_result, screening_id, update, fusion.get("override_applied")
+        )
     except Exception as exc:
-        _log_audit("screening_error", None, None, "screening", screening_id, {
-            "error": str(exc)[:500],
-        })
-        supabase.table("screenings").update({"status": "error"}).eq("id", screening_id).execute()
+        await asyncio.to_thread(_mark_screening_error, screening_id, str(exc))
+
+
+def _save_screening_result(screening_id: str, update: dict, override_applied) -> None:
+    """Write a finished result and its audit entry. Worker-thread only."""
+    supabase.table("screenings").update(update).eq("id", screening_id).execute()
+    _log_audit("screening_analyse", None, None, "screening", screening_id, {
+        "respiratory_result": update["respiratory_result"],
+        "override_applied": override_applied,
+    })
+
+
+def _mark_screening_error(screening_id: str, error: str) -> None:
+    """Close a screening that could not be analysed. Worker-thread only."""
+    _log_audit("screening_error", None, None, "screening", screening_id, {
+        "error": error[:500],
+    })
+    supabase.table("screenings").update({"status": "error"}).eq("id", screening_id).execute()
 
 
 async def run_inference(audio_file_paths: List[str], audio_duration_sec: Optional[float]) -> dict:
@@ -1575,6 +1654,12 @@ async def run_inference(audio_file_paths: List[str], audio_duration_sec: Optiona
             f"{settings.inference_service_url}/api/inference",
             files=files,
             headers=headers,
+            # Longer than the client default on purpose. The inference service
+            # scores a bounded number of screenings at once; when the clinic is
+            # busy, a submission can wait behind others that arrived first. That
+            # wait is the queue working, not a hang, so it must not be cut off
+            # at the same 150s that covers a single batch on an idle machine.
+            timeout=420.0,
         )
     finally:
         for handle in opened:
@@ -1859,7 +1944,7 @@ def _normalise_classification(data: dict) -> dict:
 
 
 @router.get("/screenings", response_model=List[ScreeningResponse])
-async def list_screenings(
+def list_screenings(
     patient_id: Optional[str] = None,
     respiratory_result: Optional[str] = None,
     user: dict = Depends(get_current_user),
@@ -1909,7 +1994,7 @@ async def list_screenings(
 
 
 @router.get("/screenings/{screening_id}", response_model=ScreeningResponse)
-async def get_screening(screening_id: str, user: dict = Depends(get_current_user)):
+def get_screening(screening_id: str, user: dict = Depends(get_current_user)):
     role = user.get("role")
     clinic_id = user.get("clinic_id")
     user_id = user.get("sub")
@@ -1955,7 +2040,7 @@ async def get_screening(screening_id: str, user: dict = Depends(get_current_user
 
 
 @router.patch("/screenings/{screening_id}/review", response_model=ScreeningResponse)
-async def review_screening(screening_id: str, review: ScreeningReview, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def review_screening(screening_id: str, review: ScreeningReview, user: dict = Depends(require_role(UserRole.CLINICIAN, UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     role = user.get("role")
     user_id = user.get("sub")
     clinic_id = user.get("clinic_id")
@@ -1998,7 +2083,7 @@ async def review_screening(screening_id: str, review: ScreeningReview, user: dic
 
 
 @router.get("/metrics/summary", response_model=MetricsSummary)
-async def metrics_summary(user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
+def metrics_summary(user: dict = Depends(require_role(UserRole.ADMIN, UserRole.SUPER_ADMIN))):
     clinic_id = user.get("clinic_id")
     try:
         # The screenings that are on record, not the ones that were ever made.
@@ -2360,7 +2445,7 @@ def _one_page_story(data: dict, screening_id: str, page_no: int, page_total: int
 
 
 @router.post("/screenings/export-pdf")
-async def export_screenings_pdf(
+def export_screenings_pdf(
     body: "ExportRequest",
     user: dict = Depends(get_current_user),
 ):
@@ -2463,7 +2548,7 @@ async def export_screenings_pdf(
 
 
 @router.get("/screenings/{screening_id}/pdf")
-async def download_screening_pdf(
+def download_screening_pdf(
     screening_id: str,
     user: dict = Depends(get_current_user)
 ):

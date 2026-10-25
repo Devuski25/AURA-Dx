@@ -64,9 +64,12 @@ def main():
         print("  no screenings available")
         return 0
 
-    resp = asyncio.run(export_screenings_pdf(
+    # The endpoint is a plain `def` now: it renders the report with ReportLab,
+    # which is CPU-bound, so FastAPI runs it in a worker thread instead of on
+    # the event loop. Call it the way FastAPI would -- synchronously.
+    resp = export_screenings_pdf(
         ExportRequest(screening_ids=[r["id"] for r in rows]),
-        {"role": "super_admin", "clinic_id": None, "sub": "x"}))
+        {"role": "super_admin", "clinic_id": None, "sub": "x"})
 
     async def drain(x):
         out = []

@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import asyncio
+import threading
 import time
 from jose import jwt, JWTError
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -20,6 +22,10 @@ SECRET_KEY = settings.jwt_secret
 _jwks_cache = None
 _jwks_cache_time = None
 _jwks_cache_key = None
+# `decode_token` now runs in worker threads, so two requests can miss the cache
+# at the same time. Without this they would both fetch the key set; with it the
+# second waits and then re-checks the cache inside the lock.
+_jwks_lock = threading.Lock()
 
 # How long a profile's role and status are trusted before being read from the
 # database again.
@@ -33,6 +39,16 @@ PROFILE_CACHE_TTL_SECONDS = 20
 
 # user id -> (profile row, the monotonic time it was read)
 _profile_cache: dict = {}
+
+# Bumped whenever a profile is invalidated.
+#
+# Handlers run in worker threads now, so an invalidation can land while a read
+# that started earlier is still on the wire. Without this, that read would
+# finish afterwards and write the OLD row back into the cache -- a rejected
+# account would keep working for the rest of the TTL, which is exactly the
+# guarantee this cache is not allowed to weaken. A read only stores its result
+# if the epoch it started in is still the current one.
+_profile_epoch: dict = {}
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -135,32 +151,33 @@ def _get_jwks_sync(issuer: Optional[str] = None) -> Optional[list]:
     else:
         base = settings.supabase_url
     cache_key = base
-    # `.total_seconds()`, not `.seconds`. `timedelta.seconds` is the seconds
-    # COMPONENT, so it wraps to 0 at every whole minute: at 60s it reads 0,
-    # at 120s it reads 0, and at a full hour it reads 0 again. The cache then
-    # never expires for a long-running process, and a rotated signing key is
-    # never picked up.
-    if (
-        _jwks_cache is not None
-        and _jwks_cache_time
-        and _jwks_cache_key == cache_key
-        and (datetime.utcnow() - _jwks_cache_time).total_seconds() < 300
-    ):
-        return _jwks_cache
-    try:
-        import urllib.request
-        url = f"{base}/auth/v1/.well-known/jwks.json"
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read())
-            keys = data.get("keys", [])
-            if keys:
-                _jwks_cache = keys
-                _jwks_cache_key = cache_key
-                _jwks_cache_time = datetime.utcnow()
-                return _jwks_cache
-    except Exception:
-        pass
-    return None
+    with _jwks_lock:
+        # `.total_seconds()`, not `.seconds`. `timedelta.seconds` is the seconds
+        # COMPONENT, so it wraps to 0 at every whole minute: at 60s it reads 0,
+        # at 120s it reads 0, and at a full hour it reads 0 again. The cache then
+        # never expires for a long-running process, and a rotated signing key is
+        # never picked up.
+        if (
+            _jwks_cache is not None
+            and _jwks_cache_time
+            and _jwks_cache_key == cache_key
+            and (datetime.utcnow() - _jwks_cache_time).total_seconds() < 300
+        ):
+            return _jwks_cache
+        try:
+            import urllib.request
+            url = f"{base}/auth/v1/.well-known/jwks.json"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = json.loads(resp.read())
+                keys = data.get("keys", [])
+                if keys:
+                    _jwks_cache = keys
+                    _jwks_cache_key = cache_key
+                    _jwks_cache_time = datetime.utcnow()
+                    return _jwks_cache
+        except Exception:
+            pass
+        return None
 
 
 _ALLOWED_ISS_DOMAINS = {"supabase.co", "supabase.io"}
@@ -250,6 +267,7 @@ def invalidate_profile(user_id: str) -> None:
     rule that a rejected account stops working immediately.
     """
     _profile_cache.pop(user_id, None)
+    _profile_epoch[user_id] = _profile_epoch.get(user_id, 0) + 1
 
 
 def _get_profile(user_id: str) -> Optional[dict]:
@@ -265,6 +283,7 @@ def _get_profile(user_id: str) -> Optional[dict]:
     if hit is not None and (now - hit[1]) < PROFILE_CACHE_TTL_SECONDS:
         return hit[0]
 
+    epoch = _profile_epoch.get(user_id, 0)
     try:
         res = (
             supabase.table("profiles")
@@ -282,7 +301,9 @@ def _get_profile(user_id: str) -> Optional[dict]:
         return None
 
     row = rows[0]
-    _profile_cache[user_id] = (row, now)
+    # Only cache if nothing invalidated this user while the read was in flight.
+    if _profile_epoch.get(user_id, 0) == epoch:
+        _profile_cache[user_id] = (row, now)
     return row
 
 
@@ -293,7 +314,7 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    payload = decode_token(credentials.credentials)
+    payload = await asyncio.to_thread(decode_token, credentials.credentials)
     sub = payload.get("sub")
     if not sub:
         raise HTTPException(
@@ -318,7 +339,11 @@ async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] =
     # a rejected account stops working the moment it is rejected still holds;
     # the cache only covers the window between two requests from the same
     # signed-in person.
-    profile_row = _get_profile(sub)
+    # A worker thread, because `_get_profile` is a synchronous Supabase query on
+    # a cache miss. Left on the loop, every authenticated request stalled every
+    # other request for one database round trip (~130ms from the Mini PC) --
+    # and the cache expires every 20 seconds, so this was never a one-off.
+    profile_row = await asyncio.to_thread(_get_profile, sub)
     if profile_row is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
