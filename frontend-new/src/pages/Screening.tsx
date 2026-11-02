@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input"
 
 import { useAuth } from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
+import { DISCLOSURE } from "@/lib/clinical-copy"
 import { apiFetch, getApiUrl, isUnauthorized, notifySessionExpired } from "@/lib/api"
 import { probe } from "@/lib/service-status"
 import {
@@ -1687,6 +1688,10 @@ export function Screening() {
                 <p className="mt-2 text-sm">No urgent action required. Routine follow-up as clinically indicated.</p>
               </div>
             )}
+
+            <p className="rounded-lg border border-aura-border-soft bg-aura-surface-alt px-3 py-2 text-xs leading-relaxed text-aura-muted">
+              {DISCLOSURE.scope}
+            </p>
 
             <div className="text-xs text-aura-muted">
               Model version: {result.model_version} &bull; Screening ID: {result.screening_id}

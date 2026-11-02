@@ -114,7 +114,7 @@ interface Screening {
    the pair, just larger. Neither change applies below `lg`, where the table
    is narrower and the smaller sizes are what keep it readable. */
 const HEAD_CELL =
-  "px-4 text-center font-mono text-[14.5px] font-bold uppercase tracking-[0.08em] text-aura-ink lg:text-[16.7px]"
+  "whitespace-nowrap px-3 text-center font-mono text-[12.5px] font-bold uppercase tracking-[0.04em] text-aura-ink lg:px-4 lg:text-[14.5px] xl:text-[16.7px]"
 
 /** The patient's age in whole years.
  *
@@ -741,7 +741,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                       </label>
 
                       <div className="min-w-0 flex-1">
-                        <div className="break-words text-base font-medium">{label}</div>
+                        <div className="[overflow-wrap:anywhere] text-base font-medium">{label}</div>
                         {/* How many readings this patient has, and -- for
                             somebody who can see other clinicians' patients --
                             who took them. */}
@@ -750,7 +750,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                             {group.count} screening{group.count === 1 ? "" : "s"}
                           </span>
                           {showClinician && group.clinician_name && (
-                            <span className="break-words">· {group.clinician_name}</span>
+                            <span className="[overflow-wrap:anywhere]">· {group.clinician_name}</span>
                           )}
                         </div>
                       </div>
@@ -815,7 +815,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         where every other name on the page starts. The
                         numeric columns stay centred, because a centred
                         column of short facts is what makes them scannable. */}
-                    <TableHead className={cn(HEAD_CELL, "w-48 lg:w-56 lg:text-left")}>
+                    <TableHead className={cn(HEAD_CELL, "w-48 lg:w-40 lg:text-left xl:w-56")}>
                       Patient
                     </TableHead>
                     {/* How old the patient is.
@@ -826,8 +826,8 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         read on a tablet. */}
                     {!showClinician && (
                       <>
-                        <TableHead className={cn(HEAD_CELL, "w-24")}>Age</TableHead>
-                        <TableHead className={cn(HEAD_CELL, "w-24 lg:w-28")}>Gender</TableHead>
+                        <TableHead className={cn(HEAD_CELL, "w-24 lg:w-20 xl:w-24")}>Age</TableHead>
+                        <TableHead className={cn(HEAD_CELL, "w-24 lg:w-24 xl:w-28")}>Gender</TableHead>
                       </>
                     )}
                     {/* How many readings this patient has.
@@ -836,7 +836,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         clinician that there is more than one -- and the
                         patient's record is where the readings themselves
                         are. */}
-                    <TableHead className={cn(HEAD_CELL, "w-28 lg:w-36")}>
+                    <TableHead className={cn(HEAD_CELL, "w-28 lg:w-32 xl:w-36")}>
                       Screenings
                     </TableHead>
                     {/* Who took the readings.
@@ -846,7 +846,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                         created, so for them this column would be their own
                         name repeated down the page. */}
                     {showClinician && (
-                      <TableHead className={cn(HEAD_CELL, "w-40 lg:w-48")}>
+                      <TableHead className={cn(HEAD_CELL, "w-40 lg:w-36 xl:w-48")}>
                         Clinician
                       </TableHead>
                     )}
@@ -878,7 +878,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           />
                         </label>
                       </TableCell>
-                      <TableCell className="relative w-48 px-4 align-middle text-center lg:w-56 lg:text-left">
+                      <TableCell className="relative w-48 px-3 align-middle text-center lg:w-40 lg:px-4 lg:text-left xl:w-56">
                         {/* Monogram-style hover accent bar. It lives inside the
                             cell because a bare <span> as a direct child of
                             <tr> gets hoisted out of the table by the HTML
@@ -887,7 +887,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           aria-hidden="true"
                           className="pointer-events-none absolute inset-y-1.5 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:lg:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                         />
-                        <div className="break-words text-base font-medium lg:text-[17.6px]">{group.name}</div>
+                        <div className="[overflow-wrap:anywhere] text-base font-medium lg:text-[17.6px]">{group.name}</div>
                       </TableCell>
                       {/* Age and gender, for a clinician's own patients.
 
@@ -897,27 +897,27 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
                           grid rather than as three ragged blocks. */}
                       {!showClinician && (
                         <>
-                          <TableCell className="w-24 px-4 align-middle text-center text-base tabular-nums text-aura-muted lg:text-[17.6px]">
+                          <TableCell className="w-24 whitespace-nowrap px-3 align-middle text-center text-base tabular-nums text-aura-muted lg:w-20 lg:px-4 lg:text-[17.6px] xl:w-24">
                             {computeAgeLabel(group.latest)}
                           </TableCell>
-                          <TableCell className="w-24 px-4 align-middle text-center lg:w-28">
-                            <div className="break-words text-sm text-aura-muted lg:text-[15.4px]">
+                          <TableCell className="w-24 whitespace-nowrap px-3 align-middle text-center lg:w-24 lg:px-4 xl:w-28">
+                            <div className="[overflow-wrap:anywhere] text-sm text-aura-muted lg:text-[15.4px]">
                               {formatGender(group.gender)}
                             </div>
                           </TableCell>
                         </>
                       )}
-                      <TableCell className="w-28 px-4 align-middle text-center text-base tabular-nums text-aura-muted lg:w-36 lg:text-[17.6px]">
+                      <TableCell className="w-28 whitespace-nowrap px-3 align-middle text-center text-base tabular-nums text-aura-muted lg:w-32 lg:px-4 lg:text-[17.6px] xl:w-36">
                         {group.count}
                       </TableCell>
                       {showClinician && (
-                        <TableCell className="w-40 px-4 align-middle text-center lg:w-48">
-                          <div className="break-words text-sm text-aura-muted lg:text-[15.4px]">
+                        <TableCell className="w-40 px-3 align-middle text-center lg:w-36 lg:px-4 xl:w-48">
+                          <div className="[overflow-wrap:anywhere] text-sm text-aura-muted lg:text-[15.4px]">
                             {group.clinician_name || "—"}
                           </div>
                         </TableCell>
                       )}
-                      <TableCell className="w-28 px-4 align-middle text-center">
+                      <TableCell className="w-28 px-3 align-middle text-center lg:px-4">
                         <div className="flex items-center justify-center gap-1">
                           {/* View / Download collapse into one trigger so the
                               column stays narrow. */}
@@ -994,7 +994,7 @@ export function Screenings({ embedded = false }: { embedded?: boolean }) {
               onClick={() => void confirmDeletePatient()}
               disabled={deleteBusy}
             >
-              {deleteBusy ? "Deleting…" : "Delete patient and all records"}
+              {deleteBusy ? "Deleting…" : "Delete patient's records"}
             </Button>
           </DialogFooter>
         </DialogContent>

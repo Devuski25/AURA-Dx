@@ -1053,7 +1053,7 @@ export function Admin() {
                     >
                       <TableRow className="align-middle border-b-0 lg:hover:bg-transparent">
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Name</TableHead>
-                        <TableHead className={cn(ADMIN_TABLE_HEAD, "text-left")}>Email</TableHead>
+                        <TableHead className={cn(ADMIN_TABLE_HEAD, "hidden text-left xl:table-cell")}>Email</TableHead>
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[6.5rem] text-center")}>Role</TableHead>
                         <TableHead className={cn(ADMIN_TABLE_HEAD, "w-[7rem] text-center")}>Status</TableHead>
                         {/* Labelled now. It used to be an empty header with only
@@ -1097,12 +1097,15 @@ export function Admin() {
                               aria-hidden="true"
                               className="pointer-events-none absolute inset-y-2 left-0 w-[3px] origin-center scale-y-0 rounded-full bg-aura-forest transition-transform duration-150 motion-safe:lg:group-hover:scale-y-100 motion-safe:group-focus-within:scale-y-100"
                             />
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex min-w-0 items-center gap-2.5">
                               <UserMonogram user={u} />
-                              <span className="truncate text-sm font-medium">{u.full_name}</span>
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">{u.full_name}</div>
+                                <div className="truncate text-xs text-aura-muted xl:hidden">{u.email}</div>
+                              </div>
                             </div>
                           </TableCell>
-                          <TableCell className={ADMIN_CELL}>
+                          <TableCell className={cn(ADMIN_CELL, "hidden xl:table-cell")}>
                             <div className="whitespace-nowrap text-sm text-aura-muted">{u.email}</div>
                           </TableCell>
                           <TableCell className={cn(ADMIN_CELL, "text-center")}>

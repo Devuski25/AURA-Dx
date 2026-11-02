@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { DISCLOSURE } from "@/lib/clinical-copy"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { apiFetch, getApiUrl } from "@/lib/api"
@@ -1074,6 +1075,9 @@ export function ScreeningDetail() {
           )}
         </TierCard>
       )}
+      <p className="mt-4 px-1 text-xs leading-relaxed text-aura-muted">
+        {DISCLOSURE.scope}
+      </p>
       </motion.div>
 
       {/* Per-take scores — the evidence behind the headline verdict */}
@@ -1162,17 +1166,17 @@ export function ScreeningDetail() {
             <table className="w-full border-collapse text-xs md:text-sm">
               <thead>
                 <tr className="border-b border-aura-border-soft">
-                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Take</th>
-                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Duration</th>
-                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">
+                  <th scope="col" className="px-1 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Take</th>
+                  <th scope="col" className="px-1 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Duration</th>
+                  <th scope="col" className="px-1 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">
                     <span className="md:hidden">Stage 1</span>
                     <span className="hidden md:inline">Stage 1 healthy</span>
                   </th>
-                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">
+                  <th scope="col" className="px-1 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">
                     <span className="md:hidden">Stage 2</span>
                     <span className="hidden md:inline">Stage 2 pneumonia</span>
                   </th>
-                  <th scope="col" className="px-1.5 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Result</th>
+                  <th scope="col" className="px-1 py-1.5 text-center align-bottom font-semibold whitespace-nowrap text-aura-ink md:px-4">Result</th>
                 </tr>
               </thead>
               <tbody>
@@ -1184,22 +1188,22 @@ export function ScreeningDetail() {
                       c.index === overrideTakeIndex && "bg-aura-coral-soft/40"
                     )}
                   >
-                    <td className="px-1.5 py-1.5 text-center font-medium whitespace-nowrap text-aura-ink md:px-4">{c.index + 1}</td>
-                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-muted md:px-4">
+                    <td className="px-1 py-1.5 text-center font-medium whitespace-nowrap text-aura-ink md:px-4">{c.index + 1}</td>
+                    <td className="px-1 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-muted md:px-4">
                       {c.duration_sec.toFixed(1)}s
                     </td>
-                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
+                    <td className="px-1 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
                       {c.stage1_healthy_prob.toFixed(2)}
                     </td>
-                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
+                    <td className="px-1 py-1.5 text-center whitespace-nowrap tabular-nums text-aura-ink md:px-4">
                       {c.stage2_pneumonia_prob === null
                         ? "—"
                         : c.stage2_pneumonia_prob.toFixed(2)}
                     </td>
-                    <td className="px-1.5 py-1.5 text-center whitespace-nowrap md:px-4">
+                    <td className="px-1 py-1.5 text-center whitespace-nowrap md:px-4">
                       <span
                         className={cn(
-                          "inline-flex rounded-full px-2 py-0.5 text-xs font-semibold md:px-2.5 md:text-xs",
+                          "inline-flex rounded-full px-1.5 py-0.5 text-xs font-semibold md:px-2.5 md:text-xs",
                           c.clip_label === "Healthy" && "bg-aura-mint-soft text-aura-pine",
                           c.clip_label === "COPD" && "bg-amber-100 text-amber-800",
                           c.clip_label === "Pneumonia" && "bg-aura-coral-soft text-aura-coral-strong"

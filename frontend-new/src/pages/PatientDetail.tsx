@@ -258,7 +258,7 @@ export function PatientDetail() {
             Back
           </Button>
           <div className="min-w-0">
-            <h1 className="break-words text-2xl font-bold">{patient.full_name}</h1>
+            <h1 className="[overflow-wrap:anywhere] text-2xl font-bold">{patient.full_name}</h1>
             <p className="break-words text-aura-muted">{patient.clinic_name} • {patient.clinician_name}</p>
           </div>
         </div>
