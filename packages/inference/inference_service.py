@@ -200,7 +200,7 @@ PNEUMONIA_HIGH_POINT = 0.40     # cond_copd <  -> Pneumonia, High
 DISAGREEMENT_STD_LIMIT = 0.20
 
 MAX_RECORDINGS = 5
-MIN_RECORDINGS = 3
+MIN_RECORDINGS = 2
 
 # One recording. The backend caps uploads at the same size; this is the second
 # line of defence, and it is what keeps a hand-rolled request from turning into
@@ -993,9 +993,15 @@ async def _read_capped(upload: UploadFile, index: int) -> bytes:
 
 @app.post("/api/inference", response_model=InferenceResponse)
 async def inference(audios: List[UploadFile] = File(...), _=Depends(_verify_api_key)):
-    """Score a batch of 3-5 auscultation recordings and return one fused verdict."""
-    if not audios:
-        raise HTTPException(status_code=400, detail="No recordings supplied")
+    """Score a batch of 2-5 auscultation recordings and return one fused verdict."""
+    if len(audios) < MIN_RECORDINGS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"At least {MIN_RECORDINGS} recordings are required: one "
+                "Anterior and one Posterior."
+            ),
+        )
     if len(audios) > MAX_RECORDINGS:
         raise HTTPException(
             status_code=400,

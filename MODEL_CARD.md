@@ -8,7 +8,7 @@ contradicts this file is a bug.
 ## Pipeline
 
 ```
-3–5 stethoscope takes (16 kHz WAV)
+2–5 stethoscope takes (16 kHz WAV)
         │
         ├─ per take ─→ Stage 1 "1.5" XGBoost        → p_healthy   (threshold 0.61)
         │                   │

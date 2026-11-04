@@ -9,7 +9,7 @@ shaped the way it is. This is the reference for
 
 ## 1. What the models actually output
 
-Two stages, run **per recording**. A clinician captures 3–5 takes.
+Two stages, run **per recording**. A clinician captures 2–5 takes.
 
 | Stage | Model | Output | Threshold |
 |---|---|---|---|

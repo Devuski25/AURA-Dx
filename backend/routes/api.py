@@ -62,9 +62,11 @@ router = APIRouter()
 
 UPLOAD_DIR = "uploads_audio"
 
-# A screening is fused from 3-5 stethoscope takes. Mirrors the inference
-# service's MAX_RECORDINGS so the backend rejects an oversized batch before
-# any file is written to disk.
+# A screening is fused from 2-5 stethoscope takes, with one Anterior and one
+# Posterior region as the recommended minimum. Mirrors the inference service's
+# bounds so the backend rejects an invalid batch before any file is written to
+# disk.
+MIN_RECORDINGS = 2
 MAX_RECORDINGS = 5
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -649,7 +651,7 @@ async def upload_audio(
 ):
     """Upload one batch of stethoscope takes and return their server paths.
 
-    A screening is scored from 3-5 takes; they are uploaded together here and
+    A screening is scored from 2-5 takes; they are uploaded together here and
     referenced by the subsequent POST /screenings call.
     """
     if not audios:
@@ -1446,10 +1448,13 @@ async def create_screening(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    if not screening.audio_file_paths:
+    if len(screening.audio_file_paths) < MIN_RECORDINGS:
         raise HTTPException(
             status_code=400,
-            detail="At least one recording is required. Upload via /api/audio/upload first.",
+            detail=(
+                f"At least {MIN_RECORDINGS} recordings are required: one "
+                "Anterior and one Posterior. Upload via /api/audio/upload first."
+            ),
         )
     if len(screening.audio_file_paths) > MAX_RECORDINGS:
         raise HTTPException(

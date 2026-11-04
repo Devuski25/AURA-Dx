@@ -7,7 +7,7 @@
 > uploads and peak-centred slicing. **None of that is the current build.**
 >
 > What changed: the models are now XGBoost + EfficientNetB0, TB is retired
-> (three classes: Healthy / COPD / Pneumonia), recordings are 3–5 separate
+> (three classes: Healthy / COPD / Pneumonia), recordings are 2–5 separate
 > stethoscope takes fused together rather than one peak-centred window, and
 > inference runs on XGBoost + TensorFlow rather than ONNX Runtime.
 >

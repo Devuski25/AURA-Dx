@@ -76,7 +76,7 @@ frontend-new/src/
 
 4. **Silent errors masquerade as empty states:** Patients.tsx and Screenings.tsx `console.error` a failed fetch, then render "No patients/screenings found."; PatientDetail + ScreeningDetail **silently redirect** on fetch error; Screenings PDF download swallows non-OK responses. Only Dashboard has the inline-error+retry pattern.
 5. **Extensive hardcoded Tailwind palette vs tokens:** `text-green-600`, `yellow-600/700`, `amber-*`, `border-l-red-500`, **`border-l-purple-500`/`text-purple-600` (Dashboard, breaks brand rule)**, off-brand **blue** Tier-2 cards, Admin's inline `hsl(...)` strings, `#5ecf98`/`#1f7a4f` gradients in PublicLayout.
-6. ~~Content discrepancy: `About.tsx` TB window~~ — **resolved 2026-10-12.** The About page now describes the v2.5 pipeline (two stages, 3–5 takes, fusion). TB is retired.
+6. ~~Content discrepancy: `About.tsx` TB window~~ — **resolved 2026-10-12.** The About page now describes the v2.5 pipeline (two stages, 2-5 takes, fusion). TB is retired.
 7. **File-format mismatch:** drop zone accepts mp3/flac/ogg/m4a but `<input accept=".wav">` restricts the picker to WAV.
 8. **Convention violations:** inline `<svg>` in Home/About; native `<table>` in About/Legal; unused `--font-family-primary` token while `font-[Poppins,sans-serif]` arbitrary value used in PublicLayout; hamburger is a single bar with no close state; `shadow-[0_12px_40px...]` arbitrary shadow.
 9. **Button "Add Patient" on Dashboard navigates to the list instead of opening a create dialog** (misleading affordance); stat cards not clickable.

@@ -1,97 +1,93 @@
 /**
  * Recording protocol.
  *
- * Two decisions live here and both are load-bearing for accuracy rather than
- * presentation:
- *
  * WHICH SITES
  * The training corpus recorded at named anatomical locations -- anterior left,
  * anterior right, posterior left, posterior right, trachea -- using the
  * Al / Ar / Pl / Pr / Tr codes that appear in the dataset filenames. The fusion
  * rule that lets one alarming take override four reassuring ones exists because
  * lung pathology is audible at one site and inaudible at another. That safety
- * net is worthless if all five takes come from the same spot, because then the
- * "five takes" are five copies of one recording and the average is theatre.
+ * net is worthless if every take comes from the same spot, because then the
+ * takes are copies of one recording and the average is theatre.
  *
- * So the sequence covers both axes: two anterior, two posterior, one midline.
- * The user's instinct -- two left, two right, one middle -- was right about the
- * shape and wrong about the axes; "left and right" alone discards anterior
- * versus posterior, which carry different pathology.
- *
- * Trachea goes LAST rather than third. The override already handles a single
- * site disagreeing with the rest, so a midline reading needs the least weight in
- * the mean while still capturing the central airway. Third place would let it
- * outvote two good peripheral readings.
- *
- * Trachea is also the only real midline site in the data. "Middle of the chest"
- * is not a defined recording location in either dataset.
- *
- * HOW LONG
- * Training recordings ran 10 to 90 seconds. Below that the log-mel window
- * covers too few breathing cycles for the feature set to mean anything, so a
- * very short take is not a slightly worse take -- it is an unusable one.
+ * The capture screen now keeps the dropdown to the two regions a clinician
+ * actually compares: Anterior and Posterior. The detailed points below are the
+ * placement guide for each region, so the control stays short without losing
+ * the exact intercostal space or vertebral level. One take uses one point from
+ * the selected region; the recommended minimum is one Anterior and one
+ * Posterior take, and up to five takes can cover more points.
  *
  * SUGGESTED, NEVER REQUIRED
  * A clinician under a queue who is blocked from recording has no way to complete
- * a screening at all. So the site is shown, the previous take's site is shown
- * beside it, and nothing stops them recording wherever is clinically right. The
- * guidance works by being visible, not by being enforced.
+ * a screening at all. So the region is shown, the previous take's region is
+ * shown beside it, and nothing stops them recording wherever is clinically right.
+ * The guidance works by being visible, not by being enforced.
+ *
+ * HOW LONG
+ * Training recordings ran 10 to 90 seconds. Below eight seconds the log-mel
+ * window covers too few breathing cycles for the feature set to mean anything,
+ * so a very short take is not a slightly worse take -- it is an unusable one.
  */
 
-/** Anterior/posterior + left/right, plus the trachea as the midline site. */
-export const AUSCULTATION_SITES = [
-  {
-    code: "Ar",
-    name: "Anterior right",
-    where: "3rd right intercostal space, mid-clavicular line",
-    how: "Patient sitting upright, facing you. Place the diaphragm flat against "
-       + "the chest, just below the collarbone on the RIGHT, roughly level with "
-       + "the breastbone and a little to the side of the nipple. Slide it "
-       + "sideways rather than angling it.",
-  },
-  {
-    code: "Al",
-    name: "Anterior left",
-    where: "3rd left intercostal space, mid-clavicular line",
-    how: "The mirror of the right side. Same height, just below the LEFT "
-       + "collarbone and level with the nipple. Keep the diaphragm flat and "
-       + "sealed against the skin.",
-  },
-  {
-    code: "Pr",
-    name: "Posterior right",
-    where: "Between the right scapula and the spine",
-    how: "Patient leans forward, arms crossed in front. Reach round from "
-       + "behind and place the diaphragm between the RIGHT shoulder blade and "
-       + "the spine, about level with the middle of the blade. Skin contact "
-       + "matters more than the exact centimetre here.",
-  },
-  {
-    code: "Pl",
-    name: "Posterior left",
-    where: "Between the left scapula and the spine",
-    how: "Same position, mirrored: between the LEFT shoulder blade and the "
-       + "spine with the patient leaning forward. Most of the lower lobes are "
-       + "heard from behind, so these two carries a lot of the result.",
-  },
-  {
-    code: "Tr",
-    name: "Trachea (midline)",
-    where: "Centre of the neck, just below the Adam's apple",
-    how: "Hold the bell or diaphragm flat against the front of the neck, "
-       + "centred, a finger's width under the Adam's apple. Use the bell if the "
-       + "stethoscope has one -- breath sounds here are central and louder, and "
-       + "this reading breaks up a set that otherwise came from one side. Last, "
-       + "because it is the midline and not a left/right comparison.",
-  },
-] as const
+export type AuscultationPoint = {
+  readonly name: string
+  readonly where: string
+}
 
-export type Site = (typeof AUSCULTATION_SITES)[number]
+export type AuscultationSite = {
+  readonly code: "A" | "P"
+  readonly name: "Anterior" | "Posterior"
+  readonly where: string
+  readonly how: string
+  readonly points: readonly AuscultationPoint[]
+}
+
+/** The two regions in the site dropdown, with their detailed auscultation points. */
+export const AUSCULTATION_SITES: readonly AuscultationSite[] = [
+  {
+    code: "A",
+    name: "Anterior",
+    where: "Front of the chest · 2nd and 4th intercostal spaces (ICS), mid-clavicular line",
+    how: "Patient sitting upright, arms relaxed. Place the diaphragm flat on the named "
+       + "intercostal space, keeping it over the rib space rather than angled across a "
+       + "rib. Use the same light pressure on both sides.",
+    points: [
+      { name: "Right Anterior Upper Lobe", where: "2nd ICS, mid-clavicular line" },
+      { name: "Left Anterior Upper Lobe", where: "2nd ICS, symmetric" },
+      { name: "Right Middle Lobe Field", where: "4th ICS / nipple line, mid-clavicular line" },
+      { name: "Left Anterior Lower Division / Lingular Field", where: "4th ICS, symmetric" },
+    ],
+  },
+  {
+    code: "P",
+    name: "Posterior",
+    where: "Back · apex (T2-T3), mid-field (T4-T5) and base (T7-T8) on both sides",
+    how: "Patient sits leaning slightly forward with arms crossed. Place the diaphragm "
+       + "flat against the back, 2 cm lateral to the spine at the apex and along the "
+       + "medial border of the scapula lower down. Keep the same pressure on both sides.",
+    points: [
+      { name: "Right Posterior Apex", where: "T2-T3, 2 cm lateral to spinous process" },
+      { name: "Left Posterior Apex", where: "T2-T3, symmetric" },
+      { name: "Right Mid-Posterior Field / Upper-Lower Lobe Interface", where: "T4-T5, medial border of scapula" },
+      { name: "Left Mid-Posterior Field / Upper-Lower Lobe Interface", where: "T4-T5, symmetric" },
+      { name: "Right Posterior Base", where: "T7-T8, mid-scapular line below inferior angle" },
+      { name: "Left Posterior Base", where: "T7-T8, symmetric" },
+    ],
+  },
+]
+
+export type Site = AuscultationSite
 export type SiteCode = Site["code"]
 
 export function siteByCode(code: string): Site | undefined {
   return AUSCULTATION_SITES.find((s) => s.code === code)
 }
+
+/* Two regions means two takes: one Anterior and one Posterior. MAX_TAKES stays
+ * at five so a clinician can add points within a region when it is clinically
+ * useful, without turning the capture screen into a ten-step checklist. */
+export const MIN_TAKES = 2
+export const MAX_TAKES = 5
 
 /* --- Duration ------------------------------------------------------------
  * FLOOR: below this there are too few breathing cycles for the feature set to
@@ -99,8 +95,8 @@ export function siteByCode(code: string): Site | undefined {
  * unusable one.
  *
  * TARGET: stated as a RANGE, and the instruction is in cycles rather than
- * seconds. Measured on the training corpus, the median cycle is ~2.6s, so four
- * cycles is about ten seconds and eight is about twenty.
+ * seconds. Measured on the training corpus, the median cycle is ~2.6s, so eight
+ * cycles is about twenty seconds and three cycles is about eight.
  *
  * Why a range and not a single number: in that corpus every COPD recording was
  * exactly 20.00s with zero variance, while healthy and pneumonia ran from 8s to
@@ -111,7 +107,7 @@ export function siteByCode(code: string): Site | undefined {
  * clinically honest and less sensitive to a confound in the training data.
  *
  * CEILING: a long take is not wrong, it just costs upload time for nothing. */
-export const MIN_TAKE_SEC = 10
+export const MIN_TAKE_SEC = 8
 export const TARGET_TAKE_SEC_LOW = 15
 export const TARGET_TAKE_SEC_HIGH = 25
 export const MAX_TAKE_SEC = 45

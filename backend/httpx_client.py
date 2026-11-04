@@ -51,7 +51,7 @@ that does not exist under it.
 
 import httpx
 
-# A screening fans 3-5 takes out to the inference service, which runs the
+# A screening fans 2-5 takes out to the inference service, which runs the
 # two-stage cascade on the Mini PC's CPU. That is the slowest call in the system
 # and it sets the floor here; individual probes override it downward.
 DEFAULT_TIMEOUT_SEC = 150.0

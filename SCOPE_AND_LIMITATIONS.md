@@ -6,7 +6,7 @@ What this system does, what it does not do, and where it should not be relied on
 
 ## What it is
 
-An AI-assisted **screening** tool. A clinician records three to five
+An AI-assisted **screening** tool. A clinician records two to five
 stethoscope takes, and the system returns a probability distribution over three
 classes plus a suggested next step. A qualified clinician makes the diagnosis.
 The system does not.

@@ -55,10 +55,10 @@ export function About() {
       <section className="bg-white px-6 py-16 md:py-24">
         <div className="mx-auto max-w-6xl">
           <SectionHeading>How the system works</SectionHeading>
-          <Reveal as="p" delay={0.1} className="mt-3 max-w-[60ch] text-aura-muted">Three to five separate auscultation takes move through two classification stages, then a fusion step, before they become a single screening result.</Reveal>
+          <Reveal as="p" delay={0.1} className="mt-3 max-w-[60ch] text-aura-muted">Two to five separate auscultation takes move through two classification stages, then a fusion step, before they become a single screening result.</Reveal>
 
           <Stagger className="mt-10 grid items-stretch gap-3 sm:grid-cols-[1fr_auto_1.15fr_auto_1fr]">
-            <StaggerItem><FlowNode icon={Mic} title="Audio clips" sub="3–5 breathing takes" /></StaggerItem>
+            <StaggerItem><FlowNode icon={Mic} title="Audio clips" sub="2–5 breathing takes" /></StaggerItem>
             <StaggerItem><FlowArrow /></StaggerItem>
             <StaggerItem><FlowNode icon={Stethoscope} title="Two-stage analysis" sub="Healthy screen, then COPD vs pneumonia" /></StaggerItem>
             <StaggerItem><FlowArrow /></StaggerItem>

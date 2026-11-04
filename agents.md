@@ -2,7 +2,7 @@
 
 ## What
 
-AI cough screening web app. Analyzes stethoscope recordings for **COPD, Pneumonia, Healthy** using a two-stage cascade (XGBoost → EfficientNetB0) fused across 3–5 separate takes.
+AI cough screening web app. Analyzes stethoscope recordings for **COPD, Pneumonia, Healthy** using a two-stage cascade (XGBoost → EfficientNetB0) fused across 2–5 separate takes.
 
 ```
 Supabase :54321 → Inference :8000 → Backend :8001 → Frontend :5174
@@ -144,7 +144,7 @@ Notes:
 ### Enforce
 - **Preprocessing**: `sr=16000, bandpass 100–2000 Hz (Butterworth 4th, filtfilt), peak-normalise, N_MELS=64, n_fft=1024, hop_length=256`
 - **Per-take routing**: Stage 1 XGBoost `p_healthy >= 0.61` → Healthy, skips Stage 2. Otherwise Stage 2 EfficientNetB0, `p_pneumonia >= 0.47` → Pneumonia else COPD (`p_copd = 1 - p_pneumonia`)
-- **Fusion**: mean across the 3–5 takes, then safety override — any single take at `>= 0.60` pneumonia confidence wins regardless of the mean
+- **Fusion**: mean across the 2–5 takes, then safety override — any single take at `>= 0.60` pneumonia confidence wins regardless of the mean
 - **Preprocessing source of truth**: `final icbhi nb.ipynb`. Both stages' constants come from it verbatim. Do not tidy them into librosa defaults — Stage 1 uses default n_fft=2048/hop=512, Stage 2 uses 1024/256, and that difference is real.
 - **Patient ownership**: a patient belongs to the clinician who created it — only that clinician sees and edits it. Admins see every patient in their clinic; the super_admin sees all. This mirrors the RLS policies on `patients` (`patients_own`, `patients_clinic_admin`, `patients_admin_all`), which the backend used to bypass because it queries with the service-role key.
 - **Repeated screening**: a patient may be screened as many times as clinically needed. Every screening carries its sequence number for that patient and the patient's total, computed in `screening_history_view` with a window function.

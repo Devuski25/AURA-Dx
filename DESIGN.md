@@ -29,7 +29,7 @@ Worker serves static assets only and has no API logic.
 
 ## Models
 
-Two-stage cascade, fused across 3–5 takes. Full detail in `MODEL_CARD.md`.
+Two-stage cascade, fused across 2–5 takes. Full detail in `MODEL_CARD.md`.
 
 | Stage | Model | Task | Output | Threshold |
 |---|---|---|---|---|
@@ -64,7 +64,7 @@ interchangeable between the two stages — Stage 1 uses librosa defaults
 ```
 id, patient_id, clinic_id, clinician_id
 audio_file_path        -- canonical take, first of the batch
-recording_paths        -- all 3-5 takes
+recording_paths        -- all 2-5 takes
 recording_scores       -- {per_clip: [...], fusion: {...}}
 audio_duration_sec
 respiratory_result, respiratory_confidence, respiratory_probabilities

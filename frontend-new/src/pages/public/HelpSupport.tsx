@@ -102,8 +102,8 @@ const categories: FaqCategory[] = [
           ordered(
             "Connect your digital stethoscope using a wired connection.",
             "Open the Screening page and pair the device.",
-            "Work through the five suggested sites in order — anterior right, anterior left, posterior right, posterior left, then trachea.",
-            "Press Capture and have the patient breathe normally for 5–8 full breaths at each site (roughly 15–25 seconds).",
+            "Record at least two takes: one from the Anterior region and one from the Posterior region.",
+            "Press Capture and have the patient breathe normally for 5–8 full breaths at each point (roughly 15–25 seconds).",
             "Review the waveforms, then Submit."
           ),
           text("Consent is required before capture starts."),
@@ -115,12 +115,12 @@ const categories: FaqCategory[] = [
           unordered(
             "Quiet room — no fans, TV or background conversation.",
             "Good skin contact with the stethoscope diaphragm.",
-            "Use the five standard sites rather than repeating one spot.",
+            "Use at least one point from each region rather than repeating one spot.",
             "Patient sits upright and breathes naturally, not deliberately deep.",
             "Avoid clothing rustle and patient movement.",
-            "Capture 5–8 full breaths per site, about 15–25 seconds."
+            "Capture 5–8 full breaths per point, about 15–25 seconds."
           ),
-          text("Anything under 10 seconds has too few breaths to analyse."),
+          text("Anything under 8 seconds has too few breaths to analyse."),
         ],
       },
       {
@@ -151,16 +151,25 @@ const categories: FaqCategory[] = [
       {
         q: "What are the standard auscultation points I should capture?",
         a: [
-          text("Five sites, covering both axes and the midline:"),
+          text("Ten points, grouped into two regions. Capture at least one point from each region:"),
+          text("Anterior"),
           unordered(
-            "Anterior right — 3rd right intercostal space, mid-clavicular line.",
-            "Anterior left — 3rd left intercostal space, mid-clavicular line.",
-            "Posterior right — between the right shoulder blade and the spine.",
-            "Posterior left — between the left shoulder blade and the spine.",
-            "Trachea — centre of the neck, just below the Adam’s apple. Take this one last."
+            "Right Anterior Upper Lobe — 2nd ICS, mid-clavicular line.",
+            "Left Anterior Upper Lobe — 2nd ICS, symmetric.",
+            "Right Middle Lobe Field — 4th ICS / nipple line, mid-clavicular line.",
+            "Left Anterior Lower Division / Lingular Field — 4th ICS, symmetric."
+          ),
+          text("Posterior"),
+          unordered(
+            "Right Posterior Apex — T2-T3, 2 cm lateral to spinous process.",
+            "Left Posterior Apex — T2-T3, symmetric.",
+            "Right Mid-Posterior Field / Upper-Lower Lobe Interface — T4-T5, medial border of scapula.",
+            "Left Mid-Posterior Field / Upper-Lower Lobe Interface — T4-T5, symmetric.",
+            "Right Posterior Base — T7-T8, mid-scapular line below inferior angle.",
+            "Left Posterior Base — T7-T8, symmetric."
           ),
           text(
-            "Five separate sites is the point, not five recordings of one spot. The takes are combined, so five takes from the same place tell the model nothing the first one did not."
+            "Use a different point for each take. The takes are combined, so repeated recordings from one spot tell the model nothing the first one did not."
           ),
           text("The sites are a suggestion — record wherever is clinically right."),
         ],

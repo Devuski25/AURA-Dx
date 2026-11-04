@@ -1,6 +1,6 @@
 # Inference Package — Multi-Recording Respiratory Screening
 
-FastAPI service that scores a batch of **3–5 stethoscope recordings** and returns a
+FastAPI service that scores a batch of **2–5 stethoscope recordings** and returns a
 single fused verdict across three classes: **Healthy / COPD / Pneumonia**.
 
 ## Directory Structure
@@ -176,7 +176,7 @@ A wrong ordering does not crash — it silently returns meaningless probabilitie
 
 ### `POST /api/inference`
 
-Multipart form. Send 3–5 `.wav` files under the repeated field name `audios`.
+Multipart form. Send 2–5 `.wav` files under the repeated field name `audios`.
 
 ```bash
 curl -X POST http://localhost:8000/api/inference \

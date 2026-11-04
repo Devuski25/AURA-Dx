@@ -402,7 +402,7 @@ export function useAudioInput() {
    * Until something is chosen here, this is empty -- and an empty selection
    * means getUserMedia picks the SYSTEM DEFAULT, which on a laptop is the
    * built-in microphone. That is the failure this whole component exists to
-   * prevent: a clinician records three to five takes of room noise, the model
+   * prevent: a clinician records two to five takes of room noise, the model
    * classifies it confidently, and nothing anywhere says the stethoscope was
    * never plugged in.
    *

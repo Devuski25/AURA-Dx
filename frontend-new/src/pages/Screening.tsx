@@ -41,6 +41,8 @@ import {
 import { SiteChip, SiteDetail } from "@/components/RecordingProtocol"
 import {
   AUSCULTATION_SITES,
+  MIN_TAKES,
+  MAX_TAKES,
   MIN_TAKE_SEC,
   durationAdvice,
   takeQuality,
@@ -54,8 +56,6 @@ import { useAnalysisWatcher } from "@/lib/analysis-watcher"
    independently and fused by the inference service, which is what makes the
    result steadier than any single take. MIN_TAKES is a hard floor — below it
    there is not enough evidence for a confident read. */
-const MIN_TAKES = 3
-const MAX_TAKES = 5
 
 /* Analysis progress.
  *
@@ -725,6 +725,12 @@ export function Screening() {
   const atMaxTakes = takes.length >= MAX_TAKES
   const totalRecordedSec = takes.reduce((sum, t) => sum + t.durationSec, 0)
   const hasEnoughTakes = takes.length >= MIN_TAKES
+  const hasBothCategories = AUSCULTATION_SITES.every((site) =>
+    takes.some((take) => take.siteCode === site.code)
+  )
+  const missingCategory = AUSCULTATION_SITES.find(
+    (site) => !takes.some((take) => take.siteCode === site.code)
+  )
 
   // Cleanup object URLs on unmount
 
@@ -748,7 +754,7 @@ export function Screening() {
        * inference process can lose its listening socket, keep running with
        * both models resident, and answer nothing. A clinician who clicks Run
        * Analysis in that state uploads every take, waits through a 150-second
-       * timeout, and then loses the error in a toast -- having recorded three
+       * timeout, and then loses the error in a toast -- having recorded two
        * or five takes for nothing.
        *
        * `/api/status` is the right question because it probes both sides and
@@ -1306,7 +1312,7 @@ export function Screening() {
                         htmlFor="aura-site"
                         className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
                       >
-                        Site for this take
+                        Site category for this take
                       </label>
                       <select
                         id="aura-site"
@@ -1326,18 +1332,20 @@ export function Screening() {
                         htmlFor="aura-take-site-history"
                         className="block text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-aura-muted"
                       >
-                        Covers this take
+                        Take progress
                       </label>
                       {/* Informational, so it stays read-only. Its real job is
-                          making the planned sequence visible at a glance rather
+                          making the two-take minimum visible at a glance rather
                           than buried in the collapsed protocol card. */}
                       <p
                         id="aura-take-site-history"
                         className="mt-1.5 flex h-12 items-center rounded-lg border border-aura-border-soft bg-aura-surface-alt px-2.5 text-sm text-aura-muted"
                       >
                         {takes.length === 0
-                          ? "First take"
-                          : `Take ${Math.min(takes.length + 1, MAX_TAKES)} of ${MAX_TAKES}`}
+                          ? `First of ${MIN_TAKES} required`
+                          : takes.length < MIN_TAKES
+                            ? `Take ${takes.length + 1} of ${MIN_TAKES} required`
+                            : `Optional take ${Math.min(takes.length + 1, MAX_TAKES)} of ${MAX_TAKES}`}
                       </p>
                     </div>
                   </div>
@@ -1540,6 +1548,12 @@ export function Screening() {
                 <p className="text-center text-sm text-aura-muted">
                   {MIN_TAKES - takes.length} more take{MIN_TAKES - takes.length === 1 ? "" : "s"} needed
                   before analysis can run.
+                </p>
+              )}
+              {hasEnoughTakes && !hasBothCategories && missingCategory && (
+                <p className="text-center text-sm text-amber-800">
+                  Recommended: add one take from the {missingCategory.name} region
+                  so both sides of the chest are represented.
                 </p>
               )}
             </div>

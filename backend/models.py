@@ -179,7 +179,7 @@ class PatientUpdate(BaseModel):
 class ScreeningCreate(BaseModel):
     """Create a screening from a batch of stethoscope recordings.
 
-    A screening is scored from 3-5 separate auscultation takes, fused by the
+    A screening is scored from 2-5 separate auscultation takes, fused by the
     inference service. `audio_file_paths` is the list of previously-uploaded
     takes; the first one is retained as the canonical `audio_file_path` on the
     row for backwards compatibility with existing PDF/audit consumers.
