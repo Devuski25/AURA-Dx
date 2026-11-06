@@ -65,14 +65,14 @@ export function RecordingProtocolCard({ className }: { className?: string }) {
                 </span>
                 <div className="min-w-0">
                   <p className="font-medium text-aura-ink">{site.name}</p>
-                  <p className="mt-0.5 break-words text-xs leading-relaxed text-aura-muted">
+                  <p className="mt-0.5 [overflow-wrap:anywhere] text-xs leading-relaxed text-aura-muted">
                     {site.where}
                   </p>
                   <ul className="mt-1.5 space-y-1">
                     {site.points.map((point) => (
                       <li
                         key={point.name}
-                        className="break-words text-xs leading-relaxed text-aura-muted"
+                        className="[overflow-wrap:anywhere] text-xs leading-relaxed text-aura-muted"
                       >
                         <span className="font-medium text-aura-text">{point.name}</span>
                         {" — "}
@@ -165,29 +165,29 @@ export function SiteDetail({
             Take {takeNumber} · selected region
           </p>
           <p className="mt-1 text-base font-semibold text-aura-ink">{site.name}</p>
-          <p className="mt-0.5 break-words text-xs leading-relaxed text-aura-muted">
+          <p className="mt-0.5 [overflow-wrap:anywhere] text-xs leading-relaxed text-aura-muted">
             {site.where}
           </p>
         </div>
       </div>
 
-      <ul className="mt-2.5 grid gap-1.5 sm:grid-cols-2">
+      <ul className="mt-2.5 grid gap-1.5 lg:grid-cols-2">
         {site.points.map((point) => (
           <li
             key={point.name}
             className="min-w-0 rounded-md border border-aura-border-soft/70 bg-white/70 px-2 py-1.5"
           >
-            <p className="break-words text-xs font-medium leading-snug text-aura-ink">
+            <p className="[overflow-wrap:anywhere] text-xs font-medium leading-snug text-aura-ink">
               {point.name}
             </p>
-            <p className="mt-0.5 break-words text-[0.6875rem] leading-snug text-aura-muted">
+            <p className="mt-0.5 [overflow-wrap:anywhere] text-[0.6875rem] leading-snug text-aura-muted">
               {point.where}
             </p>
           </li>
         ))}
       </ul>
 
-      <p className="mt-2 rounded-md border border-aura-border-soft bg-white/70 px-2 py-1.5 text-xs leading-relaxed text-aura-text">
+      <p className="mt-2 rounded-md border border-aura-border-soft bg-white/70 px-2 py-1.5 text-xs leading-relaxed text-aura-text [overflow-wrap:anywhere]">
         <span className="font-semibold text-aura-ink">Recommended:</span>{" "}
         {RECOMMENDED_BREATHS_PER_POINT} complete breaths (inhale + exhale) at this point.{" "}
         <span className="text-aura-muted">
