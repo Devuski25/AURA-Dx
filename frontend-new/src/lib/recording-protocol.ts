@@ -39,6 +39,7 @@ export type AuscultationSite = {
   readonly name: "Anterior" | "Posterior"
   readonly where: string
   readonly how: string
+  readonly recommendedBreaths: number
   readonly points: readonly AuscultationPoint[]
 }
 
@@ -48,6 +49,7 @@ export const AUSCULTATION_SITES: readonly AuscultationSite[] = [
     code: "A",
     name: "Anterior",
     where: "Front of the chest · 2nd and 4th intercostal spaces (ICS), mid-clavicular line",
+    recommendedBreaths: 4,
     how: "Patient sitting upright, arms relaxed. Place the diaphragm flat on the named "
        + "intercostal space, keeping it over the rib space rather than angled across a "
        + "rib. Use the same light pressure on both sides.",
@@ -62,6 +64,7 @@ export const AUSCULTATION_SITES: readonly AuscultationSite[] = [
     code: "P",
     name: "Posterior",
     where: "Back · apex (T2-T3), mid-field (T4-T5) and base (T7-T8) on both sides",
+    recommendedBreaths: 6,
     how: "Patient sits leaning slightly forward with arms crossed. Place the diaphragm "
        + "flat against the back, 2 cm lateral to the spine at the apex and along the "
        + "medial border of the scapula lower down. Keep the same pressure on both sides.",
@@ -119,10 +122,9 @@ export const TARGET_CYCLES_LOW = 5
 export const TARGET_CYCLES_HIGH = 8
 
 /* Breath guidance at one auscultation point. One complete cycle is the
- * "stay here" cue; the recommended take is eight complete breaths, which sits
- * at the top of the target range above. */
+ * "stay here" cue for both regions. The recommended breath count lives with
+ * each region: Anterior is four complete breaths, Posterior is six. */
 export const MIN_BREATHS_PER_POINT = 1
-export const RECOMMENDED_BREATHS_PER_POINT = 8
 
 /** Per-take guidance. Anything other than "good" is a warning, never a block. */
 export type TakeQuality = "too-short" | "good" | "long"

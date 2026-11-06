@@ -22,6 +22,7 @@ const EXPECTED = [
     code: "A",
     name: "Anterior",
     pointCount: 4,
+    recommendedBreaths: 4,
     points: [
       "Right Anterior Upper Lobe",
       "Left Anterior Upper Lobe",
@@ -33,6 +34,7 @@ const EXPECTED = [
     code: "P",
     name: "Posterior",
     pointCount: 6,
+    recommendedBreaths: 6,
     points: [
       "Right Posterior Apex",
       "Left Posterior Apex",
@@ -73,6 +75,7 @@ try {
     [protocolMod.MIN_TAKE_SEC === 8, `minimum take length is ${protocolMod.MIN_TAKE_SEC}s, expected 8s`],
     [protocolMod.takeQuality(7.9) === "too-short", "a 7.9s take is flagged too short"],
     [protocolMod.takeQuality(8) === "good", "an 8.0s take passes the floor"],
+    [protocolMod.MIN_BREATHS_PER_POINT === 1, `minimum breaths per point is ${protocolMod.MIN_BREATHS_PER_POINT}, expected 1`],
   ]
 
   console.log(`  ${sites.length} region(s) in the dropdown\n`)
@@ -96,6 +99,10 @@ try {
       expected.points.every((name) => site.points?.some((point) => point.name === name)),
       `${label} has every required point name`,
     ])
+    checks.push([
+      site.recommendedBreaths === expected.recommendedBreaths,
+      `${label} recommends ${site.recommendedBreaths} breath(s), expected ${expected.recommendedBreaths}`,
+    ])
   })
 
   for (const site of sites) {
@@ -115,12 +122,15 @@ try {
       site.points.every(
         (point) => html.includes(escape(point.name)) && html.includes(escape(point.where))
       )
+    const hasBreathGuidance =
+      html.includes(`${site.recommendedBreaths} complete breaths`) &&
+      html.includes("Minimum: 1 full breath cycle")
 
-    const ok = hasName && hasWhere && hasHow && hasPoints
+    const ok = hasName && hasWhere && hasHow && hasPoints && hasBreathGuidance
     if (!ok) failures++
     console.log(
       `  ${ok ? "OK  " : "FAIL"} ${site.code} ${site.name.padEnd(12)} ` +
-      `name=${hasName} where=${hasWhere} points=${hasPoints} how=${hasHow}`
+      `name=${hasName} where=${hasWhere} points=${hasPoints} how=${hasHow} breaths=${hasBreathGuidance}`
     )
   }
 
