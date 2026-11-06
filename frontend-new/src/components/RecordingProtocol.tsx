@@ -9,6 +9,8 @@ import {
   TARGET_TAKE_SEC_HIGH,
   TARGET_CYCLES_LOW,
   TARGET_CYCLES_HIGH,
+  MIN_BREATHS_PER_POINT,
+  RECOMMENDED_BREATHS_PER_POINT,
   siteByCode,
 } from "@/lib/recording-protocol"
 import { cn } from "@/lib/utils"
@@ -184,6 +186,14 @@ export function SiteDetail({
           </li>
         ))}
       </ul>
+
+      <p className="mt-2 rounded-md border border-aura-border-soft bg-white/70 px-2 py-1.5 text-xs leading-relaxed text-aura-text">
+        <span className="font-semibold text-aura-ink">Recommended:</span>{" "}
+        {RECOMMENDED_BREATHS_PER_POINT} complete breaths (inhale + exhale) at this point.{" "}
+        <span className="text-aura-muted">
+          Minimum: {MIN_BREATHS_PER_POINT} full breath cycle before moving.
+        </span>
+      </p>
 
       <p className="mt-2 text-xs leading-relaxed text-aura-muted">{site.how}</p>
 

@@ -118,6 +118,12 @@ const MEDIAN_CYCLE_SEC = 2.6
 export const TARGET_CYCLES_LOW = 5
 export const TARGET_CYCLES_HIGH = 8
 
+/* Breath guidance at one auscultation point. One complete cycle is the
+ * "stay here" cue; the recommended take is eight complete breaths, which sits
+ * at the top of the target range above. */
+export const MIN_BREATHS_PER_POINT = 1
+export const RECOMMENDED_BREATHS_PER_POINT = 8
+
 /** Per-take guidance. Anything other than "good" is a warning, never a block. */
 export type TakeQuality = "too-short" | "good" | "long"
 
